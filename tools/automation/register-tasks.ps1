@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-    Register the two Windows Scheduled Tasks that run the crawl automation unattended.
-    (automation-phase3.md, P3-3 "local runner")
+    Register the Windows Scheduled Tasks that run the crawl automation unattended.
+    (automation-phase3.md, P3-3 "local runner" and P3-7 "board sync")
 
 .DESCRIPTION
     ASCII only on purpose: Windows PowerShell 5.1 reads a BOM-less .ps1 as the ANSI code page
@@ -18,7 +18,13 @@
             then calls the orchestrator. Missed runs (PC off) fire on the next boot via
             StartWhenAvailable; the wrapper's 14-day window covers the rest.
 
-    Both tasks run as the CURRENT user, non-elevated, LogonType Interactive -> no stored password,
+    Task 3  "yonsei-me board-sync"        Daily 04:30 -> node tools/automation/board-sync.mjs
+            TEMPORARY, until the me.yonsei.ac.kr domain cutover. Crawls the OLD department board
+            and imports only the posts our Supabase does not have yet. No WakeToRun: missing a
+            night is harmless (the next run picks the same posts up). Capped at 2h. Remove this
+            task on cutover day -> -Unregister -Only board-sync.
+
+    All tasks run as the CURRENT user, non-elevated, LogonType Interactive -> no stored password,
     no admin rights needed to register. The trade-off: they only run while that user is logged on,
     and a console window is visible. See -DryRun output and the NOTES below.
 
@@ -26,13 +32,21 @@
     Print the task definitions that WOULD be registered (or removed) and exit. Registers nothing.
 
 .PARAMETER Unregister
-    Remove both tasks.
+    Remove the tasks (all of them, or the ones matched by -Only).
+
+.PARAMETER Only
+    Act on the tasks whose name CONTAINS this text (case-insensitive), e.g. -Only board-sync.
+    Use it to add or remove one task without re-registering the others: re-registering
+    "keep-alive" kills the running daemon.
 
 .PARAMETER RepoPath
     Repository root. Defaults to the folder two levels above this script.
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/automation/register-tasks.ps1 -DryRun
+
+.EXAMPLE
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools/automation/register-tasks.ps1 -Only board-sync
 
 .NOTES
     A console window WILL appear for each run: New-ScheduledTaskAction in PS 5.1 has no
@@ -43,13 +57,22 @@
 param(
     [switch]$DryRun,
     [switch]$Unregister,
+    [string]$Only,
     [string]$RepoPath
 )
 
 $ErrorActionPreference = 'Stop'
 
-$KEEPALIVE_TASK = 'yonsei-me keep-alive'
-$UPDATE_TASK    = 'yonsei-me semester-update'
+$KEEPALIVE_TASK  = 'yonsei-me keep-alive'
+$UPDATE_TASK     = 'yonsei-me semester-update'
+$BOARDSYNC_TASK  = 'yonsei-me board-sync'
+
+# -Only <substring>: name filter. Empty filter = every task.
+function Test-Selected {
+    param([string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Only)) { return $true }
+    return ($Name -like "*$Only*")
+}
 
 if (-not $RepoPath) { $RepoPath = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path }
 if (-not (Test-Path (Join-Path $RepoPath 'tools\automation\session-keepalive.mjs'))) {
@@ -58,13 +81,17 @@ if (-not (Test-Path (Join-Path $RepoPath 'tools\automation\session-keepalive.mjs
 
 # ---- remove -----------------------------------------------------------------
 if ($Unregister) {
-    foreach ($name in @($KEEPALIVE_TASK, $UPDATE_TASK)) {
+    $matched = 0
+    foreach ($name in @($KEEPALIVE_TASK, $UPDATE_TASK, $BOARDSYNC_TASK)) {
+        if (-not (Test-Selected $name)) { continue }
+        $matched++
         $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
         if (-not $task) { Write-Host "not registered: $name"; continue }
         if ($DryRun) { Write-Host "[dry-run] would remove: $name"; continue }
         Unregister-ScheduledTask -TaskName $name -Confirm:$false
         Write-Host "removed: $name"
     }
+    if ($matched -eq 0) { Write-Host "-Only '$Only' matched no task name." }
     return
 }
 
@@ -114,6 +141,21 @@ $semesterUpdate = @{
                       -MultipleInstances IgnoreNew
 }
 
+# 3) board-sync: daily 04:30, TEMPORARY until the domain cutover, 2h cap, no wake.
+#    Deliberately no -WakeToRun: this only mirrors new posts from the old site, and a
+#    skipped night costs nothing (the next run sees the same posts as still missing).
+$boardSync = @{
+    Name        = $BOARDSYNC_TASK
+    Description = 'Daily 04:30 - imports NEW posts from the legacy department board into Supabase. Temporary: unregister on domain cutover (-Unregister -Only board-sync). (P3-7)'
+    Action      = New-HiddenNodeAction -Script 'tools/automation/board-sync.mjs'
+    Trigger     = New-ScheduledTaskTrigger -Daily -At '4:30AM'
+    Settings    = New-ScheduledTaskSettingsSet `
+                      -ExecutionTimeLimit (New-TimeSpan -Hours 2) `
+                      -StartWhenAvailable `
+                      -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+                      -MultipleInstances IgnoreNew
+}
+
 # ---- print / register -------------------------------------------------------
 function Show-TaskPlan {
     param([hashtable]$Task, [object]$Principal)
@@ -151,11 +193,19 @@ function Show-TaskPlan {
     }
 }
 
-$plans = @($keepAlive, $semesterUpdate)
+# @(...) around the pipeline on purpose: PS 5.1 unrolls a single match to a scalar, and
+# .Count on a bare hashtable returns its KEY count (5), not 1.
+$plans = @(@($keepAlive, $semesterUpdate, $boardSync) | Where-Object { Test-Selected $_.Name })
+
+if ($plans.Count -eq 0) {
+    Write-Host "-Only '$Only' matched no task name. Nothing to do."
+    return
+}
 
 if ($DryRun) {
     Write-Host "[dry-run] repo : $RepoPath"
     Write-Host "[dry-run] node : $node"
+    if (-not [string]::IsNullOrWhiteSpace($Only)) { Write-Host "[dry-run] only : *$Only* ($($plans.Count) task(s))" }
     Write-Host '[dry-run] nothing is registered; run without -DryRun to apply.'
     foreach ($p in $plans) { Show-TaskPlan -Task $p -Principal $principal }
     Write-Host ''
@@ -163,6 +213,7 @@ if ($DryRun) {
     Write-Host '  ExecutionTimeLimit PT0S = unlimited (Task Scheduler schema). PT12H = 12 hours.'
     Write-Host '  Console is hidden via a powershell.exe -WindowStyle Hidden host (brief flash at start).'
     Write-Host '  Tasks only run while this user is logged on (Interactive, no stored password).'
+    Write-Host '  Re-registering a RUNNING task restarts it - use -Only to touch just one.'
     return
 }
 
@@ -179,5 +230,11 @@ Get-ScheduledTask -TaskName 'yonsei-me*' |
     Get-ScheduledTaskInfo |
     Format-Table TaskName, LastRunTime, LastTaskResult, NextRunTime -AutoSize
 
-Write-Host 'Start the keep-alive task now (it normally waits for the next logon):'
-Write-Host "  Start-ScheduledTask -TaskName '$KEEPALIVE_TASK'"
+if ($plans.Name -contains $KEEPALIVE_TASK) {
+    Write-Host 'Start the keep-alive task now (it normally waits for the next logon):'
+    Write-Host "  Start-ScheduledTask -TaskName '$KEEPALIVE_TASK'"
+}
+if ($plans.Name -contains $BOARDSYNC_TASK) {
+    Write-Host 'Try the board sync once without writing anything:'
+    Write-Host '  node tools/automation/board-sync.mjs --dry-run'
+}

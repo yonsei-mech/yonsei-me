@@ -49,6 +49,10 @@ next-env.d.ts
 /tools/link-report.json
 /tools/link-body-cache.json
 /tools/pre-import-snapshot.json
+# 자산 미러링·링크 재작성의 롤백 스냅숏(영향 행의 이전 값). 컷오버 전 board-sync 가 매일
+# 하나씩 남기므로 커밋 대상이 아니다 — 로컬 보관 전용이다.
+/tools/legacy-mirror-snapshot-*.json
+/tools/legacy-links-snapshot-*.json
 
 # 입학처 변경 감지 워크플로가 스냅샷 브랜치(bot/admission-watch)를 체크아웃하는 자리 — 로컬 시험용
 /.admission-snapshots/

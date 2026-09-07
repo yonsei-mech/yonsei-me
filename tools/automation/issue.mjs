@@ -45,7 +45,14 @@ export function titlePrefix(title) {
 }
 
 function hasToken() {
-  return Boolean(process.env.GH_TOKEN || process.env.GITHUB_TOKEN);
+  if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) return true;
+  // 작업 스케줄러·로컬 실행에는 토큰 환경변수가 없고 gh 로그인만 있는 게 보통이다(Actions 는
+  // GH_TOKEN 을 준다). gh 에게 토큰을 물어 채워 둔다 — 값은 어디에도 찍지 않는다. 실패하면 없는 것.
+  const r = spawnSync('gh', ['auth', 'token'], { encoding: 'utf8' });
+  const token = r.status === 0 ? String(r.stdout ?? '').trim() : '';
+  if (!token) return false;
+  process.env.GH_TOKEN = token;
+  return true;
 }
 
 /** gh 를 셸 없이 실행한다. { ok, stdout, stderr } */
@@ -125,7 +132,7 @@ export async function createOrComment({ title, body, label = DEFAULT_LABEL, dryR
   const prefix = titlePrefix(title);
 
   if (!dryRun && !hasToken()) {
-    throw new Error('GH_TOKEN(또는 GITHUB_TOKEN)이 없다 — 실제 이슈를 만들 수 없다. --dry-run 을 쓰거나 토큰을 넣을 것.');
+    throw new Error('GH_TOKEN(또는 GITHUB_TOKEN)도 gh 로그인도 없다 — 실제 이슈를 만들 수 없다. --dry-run 을 쓰거나 토큰을 넣을 것.');
   }
 
   if (dryRun) {

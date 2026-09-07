@@ -244,8 +244,13 @@ cron 스케줄 하나짜리 워크플로가 시기별 체크리스트 이슈를 
 
 ## 6. 자동화하지 않는 것
 
-- **구 게시판 재크롤** — 도메인 컷오버 후 게시판 정본은 우리 Supabase+CMS입니다.
-  `tools/crawl-boards.mjs`는 이전 완료된 아카이브 도구로 은퇴 상태를 유지합니다.
+- **구 게시판 재크롤** — 컷오버 전까지만 **신규 글만** 매일 동기화합니다
+  (`tools/automation/board-sync.mjs`, P3-7 · 작업 스케줄러 `yonsei-me board-sync` 04:30).
+  기존 글의 **수정·삭제·상단고정 변경은 동기화하지 않습니다** — 이미 적재된 글은 R2
+  미러링·링크 재작성을 거쳤는데 원문으로 덮으면 그 가공이 되돌아갑니다. 도메인 컷오버 후
+  게시판 정본은 우리 Supabase+CMS이므로 그날 **작업을 해제**하고
+  (`register-tasks.ps1 -Unregister -Only board-sync`) `tools/crawl-boards.mjs`는 다시
+  아카이브 도구로 은퇴합니다.
 - **연구실 홈페이지 정기 재크롤** — `tools/labs/README.md`가 경고하듯 PDF·사용자 제공
   8건은 재크롤로 복원되지 않고, 구형 사이트 함정(HTTP 전용·자체서명 인증서·EUC-KR·JS
   렌더링) 탓에 무인 크롤 신뢰도가 낮습니다. AI 연구요약 문안은 CMS에서 관리 중이므로
