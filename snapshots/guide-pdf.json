@@ -1,0 +1,40 @@
+{
+  "tracks": [
+    {
+      "track": "rolling",
+      "label": "수시",
+      "url": "https://admission.yonsei.ac.kr/seoul/admission/html/rolling/guide.asp",
+      "pdf": [
+        "/seoul/upload/guide/20260529204109T8NZNJ.PDF"
+      ],
+      "downloads": [
+        "guide/20260529204109PQFC9N.ZIP",
+        "guide/20260529204109T5NPRJ.HWP"
+      ]
+    },
+    {
+      "track": "regular",
+      "label": "정시",
+      "url": "https://admission.yonsei.ac.kr/seoul/admission/html/regular/guide.asp",
+      "pdf": [
+        "/seoul/upload/guide/20260901184445WSGU8N.PDF"
+      ],
+      "downloads": [
+        "guide/20260901184445SB97TS.PDF",
+        "guide/20260901184445WPHJBN.HWP"
+      ]
+    },
+    {
+      "track": "transfer",
+      "label": "편입학",
+      "url": "https://admission.yonsei.ac.kr/seoul/admission/html/transfer/guide.asp",
+      "pdf": [
+        "/seoul/upload/guide/20251128171519N9YQLH.PDF"
+      ],
+      "downloads": [
+        "guide/20251128171519JSR37M.PDF",
+        "guide/20251128171519N6YEPH.HWP"
+      ]
+    }
+  ]
+}
