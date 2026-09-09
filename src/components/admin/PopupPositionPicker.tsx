@@ -3,10 +3,12 @@
 // 팝업 공지 위치 선택기 — PC·모바일 한 쌍을 **한 위젯에서** 고른다.
 //
 // 형식(카드 생김새)은 기기마다 하나로 고정이라 관리자가 고르는 것은 "화면 어디에
-// 뜨는가" 뿐이다. 기기 토글로 지금 고칠 쪽을 정하고, 카드 하나를 누르면 그 기기의
-// 위치만 바뀐다(다른 기기는 그대로). 아래 미리보기는 학생이 실제로 보는 그 컴포넌트를
-// (components/popup 의 PopupDesktop·PopupMobile) contained 모드로 그린 것이다 —
-// 관리자가 "보는 대로 고친다"는 CMS 원칙을 지키기 위해 별도의 목업을 두지 않는다.
+// 뜨는가"(+ PC 는 폭) 뿐이다. 기기 토글로 지금 고칠 쪽을 정하고, 카드 하나를 누르면
+// 그 기기의 위치만 바뀐다(다른 기기는 그대로). 아래 미리보기는 학생이 실제로 보는 그
+// 컴포넌트를 (components/popup 의 PopupDesktop·PopupMobile) contained 모드로 그린
+// 것이다 — 관리자가 "보는 대로 고친다"는 CMS 원칙을 지키기 위해 별도의 목업을 두지
+// 않는다. PC 미리보기는 배경 캡처 위에서 모서리를 끌어 폭까지 고치는 크기 편집기
+// (PopupSizeFrame)로 넘긴다.
 //
 // 관리자 콘솔이라 문자열은 한국어 하드코딩(리소스 스키마와 같은 관례).
 
@@ -18,20 +20,18 @@ import {
   type PopupMobilePosition,
   type PopupPositionKey,
 } from '@/lib/popup-positions';
-import { PopupCarousel, PopupDesktop, PopupGroup, PopupMobile } from '@/components/popup';
-import { cellText, type FormRecord, type LocalizedPair } from '@/lib/admin/resources';
+import { PopupCarousel, PopupGroup, PopupMobile } from '@/components/popup';
+import { cellText, type FormRecord } from '@/lib/admin/resources';
+import { PopupSizeFrame, buildPreviewCard } from './PopupSizeFrame';
 
 interface Props {
   form: FormRecord;
   keys: { desktop: string; mobile: string };
   setValue: (key: string, value: FormRecord[string]) => void;
+  /** 배경 캡처 교체용 — PC 크기 편집기에만 쓰인다(모바일 미리보기는 배경이 없다) */
+  onUploadImage?: (file: File, opts?: { maxDim?: number; folder?: string }) => Promise<string>;
+  busy?: boolean;
 }
-
-const PREVIEW_LABELS = {
-  close: '닫기',
-  hideToday: '오늘 하루 보지 않기',
-  dialog: '공지 팝업',
-};
 
 /** 위치를 아주 작게 그린 그림 — 기기 프레임 안 **그 자리**에 놓인 카드.
  *  실제 컴포넌트를 축소하지 않고 손그림을 쓰는 이유: 카드가 여러 장 동시에 보여야 하고,
@@ -96,7 +96,7 @@ function PositionThumb({
   );
 }
 
-export function PopupPositionPicker({ form, keys, setValue }: Props) {
+export function PopupPositionPicker({ form, keys, setValue, onUploadImage, busy }: Props) {
   const [device, setDevice] = useState<PopupDevice>('desktop');
   const activeKey = device === 'mobile' ? keys.mobile : keys.desktop;
   const current = popupPosition(device, cellText(form, activeKey)).key;
@@ -160,53 +160,37 @@ export function PopupPositionPicker({ form, keys, setValue }: Props) {
           })}
         </div>
 
-        <PositionPreview form={form} device={device} position={current} />
+        {/* PC 는 폭까지 함께 고치는 크기 편집기(배경 캡처 + 모서리 핸들)로 넘긴다.
+            모바일은 전폭 시트라 고칠 폭이 없어 지금의 단순 미리보기를 그대로 쓴다. */}
+        {device === 'desktop' ? (
+          <PopupSizeFrame
+            form={form}
+            position={current}
+            setValue={setValue}
+            onUploadImage={onUploadImage}
+            busy={busy}
+          />
+        ) : (
+          <MobilePreview form={form} position={current as PopupMobilePosition} />
+        )}
       </div>
     </div>
   );
 }
 
-/** 지금 고르고 있는 기기의 실제 카드를 작은 프레임 안에 그린다(contained).
- *  모바일 프레임(390×700)은 그대로 두면 폼을 밀어내므로 CSS zoom 으로 줄인다 —
- *  PostCanvas 와 같은 관례(자식은 레이아웃 px 를 그대로 쓰고 화면만 축소된다). */
-function PositionPreview({
-  form,
-  device,
-  position,
-}: {
-  form: FormRecord;
-  device: PopupDevice;
-  position: PopupPositionKey;
-}) {
-  const image = (device === 'mobile' && cellText(form, 'imageMobile')) || cellText(form, 'image');
-  const link = cellText(form, 'link').trim();
-  const closeControl = cellText(form, 'closeControl');
-  // PC 프레임 높이는 카드가 잘리지 않을 만큼 — 사진 상한(프레임의 70%) + 하단 바.
-  const frame = device === 'mobile' ? { width: 390, height: 700 } : { width: 640, height: 520 };
-  const zoom = device === 'mobile' ? 0.6 : 1;
-
-  const card = {
-    image,
-    alt: ((form.title ?? { ko: '', en: '' }) as LocalizedPair).ko || '팝업 사진',
-    link: link || undefined,
-    newTab: form.newTab === true,
-    labels: PREVIEW_LABELS,
-    closeControl: (closeControl === 'hideToday' || closeControl === 'none'
-      ? closeControl
-      : 'close') as 'close' | 'hideToday' | 'none',
-    hideTodayButton: form.hideTodayButton === true,
-    contained: true,
-    onDismiss: () => {
-      /* 미리보기에서는 닫히지 않는다 */
-    },
-  };
+/** 모바일 카드를 폰 프레임(390×700) 안에 그린다(contained).
+ *  프레임을 그대로 두면 폼을 밀어내므로 CSS zoom 으로 줄인다 — PostCanvas 와 같은
+ *  관례(자식은 레이아웃 px 를 그대로 쓰고 화면만 축소된다). */
+function MobilePreview({ form, position }: { form: FormRecord; position: PopupMobilePosition }) {
+  const frame = { width: 390, height: 700 };
+  const card = buildPreviewCard(form, 'mobile');
 
   return (
     // 왼쪽 맞춤 — 입력 열의 다른 컨트롤과 같은 세로선에서 시작해야 눈이 흔들리지 않는다
     <div className="justify-self-start">
       <p className="mb-2 text-xs font-semibold text-content-faint">
-        {/* 프레임이 실제 화면 크기가 아니라는 것을 수치로 밝힌다(모바일은 축소본) */}
-        {device === 'mobile' ? '미리보기 (모바일 · 390×700, 60% 축소)' : '미리보기 (PC · 640×520)'}
+        {/* 프레임이 실제 화면 크기가 아니라는 것을 수치로 밝힌다(축소본) */}
+        미리보기 (모바일 · 390×700, 60% 축소)
       </p>
       <div
         className="relative overflow-hidden rounded-[2px] border border-surface-border bg-surface-soft"
@@ -215,21 +199,15 @@ function PositionPreview({
         style={
           {
             ...frame,
-            zoom,
+            zoom: 0.6,
             '--popup-frame-h': `${frame.height}px`,
           } as React.CSSProperties
         }
       >
-        <PopupGroup device={device} position={position} contained>
+        <PopupGroup device="mobile" position={position} contained>
           {/* 미리보기는 언제나 한 장 — 캐러셀을 거쳐 실제와 같은 구조로 그린다 */}
-          <PopupCarousel device={device} count={1}>
-            {() =>
-              device === 'mobile' ? (
-                <PopupMobile position={position as PopupMobilePosition} {...card} />
-              ) : (
-                <PopupDesktop {...card} />
-              )
-            }
+          <PopupCarousel device="mobile" count={1}>
+            {() => <PopupMobile position={position} {...card} />}
           </PopupCarousel>
         </PopupGroup>
       </div>

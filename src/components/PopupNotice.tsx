@@ -164,6 +164,9 @@ export function PopupNotice({ popups, locale, labels }: Props) {
                   labels,
                   closeControl: p.closeControl ?? ('close' as const),
                   hideTodayButton: p.hideTodayButton !== false,
+                  // PC 카드 폭 — 없으면(옛 항목) 카드가 기본 360px 로 보정한다.
+                  // 모바일 카드는 이 값을 무시한다(전폭 시트).
+                  width: p.widthDesktop,
                   onDismiss: (remember: boolean) => dismiss(p, remember),
                 };
                 return device === 'mobile' ? (

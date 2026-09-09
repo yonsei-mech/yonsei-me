@@ -35,6 +35,11 @@ export const MANAGED_FILES = {
   // 기간·기기·페이지 판정은 클라이언트가 한다(정적 페이지는 종료일에 다시 그려지지
   // 않으므로 서버에서 걸러 내면 끝난 팝업이 남는다 — PopupNotice 주석 참고).
   popups: 'content/popups.json',
+  // 팝업 크기 편집기의 **배경 캡처 설정**(관리자 전용, 사이트에는 나가지 않는다).
+  // 팝업 항목마다 올리게 하면 매번 다시 올려야 하므로 CMS 전역 설정으로 한 파일에 둔다.
+  // { desktop: { image, width, height } } — width·height 는 그 캡처가 나타내는 실제
+  // 뷰포트(CSS px)다. 캡처의 픽셀 크기(Retina 2배 등)와 무관하게 팝업 px 를 실제 px 로 유지한다.
+  popupPreview: 'content/popup-preview.json',
 } as const;
 
 /** 동아리 소개 카드뉴스 본문 — clubs.json 의 slug 마다 한 파일(content/pages/club-<slug>.md).

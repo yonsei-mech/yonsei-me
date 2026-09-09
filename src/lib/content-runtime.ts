@@ -299,6 +299,10 @@ export interface PopupRecord {
   positionDesktop: PopupDesktopPosition;
   /** 모바일에서 앉을 자리 — PC 와 **따로** 고른다(팝업을 두 개 만들지 않아도 되게) */
   positionMobile: PopupMobilePosition;
+  /** PC 카드 폭(px). 없으면 360 — 옛 항목은 이 키가 아예 없다.
+   *  한계·기본값은 lib/popup-positions.ts 의 POPUP_DESKTOP_WIDTH 가 단일 출처다.
+   *  모바일은 전폭 시트라 이 값을 쓰지 않는다. */
+  widthDesktop?: number;
   /** 하단 "오늘 하루 보지 않기" 버튼 표시 */
   hideTodayButton: boolean;
   /** 우측 상단 X 의 동작 */

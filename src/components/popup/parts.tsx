@@ -7,6 +7,8 @@
 
 import { useState } from 'react';
 import {
+  POPUP_DESKTOP_IMAGE_MAX,
+  popupDesktopWidth,
   popupPosition,
   type PopupDevice,
   type PopupPositionKey,
@@ -62,17 +64,27 @@ export function PopupGroup({
   );
 }
 
-/** 카드 폭 — PC 는 360px 고정, 모바일은 전폭 시트(가운데 배치만 좌우 16px 여백) */
-export function popupCardWidth(device: PopupDevice, position: PopupPositionKey): string {
-  if (device === 'desktop') return '360px';
+/** 카드 폭 — PC 는 관리자가 정한 px(기본 360), 모바일은 전폭 시트(가운데 배치만
+ *  좌우 16px 여백). 모바일은 화면 폭이 곧 카드 폭이라 width 를 받아도 무시한다. */
+export function popupCardWidth(
+  device: PopupDevice,
+  position: PopupPositionKey,
+  width?: number,
+): string {
+  if (device === 'desktop') return `${popupDesktopWidth(width)}px`;
   return position === 'center' ? 'calc(100% - 32px)' : '100%';
 }
 
 /** 사진 최대 높이. 미리보기 프레임 안(contained)에서는 뷰포트 단위를 쓸 수 없으므로
- *  프레임 높이(--popup-frame-h, 미리보기가 심어 준다)의 70% 를 쓴다. */
+ *  프레임 높이(--popup-frame-h, 미리보기가 심어 준다)의 70% 를 쓴다 — PC 는 사이트와
+ *  똑같이 640px 절대 상한도 함께 건다(큰 기준 화면에서 미리보기만 커지지 않게). */
 export function popupImageMaxHeight(device: PopupDevice, contained: boolean): string {
-  if (contained) return 'calc(var(--popup-frame-h, 520px) * 0.7)';
-  return device === 'mobile' ? '70svh' : 'min(70vh, 640px)';
+  const { ratio, px } = POPUP_DESKTOP_IMAGE_MAX;
+  if (contained) {
+    const rel = `calc(var(--popup-frame-h, 520px) * ${ratio})`;
+    return device === 'mobile' ? rel : `min(${rel}, ${px}px)`;
+  }
+  return device === 'mobile' ? '70svh' : `min(${ratio * 100}vh, ${px}px)`;
 }
 
 /** 사진 — 링크가 있으면 <a> 로 감싼다. 값이 없으면 회색 플레이스홀더(미리보기) */

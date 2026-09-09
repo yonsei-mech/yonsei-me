@@ -58,3 +58,22 @@ export function popupPosition(
   const list = POPUP_POSITIONS[device];
   return list.find((p) => p.key === key) ?? list.find((p) => p.key === DEFAULT_POSITION[device])!;
 }
+
+/** PC 카드 폭(px) 한계·기본값 — CMS 리사이즈와 사이트 렌더가 함께 읽는 단일 출처.
+ *  모바일은 전폭 시트라 폭을 고르지 않는다(위치만 고른다).
+ *  상한 800 은 가장 좁은 노트북(1280)에서도 좌우가 남는 값이다. */
+export const POPUP_DESKTOP_WIDTH = { min: 240, max: 800, default: 360 } as const;
+
+/** PC 사진 높이 상한 — 화면 높이의 70% 와 이 절대값 중 작은 쪽(사이트는 `min(70vh, 640px)`).
+ *  관리자 미리보기 프레임(PopupSizeFrame)과 contained 카드가 같은 값을 써야 큰 기준
+ *  화면(1080 높이)에서 미리보기만 실제보다 커지는 일이 없다. */
+export const POPUP_DESKTOP_IMAGE_MAX = { ratio: 0.7, px: 640 } as const;
+
+/** 알 수 없는 값(옛 데이터·NaN)은 기본 폭으로, 범위 밖은 한계로 자른다 —
+ *  위치와 같은 규칙이다(팝업이 통째로 깨지는 것보다 기본값이 낫다).
+ *  CSS px 로 쓰이므로 정수로 반올림한다. */
+export function popupDesktopWidth(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(String(v ?? '').trim());
+  if (!Number.isFinite(n) || n <= 0) return POPUP_DESKTOP_WIDTH.default;
+  return Math.round(Math.min(POPUP_DESKTOP_WIDTH.max, Math.max(POPUP_DESKTOP_WIDTH.min, n)));
+}

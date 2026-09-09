@@ -534,7 +534,15 @@ export function PopupDetailEditor({
         {/* 5. 위치 */}
         {positionField?.kind === 'popupPosition' && (
           <Row label="위치" hint={positionField.hint} align="style">
-            <PopupPositionPicker form={form} keys={positionField.keys} setValue={set} />
+            {/* 업로드 통로는 사진 칸(PhotoBox)과 같은 하나 — PC 크기 편집기의 배경
+                캡처 교체가 쓴다. */}
+            <PopupPositionPicker
+              form={form}
+              keys={positionField.keys}
+              setValue={set}
+              onUploadImage={onUploadImage}
+              busy={busy}
+            />
           </Row>
         )}
 

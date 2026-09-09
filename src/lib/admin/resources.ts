@@ -6,7 +6,12 @@
 import type { BoardKey } from '@/lib/admin/boards';
 // 파일 경로는 여기 적지 않는다 — 저장소·DB 양쪽의 "관리 대상" 판정과 같은 목록을 쓴다.
 import { MANAGED_FILES } from '@/lib/admin/managed-content';
-import { DEFAULT_POSITION, isPopupPosition } from '@/lib/popup-positions';
+import {
+  DEFAULT_POSITION,
+  POPUP_DESKTOP_WIDTH,
+  isPopupPosition,
+  popupDesktopWidth,
+} from '@/lib/popup-positions';
 
 // ---- 폼 값 모델 ----
 // RecordForm 이 다루는 평면 값: 필드 kind 에 따라 문자열 / 한·영 쌍 / 문자열 배열.
@@ -874,6 +879,13 @@ const POPUPS_FIELDS: FieldDef[] = [
     hint: 'PC 와 모바일의 위치를 각각 고를 수 있습니다 — 팝업을 두 개 만들 필요가 없습니다',
   },
   {
+    // 전용 폼(PopupDetailEditor)에 제 행을 갖지 않는다 — 위치 위젯 안에서 함께 고친다.
+    // 여기 선언은 값의 저장·복원(toForm/fromForm)과 한계 표시를 위한 것이다.
+    kind: 'number', key: 'widthDesktop', label: 'PC 카드 폭', width: 'half',
+    min: POPUP_DESKTOP_WIDTH.min, max: POPUP_DESKTOP_WIDTH.max,
+    hint: `px. 기본 ${POPUP_DESKTOP_WIDTH.default}, ${POPUP_DESKTOP_WIDTH.min}~${POPUP_DESKTOP_WIDTH.max}`,
+  },
+  {
     kind: 'checkboxGroup', key: 'devices', label: '대상 기기',
     options: [
       { value: 'desktop', label: '데스크톱' },
@@ -957,6 +969,9 @@ const popups: ResourceDef = {
     if (!isPopupPosition('mobile', form.positionMobile)) {
       form.positionMobile = DEFAULT_POSITION.mobile;
     }
+    // PC 카드 폭도 옛 항목엔 없다 — 폼에서는 늘 실제 그려지는 값이 보여야 리사이즈
+    // 위젯이 빈칸에서 시작하지 않는다. (number kind 의 폼 값은 문자열이다.)
+    form.widthDesktop = String(popupDesktopWidth(form.widthDesktop));
     // checkbox 는 defaultToForm 이 `=== true` 로 읽어 키가 없으면 false 가 된다.
     // 노출·"오늘 하루" 버튼은 없을 때 켜져 있는 편이 기대에 맞다.
     if (r.enabled === undefined) form.enabled = true;
@@ -978,6 +993,9 @@ const popups: ResourceDef = {
     if (!isPopupPosition('mobile', out.positionMobile)) {
       out.positionMobile = DEFAULT_POSITION.mobile;
     }
+    // 폼은 문자열을 들고 있으므로 여기서 숫자로 바꿔 저장한다 — 사이트가 그대로
+    // px 로 쓰는 값이라 빈칸·범위 밖은 같은 함수가 기본값·한계로 보정한다.
+    out.widthDesktop = popupDesktopWidth(out.widthDesktop);
     return out;
   },
   summarize: (f) => cellText(f, 'title'),
@@ -1116,14 +1134,11 @@ export const MENU_GROUPS: MenuGroup[] = [
     entries: [
       { type: 'collection', resourceKey: 'clubs' },
       { type: 'collection', resourceKey: 'labs' },
-      { type: 'board', boardKey: 'internships' },
     ],
   },
   {
+    // 동문 뉴스 게시판은 2026-09 에 폐지했다 — 동문 소식은 이 하나로 모은다
     label: '동문',
-    entries: [
-      { type: 'board', boardKey: 'alumniNews' },
-      { type: 'board', boardKey: 'alumniEvents' },
-    ],
+    entries: [{ type: 'board', boardKey: 'alumniEvents' }],
   },
 ];

@@ -29,6 +29,9 @@ export interface PopupCardProps {
   closeControl: 'close' | 'hideToday' | 'none';
   /** 하단 바의 "오늘 하루 보지 않기" 칸을 그리는가 (끄면 '닫기' 한 칸 전폭) */
   hideTodayButton: boolean;
+  /** PC 카드 폭(px) — PopupDesktop 만 쓴다. 모바일은 전폭 시트라 무시한다.
+   *  없거나 범위 밖이면 popupDesktopWidth 가 기본값(360)·한계로 보정한다. */
+  width?: number;
   /** 닫기. remember=true 면 오늘 하루 숨김을 기억한다 */
   onDismiss: (remember: boolean) => void;
   /**
