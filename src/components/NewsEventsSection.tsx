@@ -55,19 +55,21 @@ const CIRCLE_BTN_CLASS =
  * 위→아래:
  *  - 헤더 행: 네이비 라벨 박스(제목) / 헤어라인 / 카운터(01 / 04) / ← → 버튼.
  *    화살표는 양끝에서 막히지 않고 순환한다(disabled 없음).
- *  - 본문 그리드(lg 이상 1fr + 424px): 좌측 대표 카드(이미지가 남는 높이를 flex:1 로
- *    흡수) + 우측 '이전 뉴스' 3행. 우측 행은 링크가 아니라 **버튼**이라 누르면 그 기사가
+ *  - 본문 그리드(lg 이상 1fr + 424px): 좌측 대표 카드 + 우측 '이전 뉴스' 3행.
+ *    우측 행은 링크가 아니라 **버튼**이라 누르면 그 기사가
  *    대표 자리로 올라온다(본문으로 이동은 대표 카드가 담당).
  *
  * 대표 기사를 바꾸는 경로는 셋뿐 — ← → 화살표, 우측 행 클릭, 터치 스와이프. 전부
  * 사용자 입력이라 카운터의 aria-live 는 항상 'polite' 로 둔다(자동으로 읽히는 일이 없다).
  *
- * ⚠️ lg 이상에서 이 섹션은 **한 화면(100svh)에 반드시 들어간다**. 예전처럼 그리드에
- * 높이를 박아 두고 바깥 패딩·헤더를 더해 가며 산수로 맞추면 화면을 넘긴다. 그래서
- * 섹션 = 100svh 고정, 컨테이너 = h-full 세로 flex, 헤더 = shrink-0, 그리드 = flex-1 +
- * min-h-0 으로 두어 **남는 높이를 그리드가 받아 가는 구조** 자체가 '한 화면 안'을
- * 보장하게 한다(1440p 에서 과하게 커지지 않도록 max-h 640px 만 상한).
- * ⚠️ vh 가 아니라 **svh** — 모바일 브라우저 크롬이 접힐 때 vh 는 점프한다.
+ * ⚠️ 섹션 높이는 어느 화면에서나 **내용이 정하는 자연 높이**다(다른 홈 섹션과 같은
+ * py-12 / sm:py-section-lg 리듬). 예전에는 lg 이상에서 min-h-[100svh] 로 '한 화면 고정'을
+ * 시도했는데, min-height 만 있는 flex 부모에 대한 자식의 h-full 은 Chrome 에서 auto 로
+ * 풀려 남는 높이가 컨테이너에 전달되지 않았고(실측: 섹션 1800px 인데 컨테이너 712px),
+ * 그 여백이 전부 카드 아래 빈 공간으로 쌓였다. 뷰포트가 높은 화면(5K iMac·브라우저 축소
+ * 보기 등)일수록 공백이 뷰포트에 정비례해 커졌다(높이 1440 에서 728px, 1800 에서
+ * 1088px — 2026-09 "맥에서 섹션 간격이 과하게 넓다" 신고의 원인). 뷰포트 높이(vh/svh)에
+ * 섹션 높이를 묶지 말 것.
  */
 export function NewsEventsSection({ items }: { items: NewsEventItem[] }) {
   const t = useTranslations('home');
@@ -153,18 +155,11 @@ export function NewsEventsSection({ items }: { items: NewsEventItem[] }) {
   return (
     <section
       aria-labelledby="news-events-heading"
-      // lg 미만: 자유 스크롤 홈 섹션 — 자연 높이 + 통일된 상하 리듬(py-12 / py-section-lg).
-      // lg 이상: 한 화면 고정(100svh) + 좁힌 상하 패딩. py-section-lg(최대 128px×2)를
-      // 그대로 두면 본문에 줄 높이가 남지 않는다.
-      // ⚠️ 상단 패딩 하한은 6.5rem(104px) — 사이트 헤더가 position:fixed 81px 라 100svh
-      // 섹션의 위 81px 은 늘 헤더 밑에 깔린다. 이보다 좁으면 '뉴스' 라벨이 헤더에
-      // 달라붙어 읽힌다(아래쪽은 가릴 것이 없으니 그대로 좁게 둔다).
-      // ⚠️ h- 가 아니라 **min-h-** 여야 한다. 고정 높이로 두면 카드가 더 줄어들 수 없는
-      // 지점(텍스트 블록 224 + 사진 8/3 + 패딩 ≈ 636)에서 내용이 섹션 밖으로 넘쳐
-      // 아래 '우리의 연구실' 섹션이 그 위를 덮어 버린다(뷰포트 높이 820px 이하에서 실측,
-      // 최대 76px 침범). min-h 면 모자랄 때만 섹션이 늘어나고, 넉넉한 화면에서는
-      // 그대로 정확히 한 화면이다.
-      className="full-bleed relative flex flex-col bg-surface py-12 sm:py-section-lg lg:min-h-[100svh] lg:pb-[clamp(2rem,5vh,3.5rem)] lg:pt-[clamp(6.5rem,10vh,8rem)]"
+      // 자유 스크롤 홈 섹션 — 자연 높이 + 다른 홈 섹션(공지·연구실·목표)과 통일된 상하
+      // 리듬(모바일 py-12, sm+ py-section-lg). ⚠️ lg 에서 min-h-[100svh] 같은 뷰포트 비례
+      // 높이를 다시 걸지 말 것 — 파일 상단 주석의 경위(큰 화면에서 카드 아래 공백이 뷰포트에
+      // 비례해 커진다).
+      className="full-bleed relative bg-surface py-12 sm:py-section-lg"
     >
       {/* 배경 유선 장식(Cornell CHE) — 상단 패딩·헤더 행의 '기존' 여백에만 겹치는 0-높이
           absolute 레이어(자체 높이를 가지는 스트립 금지 — 사용자 지시). 본문에 닿기 전에
@@ -182,13 +177,11 @@ export function NewsEventsSection({ items }: { items: NewsEventItem[] }) {
       </div>
 
       {/* 헤더와 본문이 한 컨테이너 안에 있다(구 캐러셀과 달리 full-bleed 요소 없음).
-          lg 이상에서는 이 컨테이너가 섹션 높이를 그대로 받는 세로 flex 다 — 헤더는
-          shrink-0, 그리드만 flex-1 이라 남는 높이가 전부 본문으로 간다. 그리드가 max-h 에
-          걸려 여백이 남는 큰 모니터에서는 justify-center 가 전체를 세로 가운데로 모은다. */}
-      <div className="relative mx-auto w-full max-w-[1360px] px-6 sm:px-10 lg:flex lg:h-full lg:flex-col lg:justify-center lg:px-16">
+          높이는 내용이 정한다 — 헤더 행 + 본문 그리드의 자연 높이. */}
+      <div className="relative mx-auto w-full max-w-[1360px] px-6 sm:px-10 lg:px-16">
         {/* 헤더 행 — 좌: 네이비 라벨 박스(각지게) / 사이: 헤어라인(학과 목표 섹션과 동일한
             선 문법) / 우: 카운터 + ← → 화살표(양끝 막힘 없이 순환) */}
-        <div className="flex items-center gap-6 lg:shrink-0">
+        <div className="flex items-center gap-6">
           <h2
             id="news-events-heading"
             className="inline-block bg-yonsei-navy px-4 py-2 text-base font-bold text-white sm:px-5 sm:py-2.5 sm:text-lg"
@@ -224,14 +217,13 @@ export function NewsEventsSection({ items }: { items: NewsEventItem[] }) {
         </div>
 
         {hasItems && hero ? (
-          /* 본문 그리드 — lg 이상에서 컨테이너의 남는 높이를 전부 받는다(고정 높이 금지).
-             ⚠️ min-h-0 이 없으면 flex 자식의 기본 min-height:auto 때문에 내용보다 작게
-             줄어들지 못해 섹션이 화면을 넘긴다. max-h 는 1440p 에서 그리드가 부풀어
-             이미지만 거대해지는 것을 막는 상한이다(기준 높이 640px).
-             그 미만에서는 단순 세로 스택. 카드 안 텍스트는 줄 수 단위로 높이를 고정해
-             두었으므로(HeroNewsCard 주석 참조) 기사가 바뀌어도 박스 크기는 변하지 않는다. */
+          /* 본문 그리드 — lg 이상 1fr + 424px 2열. 높이는 두 열 중 큰 쪽의 자연 높이
+             (좌측 카드 = 텍스트 블록 224 + 사진 8/3 + 패딩 ≈ 636, 폭 1360 기준)이고
+             뷰포트와 무관하다. 카드 안 텍스트는 줄 수 단위로 높이를 고정해 두었으므로
+             (HeroNewsCard 주석 참조) 기사가 바뀌어도 박스 크기는 변하지 않는다.
+             그 미만에서는 단순 세로 스택. */
           <div
-            className="mt-6 flex flex-col gap-4 lg:mt-7 lg:grid lg:max-h-[640px] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_424px] lg:items-stretch lg:gap-6"
+            className="mt-6 flex flex-col gap-4 lg:mt-7 lg:grid lg:grid-cols-[minmax(0,1fr)_424px] lg:items-stretch lg:gap-6"
             style={{ touchAction: 'pan-y' }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -416,10 +408,9 @@ function HeroNewsCard({ item }: { item: NewsEventItem }) {
             프레임 배경은 카드와 같은 bg-surface-soft — 남는 자리가 눈에 띄지 않아 '사진이
             조금 작게 놓인' 것처럼 보인다(다크 모드도 토큰이 따라온다).
             비율 8/3 은 카드가 허용하는 최대 높이(카드 안쪽 - 텍스트 블록 - 여백)에서 왔다.
-            세로로 더 키우면 정사각에 가까운 사진이 커지지만, 그만큼 그리드 상한 640 을
-            올려야 한다(= 섹션이 한 화면을 넘길 여지).
-            ⚠️ 짧은 노트북에서는 카드 높이가 모자라 flex 가 이 칸을 줄인다 — contain 이라
-            그때도 잘리지 않고 사진이 작아지기만 한다. */}
+            세로로 더 키우면 정사각에 가까운 사진이 커지지만 그만큼 카드와 섹션이 길어진다
+            (섹션은 자연 높이라 넘칠 곳은 없지만 홈의 세로 리듬이 무너진다).
+            contain 이라 프레임보다 작은 사진도 잘리지 않고 여백 안에 놓인다. */}
         <div className="relative mt-5 aspect-[8/3] w-full min-h-0 overflow-hidden bg-surface-soft lg:mt-4">
           {item.image ? (
             <Image
