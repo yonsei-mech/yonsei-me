@@ -17,7 +17,6 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { kstDate } from '@/lib/utils';
 import {
   news as gitNews,
-  alumniNews as gitAlumniNews,
   board as gitBoard,
   getAllBoardPosts as gitAllBoardPosts,
   getCalendarEntries as gitCalendarEntries,
@@ -386,7 +385,7 @@ function toAlumniEvent(r: DbPost): AlumniEvent {
 // ── 통합 게시판 글(BoardPost) 라벨 — 단일 출처 ─────────────────────────
 // 목록(fetchAllBoardPosts)과 상세(fetchBoardPost)가 서로 다른 경로로 같은 글을 만들므로
 // boardKey·meta 표를 양쪽에 복사해 두면 언젠가 어긋난다. 여기 한 곳만 본다.
-// 표에 없는 게시판(news/alumniNews/alumniEvents/instagram/calendar)은 통합 목록의
+// 표에 없는 게시판(news/alumniEvents/instagram/calendar)은 통합 목록의
 // 대상이 아니다 — 자기 전용 라우트를 쓴다.
 const BOARD_POST_META: Record<string, { boardKey: BoardPost['boardKey']; meta?: Localized }> = {
   noticesUndergrad: { boardKey: 'notices', meta: { ko: '학부 공지', en: 'Undergraduate' } },
@@ -400,7 +399,6 @@ const BOARD_POST_META: Record<string, { boardKey: BoardPost['boardKey']; meta?: 
   thesis: { boardKey: 'thesis' },
   career: { boardKey: 'career' },
   resources: { boardKey: 'resources' },
-  internships: { boardKey: 'internships' },
 };
 
 /**
@@ -475,11 +473,6 @@ async function rowsOf(board: string): Promise<DbPost[]> {
 export async function fetchNews(): Promise<NewsItem[]> {
   if (postsSource() === 'git') return pinnedFirst(gitNews);
   return byPinnedDate((await rowsOf('news')).map(toNews));
-}
-
-export async function fetchAlumniNews(): Promise<NewsItem[]> {
-  if (postsSource() === 'git') return pinnedFirst(gitAlumniNews);
-  return byPinnedDate((await rowsOf('alumniNews')).map(toNews));
 }
 
 /** 뉴스 상세 1건 — 목록에는 본문이 없으므로(LIST_COLUMNS) 자기 행을 직접 읽는다 */
@@ -566,13 +559,6 @@ export async function fetchCalendarPosts(): Promise<CalendarPost[]> {
     .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 }
 
-/** 동문 소식 상세 1건 — 뉴스와 같은 이유로 단건 조회 */
-export async function fetchAlumniNewsBySlug(slug: string): Promise<NewsItem | undefined> {
-  if (postsSource() === 'git') return gitAlumniNews.find((n) => n.slug === slug);
-  const r = await fetchRowBySlug('alumniNews', slug);
-  return r ? toNews(r) : undefined;
-}
-
 /** board.json 대응 — 게시판별 배열 묶음 */
 export async function fetchBoardData(): Promise<typeof gitBoard> {
   if (postsSource() === 'git') {
@@ -587,7 +573,6 @@ export async function fetchBoardData(): Promise<typeof gitBoard> {
       thesis: pinnedFirst(gitBoard.thesis),
       career: pinnedFirst(gitBoard.career),
       resources: pinnedFirst(gitBoard.resources),
-      internships: pinnedFirst(gitBoard.internships),
       alumniEvents: pinnedFirst(gitBoard.alumniEvents),
     };
   }
@@ -595,13 +580,13 @@ export async function fetchBoardData(): Promise<typeof gitBoard> {
   // 대부분 히트고, 미스도 그 게시판 하나만 다시 조회한다.
   const [
     seminars, events, noticesUndergrad, noticesGraduate, noticesExternal,
-    noticesScholarship, thesis, career, resources, internships, alumniEvents,
+    noticesScholarship, thesis, career, resources, alumniEvents,
   ] = await Promise.all([
     rowsOf('seminars'), rowsOf('events'),
     rowsOf('noticesUndergrad'), rowsOf('noticesGraduate'),
     rowsOf('noticesExternal'), rowsOf('noticesScholarship'),
     rowsOf('thesis'), rowsOf('career'),
-    rowsOf('resources'), rowsOf('internships'),
+    rowsOf('resources'),
     rowsOf('alumniEvents'),
   ]);
   return {
@@ -614,7 +599,6 @@ export async function fetchBoardData(): Promise<typeof gitBoard> {
     thesis: byPinnedDate(thesis.map(toNotice)),
     career: byPinnedDate(career.map(toNotice)),
     resources: byPinnedDate(resources.map(toNotice)),
-    internships: byPinnedDate(internships.map(toNotice)),
     alumniEvents: byPinnedDate(alumniEvents.map(toAlumniEvent)),
   };
 }
@@ -635,7 +619,6 @@ export async function fetchAllBoardPosts(): Promise<BoardPost[]> {
     ...b.thesis.map((t) => noticeToBoardPost(t, 'thesis')),
     ...b.career.map((c) => noticeToBoardPost(c, 'career')),
     ...b.resources.map((r) => noticeToBoardPost(r, 'resources')),
-    ...b.internships.map((n) => noticeToBoardPost(n, 'internships')),
   ];
 }
 

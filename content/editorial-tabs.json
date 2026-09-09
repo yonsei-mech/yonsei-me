@@ -66,6 +66,7 @@
   },
   "research-capacity": {
     "eyebrow": "RESEARCH CAPACITY",
+    "title": { "ko": "연구 역량", "en": "Research Capacity" },
     "items": [
       {
         "stat": { "ko": "36명", "en": "36" },

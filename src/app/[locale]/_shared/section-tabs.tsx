@@ -90,6 +90,25 @@ export async function sectionTabLabel<S extends ContentSection>(
   return tMenu(`${section}.items.${tab}`);
 }
 
+/**
+ * 섹션의 탭 배열 — 탭 페이지(TabPageShell)와 그 섹션에 사는 게시판 상세(BoardShell)가
+ * 같은 탭 줄을 그려야 하므로 여기 한 곳에서 만든다(학위논문심사 상세가 두 번째 소비자다).
+ * TabNavItem 과 BoardShellTab 은 {key,label,href} 로 같은 모양이라 그대로 넘길 수 있다.
+ * ⚠️ CONTENT_SECTIONS 가 as const 라 섹션마다 서로 다른 리터럴 튜플이다 —
+ *    유니온 튜플에는 .map 을 바로 못 부르므로 readonly string[] 으로 넓힌다(사이트맵과 동일).
+ */
+export async function sectionTabs(
+  locale: Locale,
+  section: ContentSection,
+): Promise<TabNavItem[]> {
+  const tMenu = await getTranslations({ locale, namespace: 'menu' });
+  return (CONTENT_SECTIONS[section] as readonly string[]).map((key) => ({
+    key,
+    label: tMenu(`${section}.items.${key}`),
+    href: sectionTabHref(section, key),
+  }));
+}
+
 /** 본문이 비었을 때 문구 — 전 탭 페이지가 같은 값을 쓴다 */
 export async function sectionEmptyLabel(locale: Locale): Promise<string> {
   const tStub = await getTranslations({ locale, namespace: 'stub' });
@@ -163,12 +182,7 @@ export async function SectionTabPage<S extends ContentSection>({
     spec.crumb === 'linked'
       ? [{ label: menuLabel, href: sectionDefaultHref(section) }, { label }]
       : [{ label: await sectionLabel(l, section), href: sectionDefaultHref(section) }];
-  // 유니온 튜플에는 .map 을 바로 못 부르므로 readonly string[] 으로 넓힌다(사이트맵과 동일)
-  const tabs: TabNavItem[] = (CONTENT_SECTIONS[section] as readonly string[]).map((key) => ({
-    key,
-    label: tMenu(`${section}.items.${key}`),
-    href: sectionTabHref(section, key),
-  }));
+  const tabs = await sectionTabs(l, section);
 
   return (
     <>

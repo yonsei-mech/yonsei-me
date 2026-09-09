@@ -13,7 +13,12 @@ export async function generateMetadata({
   return sectionTabMetadata(params.locale, 'research', 'vision');
 }
 
-/** 연구 비전 — 연구 섹션의 기본 탭(`/research` 는 여기로 308) */
+/**
+ * 연구 비전 및 역량 — 연구 섹션의 기본 탭(`/research` 는 여기로 308).
+ * 2026-09 에 별도 탭이던 '연구 역량'을 아래 단락으로 합쳤다(`/research/capacity` 는 308).
+ * 두 글은 한 화면 안에서도 서로 다른 이야기라, 헤어라인 + 큰 상단 여백으로 단락을 가른다
+ * (박스·그림자 없이 여백과 선으로만 위계를 만드는 이 사이트의 규칙).
+ */
 export default function ResearchVisionPage({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
   const locale = params.locale as Locale;
@@ -24,6 +29,15 @@ export default function ResearchVisionPage({ params }: { params: { locale: strin
       {/* 텍스트 도입부(EditorialTab) 아래에 구 이미지 대신 인포그래픽을 합성 */}
       <EditorialTab data={getEditorialTab('research-vision')} locale={locale} />
       <VisionInfographic locale={locale} />
+      <div className="mt-section-lg border-t border-surface-border pt-section-sm">
+        {/* landing = GSAP 진입 애니메이션 옵트인. 위 비전 블록은 "빨리 읽히는" 글이라
+            일부러 켜지 않았고(사용자 지시), 역량 블록만 종전대로 유지한다. */}
+        <EditorialTab
+          data={getEditorialTab('research-capacity')}
+          locale={locale}
+          landing="research-capacity"
+        />
+      </div>
     </SectionTabPage>
   );
 }

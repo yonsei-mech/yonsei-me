@@ -1,7 +1,6 @@
 import facultyData from '@content/faculty.json';
 import researchData from '@content/research.json';
 import newsData from '@content/news.json';
-import alumniNewsData from '@content/alumni-news.json';
 import programsData from '@content/programs.json';
 import boardData from '@content/board.json';
 import historyData from '@content/history.json';
@@ -94,16 +93,6 @@ export function getNewsBySlug(slug: string): NewsItem | undefined {
   return news.find((n) => n.slug === slug);
 }
 
-/** 동문 뉴스 — 별도 파일(content/alumni-news.json). 항상 최신순 정렬, 분류는 위와 같이 정규화 */
-export const alumniNews = (alumniNewsData as NewsItem[])
-  .slice()
-  .map((n) => ({ ...n, category: normalizeNewsCategory(n.category) }))
-  .sort((a, b) => (a.date < b.date ? 1 : -1));
-
-export function getAlumniNewsBySlug(slug: string): NewsItem | undefined {
-  return alumniNews.find((n) => n.slug === slug);
-}
-
 export interface Program {
   id: string;
   title: Localized;
@@ -187,7 +176,6 @@ export const board = boardData as {
   thesis: Notice[];
   career: Notice[];
   resources: Notice[];
-  internships: Notice[];
   alumniEvents: AlumniEvent[];
 };
 
@@ -197,8 +185,8 @@ export interface BoardPost {
   date: string;
   title: Localized;
   body: Localized;
-  /** 소속 게시판 (뉴스 탭 key와 동일) */
-  boardKey: 'notices' | 'seminars' | 'events' | 'thesis' | 'career' | 'resources' | 'internships';
+  /** 소속 게시판 (뉴스 탭 key와 동일. thesis 만 대학원 메뉴 소속이다 — board-links 참고) */
+  boardKey: 'notices' | 'seminars' | 'events' | 'thesis' | 'career' | 'resources';
   /** 부가 정보 한 줄 — 세미나 연사, 행사 기간, 공지 구분(학부/대학원) 등 */
   meta?: Localized;
   /** 편집자가 쓴 요약 — 상세 페이지의 meta description·og:description 이 우선 쓴다.
@@ -255,7 +243,6 @@ export function getAllBoardPosts(): BoardPost[] {
     ...board.thesis.map((t): BoardPost => ({ ...t, boardKey: 'thesis' })),
     ...board.career.map((c): BoardPost => ({ ...c, boardKey: 'career' })),
     ...board.resources.map((r): BoardPost => ({ ...r, boardKey: 'resources' })),
-    ...board.internships.map((n): BoardPost => ({ ...n, boardKey: 'internships' })),
   ];
 }
 

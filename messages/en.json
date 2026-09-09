@@ -52,6 +52,7 @@
       "items": {
         "admission": "Admissions",
         "requirements": "Graduation Requirements",
+        "thesis": "Thesis Defense",
         "courses": "Courses",
         "labs": "Lab Introductions & Videos",
         "bk21": "BK21 FOUR"
@@ -60,10 +61,8 @@
     "research": {
       "label": "Research",
       "items": {
-        "vision": "Research Vision",
-        "capacity": "Research Capacity",
+        "vision": "Vision & Capacity",
         "labs": "Laboratories",
-        "internships": "Intern Positions",
         "social": "Social Challenge Board"
       }
     },
@@ -77,7 +76,6 @@
         "career": "Career Info",
         "resources": "Resources",
         "recruit": "Faculty Recruitment",
-        "thesis": "Thesis Defense",
         "calendar": "Calendar"
       }
     },
@@ -85,7 +83,6 @@
       "label": "Alumni",
       "items": {
         "association": "Alumni Association",
-        "news": "Alumni News",
         "network": "News & Network"
       }
     }
@@ -693,15 +690,14 @@
     },
     "graduate": {
       "requirements": "Graduate degree requirements in mechanical engineering: advisor assignment, minimum credits, required courses, qualifying and English exams, defense.",
+      "thesis": "Thesis defense announcements for graduate students in mechanical engineering — schedules and candidates for master’s and doctoral examinations.",
       "courses": "Graduate course listing in mechanical engineering: 183 courses grouped by research field, searchable by course code, title, and credits.",
       "labs": "Lab introductions for graduate study in mechanical engineering: intro videos, advisors, and websites for 33 labs across six research fields.",
       "bk21": "The BK21 FOUR education and research group at Yonsei mechanical engineering — the vision and goals of the Phase 4 Brain Korea 21 program."
     },
     "research": {
-      "vision": "Research vision of Yonsei mechanical engineering — the department since 1960 and the college’s vision, educational purpose, and key objectives.",
-      "capacity": "Research capacity at Yonsei mechanical engineering: faculty and some 300 graduate researchers, BK21, national labs, a machine shop, and output.",
+      "vision": "Research vision and capacity at Yonsei mechanical engineering — the department since 1960, the college’s vision and objectives, and the faculty, some 300 graduate researchers, BK21, and national labs behind them.",
       "labs": "The 33 laboratories of Yonsei mechanical engineering across six research fields, each with its advisor, location, phone number, and website.",
-      "internships": "Undergraduate research internship openings in Yonsei mechanical engineering labs — how many students each lab seeks, topics, and how to apply.",
       "social": "The Social Challenge Petition desk: submit a company’s technical problem, get matched with a professor or research group, and receive R&D support."
     },
     "news": {
@@ -712,11 +708,9 @@
       "career": "Career board for Yonsei mechanical engineering students: job postings, internship openings, and employment support programs.",
       "resources": "Downloads for Yonsei mechanical engineering: administrative forms and academic regulations, sorted by category with file attachments.",
       "recruit": "Tenure-track faculty openings at Yonsei mechanical engineering: fields sought, qualifications, how to submit a CV, and the search committee contact.",
-      "thesis": "Thesis defense announcements for graduate students in mechanical engineering — schedules and candidates for master’s and doctoral examinations.",
       "calendar": "Monthly calendar for Yonsei mechanical engineering: events, seminars, academic dates, application periods, and exams in one view."
     },
     "alumni": {
-      "news": "Alumni news from Yonsei mechanical engineering — startups, research achievements, and what graduates are doing across industry.",
       "network": "Alumni network of Yonsei mechanical engineering: general meetings, homecoming, networking nights, and student mentoring events."
     },
     "pages": {

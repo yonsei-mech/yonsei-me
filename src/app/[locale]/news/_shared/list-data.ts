@@ -323,10 +323,11 @@ export async function buildBoardContext(
         listHref: newsTabHref('events'),
       };
     case 'thesis':
+      // 학위논문심사만 대학원 메뉴 소속이라 목록이 /graduate 아래에 있다(2026-09 이관)
       return {
         rows: await buildThesisRows(locale),
-        boardName: tMenu('news.items.thesis'),
-        listHref: newsTabHref('thesis'),
+        boardName: tMenu('graduate.items.thesis'),
+        listHref: sectionTabHref('graduate', 'thesis'),
       };
     case 'career':
       return {
@@ -348,22 +349,6 @@ export async function buildBoardContext(
         })),
         boardName: tMenu('news.items.resources'),
         listHref: newsTabHref('resources'),
-      };
-    }
-    case 'internships': {
-      // 인턴 모집만 연구 메뉴 소속이라 목록이 /research 아래에 있다. 목록 페이지와 같은
-      // 소스·같은 순서(fetchBoardData().internships)에서 최소 필드만 뽑는다.
-      const board = await fetchBoardData();
-      return {
-        rows: board.internships.map((n) => ({
-          id: n.id,
-          date: n.date,
-          title: pick(n.title, locale),
-          href: boardPostHref({ id: n.id, boardKey: 'internships' }),
-          pinned: n.pinned,
-        })),
-        boardName: tMenu('research.items.internships'),
-        listHref: sectionTabHref('research', 'internships'),
       };
     }
     default:

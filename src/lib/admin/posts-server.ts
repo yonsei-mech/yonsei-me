@@ -100,7 +100,7 @@ const BOARDS = new Set([
   'calendar',
   'noticesUndergrad', 'noticesGraduate', 'noticesExternal', 'noticesScholarship',
   'news', 'seminars', 'events',
-  'thesis', 'resources', 'career', 'internships', 'alumniNews', 'alumniEvents',
+  'thesis', 'resources', 'career', 'alumniEvents',
   'instagram',
 ]);
 
@@ -141,7 +141,7 @@ export function endDateError(p: AdminPostPayload): string | null {
 
 /** 페이로드 → posts 행 (본문은 md 보관 + 정화 HTML 동시 저장) */
 export function payloadToRow(p: AdminPostPayload) {
-  const isNews = p.board === 'news' || p.board === 'alumniNews';
+  const isNews = p.board === 'news';
   // 캘린더 전용 일정·세미나는 "그 날짜에 일어나는 일"이 본체라 행사와 똑같이 event_date 에
   // 시작일을 박는다. created_at 은 timestamptz 라 표시일로 쓰면 시간대에 휘둘린다.
   // (세미나도 폼 날짜가 행사일이라 여기 들어간다. 다만 2026-08-31 분리 이후 세미나는

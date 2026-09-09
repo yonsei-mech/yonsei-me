@@ -10,7 +10,7 @@ import { getAlumniTabs } from './_shared/tabs';
 import assoc from '@content/alumni-association.json';
 import type { Locale } from '@/i18n/routing';
 
-// /alumni 는 '동문회 소개' 자체다 — 게시판 둘은 /alumni/news, /alumni/network 로 독립했다.
+// /alumni 는 '동문회 소개' 자체다 — 게시판은 /alumni/network 로 독립했다.
 // 여기서 읽는 것은 정적 JSON 뿐이라 DB 페치가 없다(그래서 ISR revalidate 도 없다).
 const assocSections = (assoc as { sections: GuideSection[] }).sections;
 

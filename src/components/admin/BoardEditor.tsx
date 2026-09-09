@@ -83,8 +83,6 @@ const BOARD_NOTES: Record<BoardKey, string> = {
   thesis: '학위논문심사 공고 목록에 노출됩니다.',
   resources: '자료실 목록에 노출됩니다. 첨부파일이 본체인 게시판입니다.',
   career: '취업 정보 목록에 노출됩니다.',
-  internships: '인턴 모집 목록에 노출됩니다.',
-  alumniNews: '동문 뉴스 목록에 카드로 노출됩니다.',
   alumniEvents: '동문 소식·네트워크 목록에 노출되고, ‘행사’로 체크한 글만 캘린더에 표시됩니다.',
   instagram: '홈 하단 인스타그램 그리드의 타일이 됩니다. 본문 없이 사진·캡션·게시물 URL만 씁니다.',
 };

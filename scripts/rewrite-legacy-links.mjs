@@ -93,7 +93,7 @@ function extractMatches(text) {
 //    아래 두 표를 손으로 복제했다. board-links.ts / src/lib/posts.ts 가 바뀌면 여기도 고칠 것.
 //
 // (1) DB posts.board → BoardPost.boardKey  — 출처: src/lib/posts.ts 의 BOARD_POST_META
-//     (통합 게시판 7종. news/alumniNews/alumniEvents/calendar/instagram 은 이 표에 없고
+//     (통합 게시판 6종. news/alumniEvents/calendar/instagram 은 이 표에 없고
 //      자기 전용 라우트를 쓴다 — 아래 (2) 에서 따로 처리한다.)
 const BOARD_KEY_BY_DB_BOARD = {
   noticesUndergrad: 'notices',
@@ -105,20 +105,18 @@ const BOARD_KEY_BY_DB_BOARD = {
   thesis: 'thesis',
   career: 'career',
   resources: 'resources',
-  internships: 'internships',
 };
 
 // (2) 상세 경로 — 출처: src/lib/board-links.ts 의 boardPostHref / newsArticleHref /
-//     alumniNewsHref / alumniEventHref. 로케일 접두사는 호출부에서 붙인다.
-//     · internships 만 /research 아래 (연구 메뉴 소속)
+//     alumniEventHref. 로케일 접두사는 호출부에서 붙인다.
+//     · thesis 만 /graduate 아래 (대학원 메뉴 소속 — 2026-09 이관)
 //     · 뉴스 기사 탭은 URL 세그먼트가 'press' (/news/news/ 중첩 회피)
 //     · 뉴스형 상세의 주소는 `slug ?? String(id)` — posts.ts 의 toNews 와 같은 규칙
 function postHrefNoLocale(row) {
   const key = BOARD_KEY_BY_DB_BOARD[row.board];
-  if (key === 'internships') return `/research/internships/${row.id}`;
+  if (key === 'thesis') return `/graduate/thesis/${row.id}`;
   if (key) return `/news/${key}/${row.id}`;
   if (row.board === 'news') return `/news/press/${row.slug ?? String(row.id)}`;
-  if (row.board === 'alumniNews') return `/alumni/news/${row.slug ?? String(row.id)}`;
   if (row.board === 'alumniEvents') return `/alumni/network/${row.id}`;
   return null; // calendar·instagram 등 상세 라우트가 없는 게시판
 }

@@ -66,7 +66,8 @@ const BOARD_LISTS: Record<string, string> = {
   'community/seminar.do': newsTabHref('seminars'),
   'community/seminar_graduate1.do': newsTabHref('events'),
   'community/job.do': newsTabHref('career'),
-  'community/degree_thesis_review.do': newsTabHref('thesis'),
+  // 학위논문심사는 2026-09 에 대학원 섹션으로 옮겼다(목록이 /graduate/thesis)
+  'community/degree_thesis_review.do': tab('graduate', 'thesis'),
   'community/information.do': newsTabHref('resources'),
 };
 
@@ -94,7 +95,8 @@ const STATIC_PAGES: Record<string, string> = {
 
   // 대학원·연구
   'graduate/graduate_intro.do': tab('graduate', 'requirements'),
-  'graduate/capacity.do': tab('research', 'capacity'),
+  // 연구 역량은 2026-09 에 연구 비전과 한 탭으로 합쳐졌다
+  'graduate/capacity.do': tab('research', 'vision'),
   'graduate/graduation.do': tab('graduate', 'requirements'),
   'graduate/labs.do': tab('graduate', 'labs'),
   'graduate/research.do': tab('research', 'vision'),

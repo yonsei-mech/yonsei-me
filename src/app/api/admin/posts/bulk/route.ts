@@ -47,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!isValidBoard(target)) {
       return Response.json({ error: '알 수 없는 대상 게시판입니다.' }, { status: 400 });
     }
-    const isNewsTarget = target === 'news' || target === 'alumniNews';
+    const isNewsTarget = target === 'news';
 
     // 대상 게시판 규칙에 맞춰 행별 보정 — 뉴스형은 slug·category 가 필요하고,
     // 뉴스형이 아니면 slug 를 비워 unique 충돌 여지를 없앤다.

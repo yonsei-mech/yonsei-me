@@ -52,6 +52,8 @@ export const menu: MenuGroup[] = [
     href: '/graduate',
     items: [
       { key: 'requirements', href: sectionTabHref('graduate', 'requirements') },
+      // 학위논문심사는 게시판이지만 대학원 메뉴 소속이다(상세는 /graduate/thesis/<id>)
+      { key: 'thesis', href: sectionTabHref('graduate', 'thesis') },
       { key: 'courses', href: sectionTabHref('graduate', 'courses') },
       { key: 'labs', href: sectionTabHref('graduate', 'labs') },
       { key: 'bk21', href: sectionTabHref('graduate', 'bk21') },
@@ -61,11 +63,9 @@ export const menu: MenuGroup[] = [
     key: 'research',
     href: '/research',
     items: [
+      // 연구 비전과 연구 역량은 2026-09 에 한 탭('연구 비전 및 역량')으로 합쳤다
       { key: 'vision', href: sectionTabHref('research', 'vision') },
-      { key: 'capacity', href: sectionTabHref('research', 'capacity') },
       { key: 'labs', href: sectionTabHref('research', 'labs') },
-      // 인턴 모집은 목록이 곧 게시판 목록이다(상세는 /research/internships/<id>)
-      { key: 'internships', href: sectionTabHref('research', 'internships') },
       { key: 'social', href: sectionTabHref('research', 'social') },
     ],
   },
@@ -82,7 +82,7 @@ export const menu: MenuGroup[] = [
       { key: 'resources', href: newsTabHref('resources') },
       // 교수 초빙은 게시판이 아닌 안내 페이지다(2026-09 연구 섹션에서 이관)
       { key: 'recruit', href: newsTabHref('recruit') },
-      { key: 'thesis', href: newsTabHref('thesis') },
+      // 학위논문심사는 2026-09 에 대학원 메뉴로 옮겼다 — 위 graduate 그룹 참고
       { key: 'calendar', href: newsTabHref('calendar') },
     ],
   },
@@ -92,7 +92,7 @@ export const menu: MenuGroup[] = [
     items: [
       // /alumni 자체가 '동문회 소개' 페이지다(리다이렉트가 아니라 그 콘텐츠를 직접 렌더)
       { key: 'association', href: '/alumni' },
-      { key: 'news', href: '/alumni/news' },
+      // '동문 뉴스'는 2026-09 에 폐지했다(구 주소는 /alumni 로 308)
       { key: 'network', href: '/alumni/network' },
     ],
   },
