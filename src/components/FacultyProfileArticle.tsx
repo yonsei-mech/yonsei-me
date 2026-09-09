@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
+import { sectionTabHref } from '@/lib/board-links';
 import { LandingScope } from '@/components/LandingScope';
 import { formatPhone } from '@/lib/utils';
 import { MailIcon, PhoneIcon } from '@/components/icons';
@@ -11,6 +12,11 @@ import {
   type FacultyActivityTab,
 } from '@/components/FacultyActivityTabs';
 import { facultyInfoSystemUrl, type FacultyProfile, type FacultyRecord } from '@/lib/faculty';
+
+/** "목록으로"가 돌아가는 곳 — 교수진 목록의 정본은 학부소개 › 교수진 탭이다. 예전의
+ *  별도 페이지(/faculty)는 상단 바가 섹션 드롭다운 없는 축소판이라 돌아온 사용자가
+ *  소개 섹션의 다른 탭으로 갈 길을 잃었다(사용자 신고). 상세의 브레드크럼·상단 바도 같은 곳. */
+const FACULTY_LIST_HREF = sectionTabHref('about', 'faculty');
 
 /** 외부 링크 화살표 (장식) */
 function ExternalIcon({ className }: { className: string }) {
@@ -153,7 +159,7 @@ export async function FacultyProfileArticle({
           data-land 를 붙이지 않는다(랜딩 애니메이션 동안 숨지 않게). */}
       <div className="mb-[30px]">
         <Link
-          href="/faculty"
+          href={FACULTY_LIST_HREF}
           className="inline-flex items-center gap-2 border border-surface-border px-6 py-3 text-sm font-semibold text-content transition-colors hover:border-yonsei-blue hover:text-yonsei-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yonsei-blue"
         >
           <span aria-hidden="true">←</span>
@@ -372,7 +378,7 @@ export async function FacultyProfileArticle({
 
       <div className="mt-10">
         <Link
-          href="/faculty"
+          href={FACULTY_LIST_HREF}
           className="inline-flex items-center gap-2 border border-surface-border px-6 py-3 text-sm font-semibold text-content transition-colors hover:border-yonsei-blue hover:text-yonsei-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yonsei-blue"
         >
           <span aria-hidden="true">←</span>

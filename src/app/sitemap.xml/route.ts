@@ -111,7 +111,7 @@ export async function GET() {
     ...NEWS_TABS.map((t) => newsTabHref(t.seg).slice(1)),
     'alumni', // /alumni 는 '동문회 소개' 콘텐츠 페이지 자신이다(리다이렉트 아님)
     'alumni/network',
-    'faculty',
+    // 교수진 목록은 학부소개 탭(/about/faculty)이 정본 — /faculty 는 그리로 308 (위 CONTENT_SECTIONS 에서 나온다)
     'contact',
     'sitemap',
     'privacy',

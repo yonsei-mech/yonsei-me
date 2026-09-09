@@ -12,6 +12,7 @@ import {
   getFacultySummariesRuntime,
 } from '@/lib/content-runtime';
 import { pick } from '@/lib/content';
+import { sectionTabHref } from '@/lib/board-links';
 import { pageMetadata } from '@/lib/page-metadata';
 import { localeUrl } from '@/lib/seo';
 import { SITE_URL } from '@/lib/site';
@@ -124,7 +125,10 @@ export default async function FacultyProfilePage({
       {/* 히어로 제목은 섹션명('교수진')이라 h1 은 본문의 교수 이름이 갖는다(시각 변화 없음) */}
       <Hero
         title={t('hero.title')}
-        breadcrumb={[{ label: tNav('faculty'), href: '/faculty' }, { label: profile.name }]}
+        breadcrumb={[
+          { label: tNav('faculty'), href: sectionTabHref('about', 'faculty') },
+          { label: profile.name },
+        ]}
         titleTag="p"
       />
       {/* 히어로 아래 sticky 바 — 이력이 수백 행이라 상단에 탈출구가 없으면
@@ -132,7 +136,7 @@ export default async function FacultyProfilePage({
       <DetailNavBar
         homeLabel={tCrumb('home')}
         sectionLabel={tNav('faculty')}
-        sectionHref="/faculty"
+        sectionHref={sectionTabHref('about', 'faculty')}
         currentLabel={profile.name}
       />
       {/* 상단 여백을 30px 로 줄인다 — 본문 첫 요소가 "목록으로" 버튼이라 섹션 기본
