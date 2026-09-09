@@ -420,11 +420,30 @@ export function GraduationChecker({ data, locale }: { data: CheckerData; locale:
 
   return (
     <div ref={landingRef} className="space-y-16">
-      <p data-land="rise" data-land-order="0" className="max-w-2xl text-base leading-[1.8] text-content-soft">
-        {ko
-          ? '에브리타임 시간표 캡처를 학기별로 업로드하면, 과목을 자동 인식해 학번별 졸업요건과 대조합니다. 인식 결과는 아래에서 직접 수정할 수 있습니다.'
-          : 'Upload your Everytime timetable screenshots (one per semester). Courses are recognized on-device and checked against your cohort’s graduation requirements. You can edit the results below.'}
-      </p>
+      <div className="space-y-6">
+        {/* 면책 — 상시 노출(수강신청 도우미와 같은 형태). 참고용 도구이며 공식 졸업사정이
+            아니라는 점을 결과를 보기 전에 먼저 알린다. */}
+        <div
+          role="note"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-l-2 border-yonsei-navy bg-surface-soft px-4 py-3"
+        >
+          <span className="bg-yonsei-navy px-2 py-0.5 text-[11px] font-bold text-white">BETA</span>
+          <span className="text-[13px] font-semibold text-content">
+            {ko ? '참고용이며 공식 졸업사정이 아닙니다' : 'For reference only — not an official audit'}
+          </span>
+          <span className="text-[12px] text-content-faint">
+            {ko
+              ? '학생 제작 · 최종 확인은 연세포털·학과사무실에서'
+              : 'Student-built · verify on the Yonsei portal or with the department office'}
+          </span>
+        </div>
+
+        <p data-land="rise" data-land-order="0" className="max-w-2xl text-base leading-[1.8] text-content-soft">
+          {ko
+            ? '에브리타임 시간표 캡처를 학기별로 업로드하면, 과목을 자동 인식해 학번별 졸업요건과 대조합니다. 인식 결과는 아래에서 직접 수정할 수 있습니다.'
+            : 'Upload your Everytime timetable screenshots (one per semester). Courses are recognized on-device and checked against your cohort’s graduation requirements. You can edit the results below.'}
+        </p>
+      </div>
 
       {/* STEP 01→04 세로 단일 흐름 — 2단 병렬 배치를 해체해 스텝이 위→아래로
           순서대로 이어진다(사용자 지시). */}
@@ -793,6 +812,42 @@ export function GraduationChecker({ data, locale }: { data: CheckerData; locale:
       <section>
         <StepLabel num="04" title={ko ? '남은 졸업요건' : 'Remaining requirements'} />
 
+        {/* 결과 직전 경고 — 숫자를 보기 전에 "참고만, 의존 금지, 본인 책임" 을 못 박는다.
+            수강신청 도우미의 상시 면책보다 강한 어조인 이유는, 여기서의 오판이 졸업 지연으로
+            직결되기 때문이다. */}
+        <div
+          role="alert"
+          className="mt-4 border-l-2 border-[#b42318] bg-surface-soft px-5 py-4 text-[13px] leading-relaxed text-content"
+        >
+          <p className="font-bold text-[#b42318]">
+            {ko
+              ? '⚠ 아래 결과는 참고용 추정치입니다. 절대 이 결과에만 의존하지 마세요.'
+              : '⚠ The results below are estimates for reference only. Never rely on them alone.'}
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-content-soft">
+            <li>
+              {ko
+                ? '학생이 만든 비공식 도구이며, 학과·대학이 검증하거나 보증하지 않습니다.'
+                : 'This is an unofficial, student-built tool. It is not verified or endorsed by the department or the university.'}
+            </li>
+            <li>
+              {ko
+                ? '시간표 인식 오류, 과목명 변경, 요건 개정으로 결과가 실제와 다를 수 있습니다.'
+                : 'OCR mistakes, renamed courses, and requirement revisions can make the result differ from reality.'}
+            </li>
+            <li>
+              {ko
+                ? '공식 졸업사정은 연세포털 「졸업사정 조회」와 학과사무실 확인만이 유효합니다.'
+                : 'Only the Yonsei portal graduation audit and the department office are authoritative.'}
+            </li>
+            <li>
+              {ko
+                ? '이 결과를 근거로 한 수강 계획·졸업 판단의 책임은 전적으로 본인에게 있습니다.'
+                : 'Any course plan or graduation decision based on this result is entirely your own responsibility.'}
+            </li>
+          </ul>
+        </div>
+
         {/* 뷰 전환 — 막대형 / 도넛형 (슬라이드 토글) */}
         <div className="mt-4">
           <SegmentedControl
@@ -1113,11 +1168,48 @@ export function GraduationChecker({ data, locale }: { data: CheckerData; locale:
           </div>
         )}
 
-        <p className="mt-6 max-w-2xl text-xs leading-relaxed text-content-faint">
-          {ko
-            ? '※ 학점은 표준 학점 기준 추정치이며, 재수강·계절학기·인정과목 등은 반영되지 않을 수 있습니다. 실제 졸업사정은 연세포털 학사정보를 기준으로 하세요.'
-            : '※ Credits are estimates based on standard values; retakes, summer sessions, and transfer credits may not be reflected. Refer to the Yonsei portal for the official audit.'}
-        </p>
+        {/* 한계·유의사항 — 결과 아래에서 "무엇이 반영되지 않는가" 를 항목으로 나열한다.
+            위의 경고 박스가 태도(의존 금지)를 말한다면, 여기는 구체적 누락 범위를 말한다. */}
+        <div className="mt-8 max-w-2xl border-t border-surface-border pt-5 text-xs leading-relaxed text-content-faint">
+          <p className="font-bold text-content-soft">{ko ? '유의사항 및 한계' : 'Limitations'}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              {ko
+                ? '학점은 표준 학점 기준 추정치입니다. 재수강·계절학기·편입·교환학생·학점인정 과목은 반영되지 않을 수 있습니다.'
+                : 'Credits are estimates from standard values; retakes, summer sessions, transfers, exchange programs, and credit recognition may not be reflected.'}
+            </li>
+            <li>
+              {ko
+                ? '성적(F·미이수)과 수강 철회는 시간표에서 알 수 없어 모두 이수한 것으로 계산됩니다.'
+                : 'Grades (F, incomplete) and withdrawals cannot be read from a timetable, so every course is counted as completed.'}
+            </li>
+            <li>
+              {ko
+                ? '졸업요건은 학번·전공 트랙·복수전공·부전공 여부에 따라 달라지며, 이 도구는 일부 경우만 다룹니다.'
+                : 'Requirements vary by cohort, track, and double/minor majors; this tool covers only some cases.'}
+            </li>
+            <li>
+              {ko
+                ? '채플 횟수는 입력값을 그대로 믿으며, 영어 인증·졸업논문·졸업시험 등 학점 외 요건은 직접 확인해야 합니다.'
+                : 'Chapel count is taken as entered; non-credit requirements (English certification, thesis, exams) must be checked separately.'}
+            </li>
+            <li>
+              {ko
+                ? '요건과 과목 데이터는 수동으로 갱신되므로 최신 학사 규정과 다를 수 있습니다.'
+                : 'Requirement and course data are updated by hand and may lag behind current regulations.'}
+            </li>
+            <li>
+              {ko
+                ? '업로드한 이미지는 브라우저 안에서만 처리되며 서버로 전송되지 않습니다.'
+                : 'Uploaded images are processed in your browser only and are never sent to a server.'}
+            </li>
+          </ul>
+          <p className="mt-3 font-semibold text-content-soft">
+            {ko
+              ? '※ 최종 졸업 가능 여부는 반드시 연세포털 졸업사정 조회와 학과사무실에서 확인하세요. 이 도구의 오류로 인한 불이익에 대해 제작자는 책임지지 않습니다.'
+              : '※ Always confirm your graduation status on the Yonsei portal and with the department office. The authors accept no liability for consequences arising from errors in this tool.'}
+          </p>
+        </div>
       </section>
     </div>
   );
