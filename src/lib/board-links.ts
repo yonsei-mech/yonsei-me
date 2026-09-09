@@ -3,6 +3,8 @@
  *
  * 문법 (2026-08 개편):
  *   /news/<탭>                게시판 목록 (탭이 곧 경로)
+ *                             단, 교수 초빙(recruit)은 게시판이 아닌 안내 탭이다
+ *                             (2026-09 연구 섹션에서 이관 — 상세 라우트가 없다)
  *   /news/<탭>/<id>           게시판 글 상세 (소속 게시판이 URL 에 있다)
  *   /news/press/<slug>        뉴스 기사 상세 (탭 키 'news' 는 URL 에서 'press' —
  *                             /news/news/ 중첩을 피한다. 라벨·boardKey 는 그대로)
@@ -21,11 +23,12 @@ import type { BoardPost } from '@/lib/content';
 export const NEWS_TABS = [
   { seg: 'notices', labelKey: 'notices' },
   { seg: 'press', labelKey: 'news' }, // 뉴스 기사 — URL 만 press, 라벨은 기존 키
-  { seg: 'thesis', labelKey: 'thesis' },
-  { seg: 'resources', labelKey: 'resources' },
-  { seg: 'career', labelKey: 'career' },
   { seg: 'events', labelKey: 'events' },
   { seg: 'seminars', labelKey: 'seminars' },
+  { seg: 'career', labelKey: 'career' },
+  { seg: 'resources', labelKey: 'resources' },
+  { seg: 'recruit', labelKey: 'recruit' }, // 교수 초빙 — 게시판이 아닌 안내 탭
+  { seg: 'thesis', labelKey: 'thesis' },
   { seg: 'calendar', labelKey: 'calendar' },
 ] as const;
 
@@ -98,7 +101,8 @@ export const CONTENT_SECTIONS = {
     'scholarship',
   ],
   graduate: ['requirements', 'courses', 'labs', 'bk21'],
-  research: ['vision', 'capacity', 'labs', 'internships', 'social', 'recruit'],
+  // 'recruit'(교수 초빙)는 2026-09 에 소식 섹션(/news/recruit)으로 옮겼다 — NEWS_TABS 참고
+  research: ['vision', 'capacity', 'labs', 'internships', 'social'],
 } as const;
 
 export type ContentSection = keyof typeof CONTENT_SECTIONS;
@@ -113,9 +117,22 @@ export function sectionDefaultHref(section: ContentSection): string {
   return sectionTabHref(section, CONTENT_SECTIONS[section][0]);
 }
 
+/**
+ * 섹션에서 **빠져나간** 탭의 구 해시 → 새 위치.
+ * CONTENT_SECTIONS 에 없으니 자동 파생이 안 되는데, 구 `/research#recruit` 북마크는
+ * 남아 있다(섹션 루트 308 → 기본 탭 → LegacyBoardHash 가 여기서 최종 목적지를 찾는다).
+ * 탭을 다른 섹션으로 옮길 때마다 한 줄씩 늘려 구 링크를 살려 둔다.
+ */
+const LEGACY_SECTION_HASH_EXTRA: Partial<Record<ContentSection, Record<string, string>>> = {
+  research: { recruit: newsTabHref('recruit') }, // 2026-09 소식 섹션으로 이관
+};
+
 /** 레거시 해시(/undergraduate#checker 등) → 새 경로 — LegacyBoardHash 용 */
 export function legacySectionHash(section: ContentSection): Record<string, string> {
-  return Object.fromEntries(
-    CONTENT_SECTIONS[section].map((key) => [key, sectionTabHref(section, key)]),
-  );
+  return {
+    ...Object.fromEntries(
+      CONTENT_SECTIONS[section].map((key) => [key, sectionTabHref(section, key)]),
+    ),
+    ...(LEGACY_SECTION_HASH_EXTRA[section] ?? {}),
+  };
 }

@@ -64,8 +64,7 @@
         "capacity": "Research Capacity",
         "labs": "Laboratories",
         "internships": "Intern Positions",
-        "social": "Social Challenge Board",
-        "recruit": "Faculty Recruitment"
+        "social": "Social Challenge Board"
       }
     },
     "news": {
@@ -73,11 +72,12 @@
       "items": {
         "notices": "Notices",
         "news": "News",
-        "thesis": "Thesis Defense",
-        "resources": "Resources",
-        "career": "Career Info",
         "events": "Events",
         "seminars": "Seminars",
+        "career": "Career Info",
+        "resources": "Resources",
+        "recruit": "Faculty Recruitment",
+        "thesis": "Thesis Defense",
         "calendar": "Calendar"
       }
     },
@@ -702,17 +702,17 @@
       "capacity": "Research capacity at Yonsei mechanical engineering: faculty and some 300 graduate researchers, BK21, national labs, a machine shop, and output.",
       "labs": "The 33 laboratories of Yonsei mechanical engineering across six research fields, each with its advisor, location, phone number, and website.",
       "internships": "Undergraduate research internship openings in Yonsei mechanical engineering labs — how many students each lab seeks, topics, and how to apply.",
-      "social": "The Social Challenge Petition desk: submit a company’s technical problem, get matched with a professor or research group, and receive R&D support.",
-      "recruit": "Tenure-track faculty openings at Yonsei mechanical engineering: fields sought, qualifications, how to submit a CV, and the search committee contact."
+      "social": "The Social Challenge Petition desk: submit a company’s technical problem, get matched with a professor or research group, and receive R&D support."
     },
     "news": {
       "notices": "Notices from Yonsei mechanical engineering — undergraduate, graduate, external organizations, and scholarship announcements in one filterable list.",
       "news": "News from Yonsei mechanical engineering: research results, awards, and department updates from our faculty, students, and laboratories.",
-      "thesis": "Thesis defense announcements for graduate students in mechanical engineering — schedules and candidates for master’s and doctoral examinations.",
-      "resources": "Downloads for Yonsei mechanical engineering: administrative forms and academic regulations, sorted by category with file attachments.",
-      "career": "Career board for Yonsei mechanical engineering students: job postings, internship openings, and employment support programs.",
       "events": "Events at Yonsei mechanical engineering: intensive lecture series, forums, and department programs, with dates and venues.",
       "seminars": "Academic seminars at Yonsei mechanical engineering, including the BK21 series — invited speakers, topics, dates, and venues.",
+      "career": "Career board for Yonsei mechanical engineering students: job postings, internship openings, and employment support programs.",
+      "resources": "Downloads for Yonsei mechanical engineering: administrative forms and academic regulations, sorted by category with file attachments.",
+      "recruit": "Tenure-track faculty openings at Yonsei mechanical engineering: fields sought, qualifications, how to submit a CV, and the search committee contact.",
+      "thesis": "Thesis defense announcements for graduate students in mechanical engineering — schedules and candidates for master’s and doctoral examinations.",
       "calendar": "Monthly calendar for Yonsei mechanical engineering: events, seminars, academic dates, application periods, and exams in one view."
     },
     "alumni": {

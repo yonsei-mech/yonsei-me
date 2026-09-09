@@ -67,7 +67,6 @@ export const menu: MenuGroup[] = [
       // 인턴 모집은 목록이 곧 게시판 목록이다(상세는 /research/internships/<id>)
       { key: 'internships', href: sectionTabHref('research', 'internships') },
       { key: 'social', href: sectionTabHref('research', 'social') },
-      { key: 'recruit', href: sectionTabHref('research', 'recruit') },
     ],
   },
   {
@@ -77,11 +76,13 @@ export const menu: MenuGroup[] = [
       { key: 'notices', href: newsTabHref('notices') },
       // 라벨 키는 'news' 지만 URL 세그먼트는 'press' 다(/news/news 중첩 회피 — board-links 참고)
       { key: 'news', href: newsTabHref('press') },
-      { key: 'thesis', href: newsTabHref('thesis') },
-      { key: 'resources', href: newsTabHref('resources') },
-      { key: 'career', href: newsTabHref('career') },
       { key: 'events', href: newsTabHref('events') },
       { key: 'seminars', href: newsTabHref('seminars') },
+      { key: 'career', href: newsTabHref('career') },
+      { key: 'resources', href: newsTabHref('resources') },
+      // 교수 초빙은 게시판이 아닌 안내 페이지다(2026-09 연구 섹션에서 이관)
+      { key: 'recruit', href: newsTabHref('recruit') },
+      { key: 'thesis', href: newsTabHref('thesis') },
       { key: 'calendar', href: newsTabHref('calendar') },
     ],
   },

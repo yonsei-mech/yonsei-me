@@ -90,7 +90,7 @@ const STATIC_PAGES: Record<string, string> = {
   'faculty/graduation.do': tab('undergraduate', 'requirements'),
   'faculty/professor_list.do': tab('about', 'faculty'),
   'faculty/schedule.do': newsTabHref('calendar'), // 학사일정
-  'facultyjob/facultyjob.do': tab('research', 'recruit'), // 교수초빙안내
+  'facultyjob/facultyjob.do': newsTabHref('recruit'), // 교수초빙안내(2026-09 소식 섹션으로 이관)
 
   // 대학원·연구
   'graduate/graduate_intro.do': tab('graduate', 'requirements'),

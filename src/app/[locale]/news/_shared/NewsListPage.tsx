@@ -3,7 +3,7 @@
  *
  * 예전에는 `/news` 한 장이 8개 탭을 해시로 갈아 끼웠다. 해시는 서버로 오지 않아
  * 검색엔진에게 게시판 8개가 URL 하나로 보였다 — 그래서 탭마다 진짜 경로를 준다.
- * 페이지가 8장으로 갈렸으므로 히어로·탭·메타 조립은 이 파일 한 곳에 모아 둔다.
+ * 페이지가 9장으로 갈렸으므로 히어로·탭·메타 조립은 이 파일 한 곳에 모아 둔다.
  *
  * 셸은 TabPageShell(narrow) 이다 — 개편 전 `/news` 가 갖고 있던 히어로 하단 남색
  * 내비게이션 바(홈 아이콘 + 그룹명 + 현재 탭 드롭다운)를 그대로 유지하기 위해서다.
@@ -40,7 +40,7 @@ export async function newsTabLabel(locale: Locale, seg: NewsTabSeg): Promise<str
   return tMenu(`news.items.${labelKeyOf(seg)}`);
 }
 
-/** 목록이 비었을 때 문구 — 8개 페이지가 같은 값을 쓴다 */
+/** 목록이 비었을 때 문구 — 9개 페이지가 같은 값을 쓴다 */
 export async function newsEmptyLabel(locale: Locale): Promise<string> {
   const tStub = await getTranslations({ locale, namespace: 'stub' });
   return tStub('empty');

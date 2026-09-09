@@ -39,7 +39,7 @@ import {
 // 3) 게시판 URL 은 경로 기반(2026-08 개편): /news/<탭>, /news/<탭>/<id>,
 //    /news/press/<slug>, /research/internships/<id>, /alumni/news|network[/<id>].
 //    2차 개편에서 콘텐츠 4개 섹션(소개·학부·대학원·연구)의 세부탭도 경로가 됐다:
-//    /about/history … /research/recruit (CONTENT_SECTIONS 24개).
+//    /about/history … /research/social (CONTENT_SECTIONS 23개).
 //    구 경로(/news, /about, /undergraduate, /graduate, /research, /news/post/<id>,
 //    /alumni/post/<id>)는 전부 308 리다이렉트라 사이트맵에 싣지 않는다 —
 //    리다이렉트 URL 은 색인 대상이 아니고 크롤 홉만 늘린다.
@@ -100,7 +100,7 @@ export async function GET() {
   const STATIC_PATHS = [
     '',
     'admission',
-    // 콘텐츠 세부탭 24개 — 소개 6 · 학부 8 · 대학원 4 · 연구 6.
+    // 콘텐츠 세부탭 23개 — 소개 6 · 학부 8 · 대학원 4 · 연구 5.
     // 섹션 루트(/about 등)는 기본 탭으로 308 이라 싣지 않는다(그래서 여기 없다).
     // CONTENT_SECTIONS 에서 뽑아 오므로 탭이 늘면 사이트맵도 따라온다.
     // (CONTENT_SECTIONS 가 as const 라 값이 서로 다른 리터럴 튜플이다 —
@@ -110,7 +110,8 @@ export async function GET() {
         sectionTabHref(section, key).slice(1),
       ),
     ),
-    // 소식 게시판 8개 — 탭이 곧 경로다(/news 자체는 기본 탭으로 308, 그래서 빠졌다).
+    // 소식 탭 9개 — 탭이 곧 경로다(/news 자체는 기본 탭으로 308, 그래서 빠졌다).
+    // 게시판 7개 + 일정(달력) + 교수 초빙(안내 페이지).
     // NEWS_TABS 에서 뽑아 오므로 탭이 늘면 사이트맵도 따라온다.
     ...NEWS_TABS.map((t) => newsTabHref(t.seg).slice(1)),
     'alumni', // /alumni 는 '동문회 소개' 콘텐츠 페이지 자신이다(리다이렉트 아님)
