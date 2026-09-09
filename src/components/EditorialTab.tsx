@@ -125,6 +125,8 @@ export function EditorialTab({
   showcaseItems = false,
   boxedSteps = false,
   landing,
+  titleTag = 'h3',
+  id,
 }: {
   data: EditorialTabData;
   locale: Locale;
@@ -138,7 +140,16 @@ export function EditorialTab({
   /** true 면 steps 를 각진 아웃라인 정사각 상자 + 상자 사이 셰브런(다음 단계 화살)으로
    *  렌더 — 홍익대 교과과정(학년 박스) 레퍼런스. 사회난제 신문고 절차에 사용 */
   boxedSteps?: boolean;
+  /** 제목 요소의 헤딩 레벨(기본 h3 — 단독으로 쓰이는 대부분의 탭은 종전 그대로).
+   *  한 페이지에 EditorialTab 이 둘 이상 쌓이면 페이지 h1 바로 아래에 h2 없이 h3 가 와서
+   *  헤딩 레벨을 건너뛰므로(스크린리더 개요·SEO 에 불리), 그런 블록만 'h2' 로 올린다. */
+  titleTag?: 'h2' | 'h3';
+  /** 지정하면 루트 요소에 앵커 id 를 단다. 구 해시 링크(`/research#capacity` → 308 →
+   *  `/research/vision#capacity`)가 페이지 상단이 아니라 해당 블록에 착지하게 하는 용도.
+   *  고정 헤더에 제목이 가리지 않도록 scroll-mt-24 를 함께 준다. */
+  id?: string;
 }) {
+  const TitleTag = titleTag;
   const hasStat = data.items?.some((it) => it.stat);
   const itemCount = data.items?.length ?? 0;
   const itemGridCols = hasStat
@@ -154,21 +165,23 @@ export function EditorialTab({
   // data-land / data-land-order = 랜딩 애니메이션 표식(LandingScope 훅이 읽는다).
   // landing 이 없으면 그냥 무의미한 속성이라 다른 탭에는 아무 영향이 없다.
   const body = (
-    <div>
+    /* 앵커 착지 여백 = 고정 헤더(64/lg 80px) + sticky 탭바(~50px) + 숨 쉴 틈. scroll-mt-24 는
+       CDP 실측에서 eyebrow 가 탭바 아래로 들어가고 제목 윗부분이 잘렸다. */
+    <div id={id} className={id ? 'scroll-mt-32 lg:scroll-mt-40' : undefined}>
       {/* eyebrow (+ 탭 라벨과 다른 제목이 있을 때만 큰 디스플레이 제목) */}
       <p data-land="rise" data-land-order="0" className="eyebrow">
         {data.eyebrow}
       </p>
       {data.title && (
         /* 세부탭 소제목 서체 = Paperlogy 7 Bold(사용자 지정) — 700 단일이라 가짜 볼드 없음 */
-        <h3
+        <TitleTag
           data-land="rise"
           data-land-order="1"
           style={{ fontFamily: 'var(--font-subhead), var(--font-sans), sans-serif' }}
           className="mt-4 max-w-3xl text-[clamp(1.8rem,4vw,3rem)] font-bold leading-[1.1] tracking-tight text-content"
         >
           {renderWithUnderline(pick(data.title, locale))}
-        </h3>
+        </TitleTag>
       )}
 
       {/* slogan — 인용구형 디스플레이 (홍익대 레퍼런스처럼 크고 단단한 볼드 헤드라인).

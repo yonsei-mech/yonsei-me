@@ -31,11 +31,16 @@ export default function ResearchVisionPage({ params }: { params: { locale: strin
       <VisionInfographic locale={locale} />
       <div className="mt-section-lg border-t border-surface-border pt-section-sm">
         {/* landing = GSAP 진입 애니메이션 옵트인. 위 비전 블록은 "빨리 읽히는" 글이라
-            일부러 켜지 않았고(사용자 지시), 역량 블록만 종전대로 유지한다. */}
+            일부러 켜지 않았고(사용자 지시), 역량 블록만 종전대로 유지한다.
+            titleTag=h2 — 이 페이지 h1("연구 비전 및 역량") 바로 아래라 h3 면 레벨 건너뜀이 된다.
+            (위 비전 블록은 title 이 없어 제목을 내지 않으므로 h2 는 여기 하나뿐이다.)
+            id=capacity — 통합 전 `/research#capacity` 북마크가 이 단락에 착지하도록. */}
         <EditorialTab
           data={getEditorialTab('research-capacity')}
           locale={locale}
           landing="research-capacity"
+          titleTag="h2"
+          id="capacity"
         />
       </div>
     </SectionTabPage>
