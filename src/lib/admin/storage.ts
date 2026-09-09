@@ -83,6 +83,11 @@ async function compressImage(file: File, maxDim: number = MAX_DIMENSION): Promis
     canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) return file;
+    // 투명 배경 PNG 를 그대로 WebP 로 옮기면 투명이 보존된다 — 교수 카드처럼 사진 아래에
+    // 로딩 스피너를 깔아 두는 자리에서는 투명 영역으로 스피너가 계속 비쳐 "로딩이 안
+    // 끝나는" 것처럼 보인다(2026-09 김영주 교수 사진 사고). 흰 바탕을 먼저 깔아 합성한다.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
     const blob = await new Promise<Blob | null>((resolve) =>
