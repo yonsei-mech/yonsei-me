@@ -4,6 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 
 import { useTranslations } from 'next-intl';
 import type { LabDirectoryEntry } from '@/lib/faculty';
 import type { Locale } from '@/i18n/routing';
+import { canOptimizeImage, optimizedImageUrl } from '@/lib/image-url';
 import { cn } from '@/lib/utils';
 
 /** 부모(LabsSection) 화살표 버튼이 쓰는 넘기기 핸들 */
@@ -18,6 +19,27 @@ const FALLBACK_IMAGES = [
   '/img/research/intelligent-robotics.jpg',
   '/img/research/precision-manufacturing.jpg',
 ];
+
+/** 로컬 정적 이미지 중 .webp 형제가 보장된 경로(tools/images/convert-webp.py 가 만든다) */
+const LOCAL_WEBP_SIBLING = /^\/img\/(labs|research)\/[^?#]+\.(jpe?g|png)$/i;
+
+/**
+ * 카드 배경으로 실제 요청할 이미지 URL.
+ *
+ * 카드는 CSS background-image 라 next/image 를 못 쓴다 — 대신 두 갈래로 줄인다:
+ *  1) 로컬 /img/labs·/img/research 의 jpg/png → 같은 이름의 .webp.
+ *     ⚠️ 불변식: 그 두 디렉터리의 모든 원본은 .webp 형제를 가진다
+ *     (`tools/images/convert-webp.py` 가 생성 — 새 JPEG 을 넣었으면 다시 돌려야 한다).
+ *     존재 확인 없이 확장자만 바꾸므로 이 불변식이 깨지면 404 가 난다.
+ *  2) 원격(CMS 업로드 R2·Blob·교내 도메인) → Next 이미지 라우트로 640px 리사이즈.
+ *     카드는 최대 290px(sm) 이라 DPR2 에서도 640 이면 충분하다.
+ *  3) 그 외(blob:/data: 미리보기, SVG 등) → 원본 그대로.
+ */
+export function cardImageUrl(src: string): string {
+  if (LOCAL_WEBP_SIBLING.test(src)) return src.replace(/\.(jpe?g|png)$/i, '.webp');
+  if (canOptimizeImage(src)) return optimizedImageUrl(src, 640);
+  return src;
+}
 
 /** 자동 흐름 속도(px/frame). 값이 클수록 빠르게 오른쪽으로 흐른다. */
 const FLOW_SPEED = 0.5;
@@ -240,7 +262,7 @@ function LabCardView({
       <span
         aria-hidden="true"
         className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-        style={{ backgroundImage: `url(${card.image})` }}
+        style={{ backgroundImage: `url(${cardImageUrl(card.image)})` }}
       />
       <span
         aria-hidden="true"

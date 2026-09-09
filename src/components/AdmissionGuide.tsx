@@ -8,7 +8,7 @@ import type { Locale } from '@/i18n/routing';
 export interface GuideSection {
   /** 섹션 순번. 단일 섹션(동문회 소개 등)에서는 생략 — 룰만 남고 번호는 찍히지 않는다 */
   num?: string;
-  /** 좌측 그래픽 — 'logo'(연세 엠블럼 logo.svg) | 'eagle'(독수리 실루엣 eagle.png 마스크) */
+  /** 좌측 그래픽 — 'logo'(연세 엠블럼 logo.svg) | 'eagle'(독수리 실루엣 eagle.webp 마스크) */
   graphic: 'logo' | 'eagle';
   title: { ko: string; en: string };
   body: { ko: string; en: string };

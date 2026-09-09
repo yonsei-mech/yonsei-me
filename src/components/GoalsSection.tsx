@@ -174,12 +174,17 @@ export function GoalsSection({
           </div>
 
           {/* 연세 원형 엠블럼 — 우측 여백을 채우는 장식(넓은 화면에서만) */}
+          {/* width/height 는 종횡비(logo.svg viewBox 588.56561×588.53918 ≈ 1:1)만 알려
+              레이아웃 시프트를 막는 값 — 실제 크기는 w-40/xl:w-48 과 preflight 의
+              img{height:auto} 가 정한다. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.svg"
             alt=""
             aria-hidden="true"
             draggable={false}
+            width={589}
+            height={589}
             className="hidden w-40 shrink-0 select-none self-center lg:block xl:w-48"
           />
         </div>

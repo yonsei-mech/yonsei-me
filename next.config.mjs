@@ -10,6 +10,11 @@ const nextConfig = {
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   images: {
     formats: ['image/avif', 'image/webp'],
+    // 최적화 결과 캐시 수명. Next 는 원본 응답의 Cache-Control 을 따라가는데 R2 객체에는
+    // 그 헤더가 없어서 기본 60초마다 같은 사진을 다시 최적화했다(Vercel Hobby 에서
+    // Image Optimization·Active CPU 를 그대로 먹는다). 업로드 키는 랜덤 접미사가 붙어
+    // 내용이 바뀌지 않으므로(withRandomSuffix) 30일 보관이 안전하다.
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     // CMS 첨부(썸네일 등)는 외부 스토리지에 저장된다 — next/image 는 허용 목록에
     // 없는 외부 도메인을 거부하므로 열어 준다. R2 퍼블릭 도메인(pub-*.r2.dev)이
     // 현행이고, Blob 도메인은 과거 업로드 잔존분 호환용(정리 후 제거 예정).
@@ -34,6 +39,24 @@ const nextConfig = {
     outputFileTracingIncludes: {
       '**': ['./content/**', './public/img/history/**', './public/img/faculty/**'],
     },
+  },
+  // PageSpeed "Best Practices" 가 잡는 보안 헤더 4종. 전 경로에 붙인다.
+  // CSP 는 넣지 않는다 — 전 페이지가 정적 생성이라 요청마다 nonce 를 만들 수 없고,
+  // nonce 없는 CSP 는 인라인 스크립트(next-intl 메시지·GSAP 초기화) 때문에
+  // 'unsafe-inline' 을 열어야 해서 의미가 없다. 넣으려면 동적 렌더링이 전제다.
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          // 카카오 로그인 팝업(CMS)이 opener 를 써야 해서 allow-popups 변형을 쓴다.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
   },
 };
 

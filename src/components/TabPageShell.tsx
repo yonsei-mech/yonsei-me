@@ -55,7 +55,7 @@ export function TabPageShell({
           {/* anim-panel = globals.css 의 panelFadeUp 진입 애니메이션(0.35s) — 라우트 이동 시
               새 페이지가 마운트되며 그대로 재생된다(LandingScope 는 data-land 만 보므로 무관) */}
           <div className="anim-panel relative isolate">
-            {/* 장식용 독수리 — 탭 큰 제목 좌상단, 남색(eagle.png 를 마스크로 틴트) */}
+            {/* 장식용 독수리 — 탭 큰 제목 좌상단, 남색(eagle.webp 를 마스크로 틴트) */}
             <span
               aria-hidden="true"
               className="eagle-mask pointer-events-none absolute -left-2 -top-12 -z-10 h-[230px] w-[230px] bg-yonsei-navy opacity-[0.08]"

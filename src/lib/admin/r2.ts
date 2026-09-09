@@ -49,6 +49,15 @@ export function withRandomSuffix(key: string): string {
   return `${m?.[1] ?? key}-${suffix}${m?.[2] ?? ''}`;
 }
 
+/** 업로드 객체의 캐시 헤더. r2.dev 는 저장할 때 넣은 CacheControl 을 그대로 응답에 싣는다.
+ *
+ *  왜 immutable 이 안전한가: 키는 항상 withRandomSuffix() 로 랜덤 접미사가 붙는다 —
+ *  같은 파일을 다시 올려도 새 키가 생기므로 한 키의 내용이 바뀌는 일이 없다.
+ *  이 헤더가 없으면 (1) 브라우저가 매번 재검증하고(PageSpeed "cache TTL None"),
+ *  (2) next/image 가 원본 Cache-Control 을 못 읽어 minimumCacheTTL(기본 60초)마다
+ *  같은 사진을 다시 최적화한다 — Vercel Hobby 에서 실제 비용이다. */
+const UPLOAD_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
 /** 서버 경유 업로드 — 본문 바이트를 R2 에 저장하고 공개 URL 을 돌려준다 */
 export async function r2Put(key: string, body: Buffer, contentType: string): Promise<string> {
   await client().send(
@@ -57,13 +66,20 @@ export async function r2Put(key: string, body: Buffer, contentType: string): Pro
       Key: key,
       Body: body,
       ContentType: contentType,
+      CacheControl: UPLOAD_CACHE_CONTROL,
     }),
   );
   return r2PublicUrl(key);
 }
 
 /** 대용량(서버리스 본문 한도 초과) 직접 업로드용 presigned PUT URL 발급.
- *  브라우저가 이 URL 로 PUT 하면 R2 에 바로 저장된다(버킷 CORS 필요). */
+ *  브라우저가 이 URL 로 PUT 하면 R2 에 바로 저장된다(버킷 CORS 필요).
+ *
+ *  ⚠️ 여기엔 일부러 CacheControl 을 넣지 않았다 — presigned PUT 은 서명에 들어간 헤더를
+ *  브라우저가 **그대로 다시 보내야** 하므로, storage.ts 의 fetch PUT 에 Cache-Control 을
+ *  추가하고 버킷 CORS 의 AllowedHeaders 에도 등록해야 한다. 이 경로는 4MB 초과 대용량
+ *  첨부(이미지 아님)만 타므로 범위 밖으로 둔다. 기존 객체는
+ *  tools/r2/backfill-cache-control.mjs 로 일괄 보정할 수 있다. */
 export async function r2PresignPut(
   key: string,
   contentType: string,
