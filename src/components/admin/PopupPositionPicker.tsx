@@ -16,6 +16,7 @@ import { useState } from 'react';
 import {
   POPUP_POSITIONS,
   popupPosition,
+  type PopupDesktopPosition,
   type PopupDevice,
   type PopupMobilePosition,
   type PopupPositionKey,
@@ -165,7 +166,10 @@ export function PopupPositionPicker({ form, keys, setValue, onUploadImage, busy 
         {device === 'desktop' ? (
           <PopupSizeFrame
             form={form}
-            position={current}
+            // 이 가지에서는 device 가 'desktop' 이라 current 도 PC 위치 키다
+            // (popupPosition 이 그 목록에서만 고른다) — 크기 편집기는 세로 예산
+            // 계산에 PC 위치만 받는다.
+            position={current as PopupDesktopPosition}
             setValue={setValue}
             onUploadImage={onUploadImage}
             busy={busy}

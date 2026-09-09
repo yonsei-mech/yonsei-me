@@ -167,6 +167,8 @@ export function PopupNotice({ popups, locale, labels }: Props) {
                   // PC 카드 폭 — 없으면(옛 항목) 카드가 기본 360px 로 보정한다.
                   // 모바일 카드는 이 값을 무시한다(전폭 시트).
                   width: p.widthDesktop,
+                  // 사진 비율 — 화면에 안 들어가면 카드째 이 비율로 줄어든다.
+                  aspect: p.imageAspect,
                   onDismiss: (remember: boolean) => dismiss(p, remember),
                 };
                 return device === 'mobile' ? (

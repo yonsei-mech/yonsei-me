@@ -303,6 +303,10 @@ export interface PopupRecord {
    *  한계·기본값은 lib/popup-positions.ts 의 POPUP_DESKTOP_WIDTH 가 단일 출처다.
    *  모바일은 전폭 시트라 이 값을 쓰지 않는다. */
   widthDesktop?: number;
+  /** 사진 가로÷세로(소수 4자리). CMS 가 사진을 올릴 때 잰다.
+   *  이 값이 있으면 PC 카드가 화면에 안 들어갈 때 비율을 지키며 카드째 줄어든다.
+   *  없으면(옛 항목) 사진 높이 상한을 거는 예전 방식으로 폴백한다. */
+  imageAspect?: number;
   /** 하단 "오늘 하루 보지 않기" 버튼 표시 */
   hideTodayButton: boolean;
   /** 우측 상단 X 의 동작 */

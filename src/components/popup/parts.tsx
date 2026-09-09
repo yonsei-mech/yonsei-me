@@ -7,9 +7,13 @@
 
 import { useState } from 'react';
 import {
+  POPUP_DESKTOP_DOTS_H,
   POPUP_DESKTOP_IMAGE_MAX,
+  popupDesktopVerticalInset,
   popupDesktopWidth,
+  popupDesktopWidthCss,
   popupPosition,
+  type PopupDesktopPosition,
   type PopupDevice,
   type PopupPositionKey,
 } from '@/lib/popup-positions';
@@ -18,14 +22,19 @@ import type { PopupCardProps } from './types';
 /** 헤더(z-50)보다 위 */
 export const POPUP_Z = 60;
 
-/** 위치 키 → 바깥 컨테이너의 배치 클래스. 화면 가장자리 여백은 24px,
- *  상단 배치는 헤더에 겹치지 않게 96px 아래에서 시작한다. */
+/** 위치 키 → 바깥 컨테이너의 배치 클래스. 좌우 여백은 24px(inset-x-6),
+ *  상단 배치는 헤더에 겹치지 않게 96px 아래에서 시작한다(top-24).
+ *  ⚠️ 이 숫자는 popup-positions.ts 의 POPUP_DESKTOP_INSETS 와 같은 값이다 —
+ *  세로 예산 계산이 그 상수를 읽으므로 두 곳을 함께 고친다.
+ *  좌우를 inset-x 로 **양쪽 모두** 잡는 이유: 컨테이너가 "좌우 24 를 뺀 전폭" 을
+ *  가져야 카드의 max-width:100% 가 곧 가로 한계가 되기 때문이다(가운데 배치도
+ *  p-4 대신 px-6 으로 통일 — 세로 여백은 두지 않는다). */
 const DESKTOP_BOX: Record<string, string> = {
-  center: 'inset-0 flex items-center justify-center p-4',
-  topLeft: 'left-6 top-24',
-  topRight: 'right-6 top-24',
-  bottomLeft: 'bottom-6 left-6',
-  bottomRight: 'bottom-6 right-6',
+  center: 'inset-0 flex items-center justify-center px-6',
+  topLeft: 'inset-x-6 top-24 flex justify-start',
+  topRight: 'inset-x-6 top-24 flex justify-end',
+  bottomLeft: 'inset-x-6 bottom-6 flex justify-start',
+  bottomRight: 'inset-x-6 bottom-6 flex justify-end',
 };
 
 const MOBILE_BOX: Record<string, string> = {
@@ -54,29 +63,42 @@ export function PopupGroup({
 }) {
   const key = popupPosition(device, position).key;
   const box = (device === 'mobile' ? MOBILE_BOX : DESKTOP_BOX)[key];
+  // PC 카드는 "이 화면에 사진 비율을 지키며 들어가는 폭"까지만 커진다. 그 **세로
+  // 예산**을 배치별로 재서 CSS 변수로 내려 준다 — 카드는 자기 위치를 모르기 때문이다.
+  // contained(관리자 미리보기)는 뷰포트 단위를 쓸 수 없어 프레임 높이를 기준으로 한다.
+  const style = {
+    zIndex: contained ? undefined : POPUP_Z,
+    ...(device === 'desktop'
+      ? {
+          '--popup-vbudget': `calc(${
+            contained ? 'var(--popup-frame-h, 520px)' : '100vh'
+          } - ${popupDesktopVerticalInset(key as PopupDesktopPosition)}px)`,
+        }
+      : null),
+  } as React.CSSProperties;
   return (
-    <div
-      className={`pointer-events-none ${contained ? 'absolute' : 'fixed'} ${box}`}
-      style={{ zIndex: contained ? undefined : POPUP_Z }}
-    >
+    <div className={`pointer-events-none ${contained ? 'absolute' : 'fixed'} ${box}`} style={style}>
       {children}
     </div>
   );
 }
 
-/** 카드 폭 — PC 는 관리자가 정한 px(기본 360), 모바일은 전폭 시트(가운데 배치만
- *  좌우 16px 여백). 모바일은 화면 폭이 곧 카드 폭이라 width 를 받아도 무시한다. */
+/** 카드 폭 — PC 는 관리자가 정한 px(기본 360)이되 사진 비율을 알면 세로 예산에
+ *  맞춰 **카드째** 줄어든다(popupDesktopWidthCss). 모바일은 전폭 시트(가운데 배치만
+ *  좌우 16px 여백)라 width·aspect 를 받아도 무시한다. */
 export function popupCardWidth(
   device: PopupDevice,
   position: PopupPositionKey,
   width?: number,
+  aspect?: number,
 ): string {
-  if (device === 'desktop') return `${popupDesktopWidth(width)}px`;
+  if (device === 'desktop') return popupDesktopWidthCss(popupDesktopWidth(width), aspect);
   return position === 'center' ? 'calc(100% - 32px)' : '100%';
 }
 
-/** 사진 최대 높이. 미리보기 프레임 안(contained)에서는 뷰포트 단위를 쓸 수 없으므로
- *  프레임 높이(--popup-frame-h, 미리보기가 심어 준다)의 70% 를 쓴다 — PC 는 사이트와
+/** 사진 최대 높이 — **비율을 모르는 옛 항목**과 모바일 시트의 경로다.
+ *  미리보기 프레임 안(contained)에서는 뷰포트 단위를 쓸 수 없으므로 프레임
+ *  높이(--popup-frame-h, 미리보기가 심어 준다)의 70% 를 쓴다 — PC 는 사이트와
  *  똑같이 640px 절대 상한도 함께 건다(큰 기준 화면에서 미리보기만 커지지 않게). */
 export function popupImageMaxHeight(device: PopupDevice, contained: boolean): string {
   const { ratio, px } = POPUP_DESKTOP_IMAGE_MAX;
@@ -94,8 +116,9 @@ export function PopupImage({
   link,
   newTab,
   device,
+  aspect,
   contained = false,
-}: Pick<PopupCardProps, 'image' | 'alt' | 'link' | 'newTab' | 'contained'> & {
+}: Pick<PopupCardProps, 'image' | 'alt' | 'link' | 'newTab' | 'aspect' | 'contained'> & {
   device: PopupDevice;
 }) {
   if (!image) {
@@ -108,7 +131,16 @@ export function PopupImage({
       </div>
     );
   }
-  const img = (
+  // 비율을 아는 PC 카드는 사진에 높이 상한을 걸지 않는다 — 카드 폭 자체가 세로
+  // 예산에 맞춰 줄기 때문에(popupDesktopWidthCss) 사진은 전폭으로 따라오면 된다.
+  // 높이 상한을 함께 걸면 사진만 줄고 카드는 그대로라 좌우에 흰 띠가 생긴다.
+  // aspect-ratio 는 로드 전에 자리를 잡아 카드가 튀지 않게 하는 용도다.
+  // 모바일은 전폭 시트라 이 경로를 쓰지 않는다(비율 값이 들어와도 무시).
+  const fixed = device === 'desktop' && aspect ? aspect : undefined;
+  const img = fixed ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={image} alt={alt} className="block h-auto w-full" style={{ aspectRatio: String(fixed) }} />
+  ) : (
     // next/image 는 업로드 도메인(remotePatterns) 설정에 묶여 있어 쓰지 않는다.
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -271,7 +303,13 @@ export function PopupCarousel({
 
   if (device === 'mobile') return <>{children(active, dots)}</>;
   return (
-    <div className="flex flex-col items-center gap-2">
+    // min-w-0: flex item 의 기본 min-width:auto 는 카드의 저장 폭을 그대로 붙들어,
+    // 컨테이너(좌우 24 를 뺀 전폭)보다 넓어도 줄지 않게 만든다.
+    // --popup-dots-h: 점이 붙으면 카드의 세로 예산에서 그만큼을 뺀다(점 8 + gap 8).
+    <div
+      className="flex min-w-0 max-w-full flex-col items-center gap-2"
+      style={{ '--popup-dots-h': `${dots ? POPUP_DESKTOP_DOTS_H : 0}px` } as React.CSSProperties}
+    >
       {children(active, null)}
       {dots}
     </div>

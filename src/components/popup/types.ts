@@ -32,6 +32,9 @@ export interface PopupCardProps {
   /** PC 카드 폭(px) — PopupDesktop 만 쓴다. 모바일은 전폭 시트라 무시한다.
    *  없거나 범위 밖이면 popupDesktopWidth 가 기본값(360)·한계로 보정한다. */
   width?: number;
+  /** 사진 가로÷세로. 있으면 PC 카드가 비율 고정으로 화면에 맞춰(카드째) 줄어든다.
+   *  없으면(옛 항목) 사진에 높이 상한을 거는 예전 방식으로 그린다. */
+  aspect?: number;
   /** 닫기. remember=true 면 오늘 하루 숨김을 기억한다 */
   onDismiss: (remember: boolean) => void;
   /**

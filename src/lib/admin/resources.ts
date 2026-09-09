@@ -11,6 +11,7 @@ import {
   POPUP_DESKTOP_WIDTH,
   isPopupPosition,
   popupDesktopWidth,
+  popupImageAspect,
 } from '@/lib/popup-positions';
 
 // ---- 폼 값 모델 ----
@@ -883,7 +884,13 @@ const POPUPS_FIELDS: FieldDef[] = [
     // 여기 선언은 값의 저장·복원(toForm/fromForm)과 한계 표시를 위한 것이다.
     kind: 'number', key: 'widthDesktop', label: 'PC 카드 폭', width: 'half',
     min: POPUP_DESKTOP_WIDTH.min, max: POPUP_DESKTOP_WIDTH.max,
-    hint: `px. 기본 ${POPUP_DESKTOP_WIDTH.default}, ${POPUP_DESKTOP_WIDTH.min}~${POPUP_DESKTOP_WIDTH.max}`,
+    hint: `px. 기본 ${POPUP_DESKTOP_WIDTH.default} — 화면에 안 들어가면 사진 비율을 지키며 자동으로 줄어듭니다`,
+  },
+  {
+    // 이것도 전용 폼에 제 행이 없다(widthDesktop 과 같은 관례) — 값은 사진을 올릴 때
+    // 편집기가 재서 폼에 심고, 여기 선언은 저장·복원(toForm/fromForm)을 위한 것이다.
+    kind: 'number', key: 'imageAspect', label: '사진 비율', emptyAs: 'omit',
+    hint: '가로÷세로. 사진을 올리면 자동으로 잽니다',
   },
   {
     kind: 'checkboxGroup', key: 'devices', label: '대상 기기',
@@ -912,12 +919,14 @@ const POPUPS_FIELDS: FieldDef[] = [
   },
   {
     kind: 'imageUpload', key: 'image', label: '사진', required: true,
-    folder: 'public/img/popup', fileNameFrom: 'id', maxDim: 1600, maxSizeMB: 5,
-    hint: '폭 320~600px 의 세로형 사진을 권장합니다',
+    // maxDim 2400: 카드 폭 상한이 없어져 큰 화면에서는 사진이 1000px 넘게 그려진다 —
+    // 1600 으로 줄이면 그때 물러 보인다.
+    folder: 'public/img/popup', fileNameFrom: 'id', maxDim: 2400, maxSizeMB: 5,
+    hint: '표시할 폭의 2배 이상 해상도를 권장합니다. 크기·위치는 위치 미리보기에서 정합니다',
   },
   {
     kind: 'imageUpload', key: 'imageMobile', label: '모바일 사진', emptyAs: 'omit',
-    folder: 'public/img/popup', fileNameFrom: 'id', maxDim: 1600, maxSizeMB: 5,
+    folder: 'public/img/popup', fileNameFrom: 'id', maxDim: 2400, maxSizeMB: 5,
     hint: '비우면 PC 사진을 씁니다',
   },
   {
@@ -972,6 +981,10 @@ const popups: ResourceDef = {
     // PC 카드 폭도 옛 항목엔 없다 — 폼에서는 늘 실제 그려지는 값이 보여야 리사이즈
     // 위젯이 빈칸에서 시작하지 않는다. (number kind 의 폼 값은 문자열이다.)
     form.widthDesktop = String(popupDesktopWidth(form.widthDesktop));
+    // 사진 비율은 반대로 **없으면 빈칸**이다 — 옛 항목은 아직 재지 않았다는 뜻이고,
+    // 편집기가 사진을 읽어 다시 채운다(기본값을 지어내면 카드가 엉뚱하게 줄어든다).
+    const aspect = popupImageAspect(r.imageAspect);
+    form.imageAspect = aspect ? String(aspect) : '';
     // checkbox 는 defaultToForm 이 `=== true` 로 읽어 키가 없으면 false 가 된다.
     // 노출·"오늘 하루" 버튼은 없을 때 켜져 있는 편이 기대에 맞다.
     if (r.enabled === undefined) form.enabled = true;
@@ -996,6 +1009,11 @@ const popups: ResourceDef = {
     // 폼은 문자열을 들고 있으므로 여기서 숫자로 바꿔 저장한다 — 사이트가 그대로
     // px 로 쓰는 값이라 빈칸·범위 밖은 같은 함수가 기본값·한계로 보정한다.
     out.widthDesktop = popupDesktopWidth(out.widthDesktop);
+    // 사진 비율도 숫자로. 아직 재지 못했으면(사진 없음·로드 실패) 키를 아예 생략해
+    // 옛 항목과 같은 폴백 경로로 그려지게 한다.
+    const aspect = popupImageAspect(out.imageAspect);
+    if (aspect) out.imageAspect = aspect;
+    else delete out.imageAspect;
     return out;
   },
   summarize: (f) => cellText(f, 'title'),

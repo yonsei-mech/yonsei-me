@@ -10,6 +10,14 @@
 // 학생 화면과 같은 px 이고, 핸들·배지처럼 **화면에서 크기가 일정해야 하는 것**만
 // 1/zoom 로 되돌린다.
 //
+// 크기 모델(2026-09 개편): 절대 상한은 없다. 카드와 사진이 **비율로 묶여** 있어
+// 한계는 "이 화면에 사진 비율을 지키며 들어가는가" 하나뿐이다 — 세로 예산은 배치별로
+// 다르고(가운데는 상하 여백 0·헤더 덮음, 상단 96, 하단 24), 가로는 좌우 24 씩이다.
+// 그래서 핸들은 **대각선 비율 고정**으로 끌고, 저장값이 이 기준 화면보다 크면 카드가
+// 줄어든 모습(effective)으로 보인다. 계산식은 popup-positions.ts 한 곳에 있다.
+//
+// 사진이 없으면 크기를 정할 근거가 없으므로 프레임을 잠근다(점선 자리 + 안내 한 줄).
+//
 // 배경 캡처와 기준 화면은 항목이 아니라 CMS 전역 설정(content/popup-preview.json)이라
 // 항목 저장과 무관하게 즉시 저장한다 — 항목을 저장하지 않고 나가도 배경은 남아야 한다.
 //
@@ -17,11 +25,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  POPUP_DESKTOP_IMAGE_MAX,
   POPUP_DESKTOP_WIDTH,
+  popupDesktopMaxWidth,
   popupDesktopWidth,
+  popupImageAspect,
+  type PopupDesktopPosition,
   type PopupDevice,
-  type PopupPositionKey,
 } from '@/lib/popup-positions';
 import { PopupCarousel, PopupDesktop, PopupGroup } from '@/components/popup';
 import type { PopupCardProps } from '@/components/popup/types';
@@ -62,6 +71,9 @@ export function buildPreviewCard(form: FormRecord, device: PopupDevice): PopupCa
     // 미리보기도 학생 화면과 같은 폭 값을 써야 "보는 대로 고친다"가 성립한다
     // (모바일 카드는 전폭 시트라 이 값을 무시한다).
     width: popupDesktopWidth(form.widthDesktop),
+    // 사진 비율 — 카드가 프레임에 맞춰 줄어드는 규칙이 사이트와 같아진다
+    // (모바일 카드는 이 값도 무시한다).
+    aspect: popupImageAspect(form.imageAspect),
     contained: true,
     onDismiss: () => {
       /* 미리보기에서는 닫히지 않는다 */
@@ -76,10 +88,6 @@ const WIDTH_KEY = 'widthDesktop';
 /** 화면(축소본)에서 핸들이 갖는 크기(px) — 실제 배치에는 1/zoom 을 곱한다 */
 const HANDLE_SCREEN_PX = 10;
 
-/** 좌우 화면 여백 — parts.tsx 의 DESKTOP_BOX 가 쓰는 24px 과 같은 값이다.
- *  카드가 이보다 넓어지면 실제 화면에서 가장자리에 붙는다. */
-const SIDE_GAP = 24;
-
 /** 배경 캡처 용량 한계 — 관리자 전용 자산이라 넉넉히 두되, 실수로 원본 PNG 를
  *  올려 업로드가 몇 분씩 걸리는 것은 막는다. */
 const BG_MAX_MB = 10;
@@ -88,18 +96,26 @@ type SaveState = { kind: 'idle' | 'busy' | 'done' | 'error'; text: string };
 
 const IDLE: SaveState = { kind: 'idle', text: '' };
 
-/** 네 모서리 — 오른쪽 핸들은 끌수록 넓어지고(+1) 왼쪽은 반대(−1) */
+/** 네 모서리. 가로는 오른쪽 핸들이 끌수록 넓어지고(+1) 왼쪽은 반대(−1),
+ *  세로는 아래 핸들이 +1·위 핸들이 −1 이다 — 카드가 비율 고정이라 세로로 끄는 것도
+ *  폭이 된다(가로·세로 중 더 많이 끈 쪽을 따른다). */
 const CORNERS = [
-  { key: 'tl', dir: -1 as const, cls: 'left-0 top-0 -translate-x-1/2 -translate-y-1/2', cursor: 'nwse-resize' },
-  { key: 'tr', dir: 1 as const, cls: 'right-0 top-0 translate-x-1/2 -translate-y-1/2', cursor: 'nesw-resize' },
-  { key: 'bl', dir: -1 as const, cls: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2', cursor: 'nesw-resize' },
-  { key: 'br', dir: 1 as const, cls: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2', cursor: 'nwse-resize' },
+  { key: 'tl', dirX: -1 as const, dirY: -1 as const, cls: 'left-0 top-0 -translate-x-1/2 -translate-y-1/2', cursor: 'nwse-resize' },
+  { key: 'tr', dirX: 1 as const, dirY: -1 as const, cls: 'right-0 top-0 translate-x-1/2 -translate-y-1/2', cursor: 'nesw-resize' },
+  { key: 'bl', dirX: -1 as const, dirY: 1 as const, cls: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2', cursor: 'nesw-resize' },
+  { key: 'br', dirX: 1 as const, dirY: 1 as const, cls: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2', cursor: 'nwse-resize' },
+];
+
+/** 안내 문구에 적는 참고 화면 — 좁은 노트북과 큰 모니터의 경계값 두 벌 */
+const HINT_VIEWPORTS = [
+  { width: 1280, height: 800 },
+  { width: 1920, height: 1080 },
 ];
 
 interface Props {
   form: FormRecord;
   /** 지금 고른 PC 위치 — 가운데면 좌우로 함께 늘어난다(끄는 양의 두 배) */
-  position: PopupPositionKey;
+  position: PopupDesktopPosition;
   setValue: (key: string, value: FormRecord[string]) => void;
   onUploadImage?: (file: File, opts?: { maxDim?: number; folder?: string }) => Promise<string>;
   busy?: boolean;
@@ -110,8 +126,6 @@ export function PopupSizeFrame({ form, position, setValue, onUploadImage, busy }
   const [sha, setSha] = useState('');
   const [save, setSave] = useState<SaveState>(IDLE);
   const [bgBroken, setBgBroken] = useState(false);
-  /** 팝업 사진의 가로/세로 비 — 폭 상한 계산에 쓴다(아래 clamp 주석) */
-  const [aspect, setAspect] = useState<number | null>(null);
   const [hostWidth, setHostWidth] = useState(0);
   const [cardHeight, setCardHeight] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -121,11 +135,25 @@ export function PopupSizeFrame({ form, position, setValue, onUploadImage, busy }
   const cardRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   /** 드래그 시작 지점 — 렌더마다 새로 만들지 않으려 ref 에 둔다 */
-  const dragRef = useRef<{ x: number; w: number; dir: 1 | -1 } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    dirX: 1 | -1;
+    dirY: 1 | -1;
+  } | null>(null);
+  /** 비율이 **바뀐** 순간을 가려내는 플래그 — 마운트 첫 실행은 건드리지 않는다 */
+  const aspectRef = useRef<{ seen: boolean; value: number | undefined }>({
+    seen: false,
+    value: undefined,
+  });
 
   const viewport = settings.desktop;
   const image = cellText(form, 'image');
   const width = popupDesktopWidth(form[WIDTH_KEY]);
+  // 비율은 여기서 재지 않는다 — 사진을 올릴 때 PopupDetailEditor 가 재서 폼에 심는다
+  // (모바일 탭을 보고 있어도 재야 하고, 저장에 실려 가야 하는 값이다).
+  const aspect = popupImageAspect(form.imageAspect);
 
   // 설정은 마운트 시 한 번만 읽는다. 실패하면(네트워크·404) 기본값으로 그대로 그린다 —
   // 배경이 없다고 폭 편집을 막을 이유가 없다.
@@ -170,72 +198,66 @@ export function PopupSizeFrame({ form, position, setValue, onUploadImage, busy }
     return () => ro.disconnect();
   }, [image]);
 
-  // 사진의 원본 비율 — 폭 상한을 사진 높이 상한과 맞추는 데 쓴다.
-  useEffect(() => {
-    if (!image) {
-      setAspect(null);
-      return;
-    }
-    const probe = new window.Image();
-    probe.onload = () => {
-      setAspect(probe.naturalWidth > 0 && probe.naturalHeight > 0
-        ? probe.naturalWidth / probe.naturalHeight
-        : null);
-    };
-    probe.onerror = () => setAspect(null);
-    probe.src = image;
-    return () => {
-      probe.onload = null;
-      probe.onerror = null;
-    };
-  }, [image]);
-
   const zoom = hostWidth > 0 ? Math.min(1, hostWidth / viewport.width) : 0.5;
 
   /**
-   * 폭의 한계.
-   * - 값 자체의 한계(240~800)는 popupDesktopWidth 와 같은 단일 출처.
-   * - 기준 화면에서 좌우 여백(24×2)을 먹지 않는 폭까지만.
-   * - 사진 비율을 알면 `가로/세로 × 사진 높이 상한` 까지만 — 그보다 넓히면 사진이
-   *   높이 상한(화면의 70%, 최대 640px — 사이트와 같은 규칙)에 먼저 걸려 카드 안에
-   *   좌우 여백이 생긴다. 그때부터는 끌어도 사진이 커지지 않으므로 미리보기와 실제
-   *   인상이 어긋난다.
+   * 이 기준 화면에서 비율을 지키며 들어가는 최대 폭. 절대 상한은 없다 —
+   * 가로는 좌우 여백(24×2)을 뺀 폭, 세로는 배치별 예산(가운데 0 · 상단 96 · 하단 24)
+   * 에서 카드 크롬(46)을 뺀 높이에 비율을 곱한 폭이다. 계산은 사이트와 같은
+   * 단일 출처(popupDesktopMaxWidth)를 쓴다. 미리보기는 언제나 한 장이라 점(dots)은 없다.
    */
+  const maxWidth = popupDesktopMaxWidth({
+    aspect,
+    position,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+  });
+
   const clampWidth = useCallback(
-    (px: number): number => {
-      let max = Math.min(POPUP_DESKTOP_WIDTH.max, viewport.width - SIDE_GAP * 2);
-      if (aspect) {
-        const imageMaxH = Math.min(
-          POPUP_DESKTOP_IMAGE_MAX.ratio * viewport.height,
-          POPUP_DESKTOP_IMAGE_MAX.px,
-        );
-        max = Math.min(max, Math.floor(aspect * imageMaxH));
-      }
-      max = Math.max(POPUP_DESKTOP_WIDTH.min, max);
-      return Math.round(Math.min(max, Math.max(POPUP_DESKTOP_WIDTH.min, px)));
-    },
-    [aspect, viewport.width, viewport.height],
+    (px: number): number =>
+      Math.round(Math.min(maxWidth, Math.max(POPUP_DESKTOP_WIDTH.min, px))),
+    [maxWidth],
   );
+
+  /** 이 기준 화면에서 **실제로 그려지는** 폭 — 저장값이 화면보다 크면 카드가 줄어든다
+   *  (사이트의 CSS min() 이 하는 일을 미리보기에서 숫자로 미리 해 둔 것). */
+  const effective = Math.min(width, maxWidth);
 
   function commitWidth(px: number) {
     const next = clampWidth(px);
     if (next !== width) setValue(WIDTH_KEY, String(next));
   }
 
-  function onHandleDown(e: React.PointerEvent<HTMLDivElement>, dir: 1 | -1) {
+  // 비율이 **바뀌면**(세로 사진 → 가로 사진 등) 옛 폭이 이 화면에 안 들어갈 수 있다.
+  // 그때만 값을 정리한다 — 마운트 시(열기만 했을 때)에는 손대지 않는다.
+  useEffect(() => {
+    const prev = aspectRef.current;
+    aspectRef.current = { seen: true, value: aspect };
+    if (!prev.seen || prev.value === aspect) return;
+    if (width > maxWidth) setValue(WIDTH_KEY, String(maxWidth));
+  }, [aspect, maxWidth, width, setValue]);
+
+  function onHandleDown(e: React.PointerEvent<HTMLDivElement>, dirX: 1 | -1, dirY: 1 | -1) {
     if (busy) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { x: e.clientX, w: width, dir };
+    // 기준이 width 가 아니라 effective 다 — 저장값이 이 화면보다 컸어도 첫 드래그에서
+    // 보이는 크기부터 이어지고, 그 결과가 화면 한계 이하로 정리된다.
+    dragRef.current = { x: e.clientX, y: e.clientY, w: effective, dirX, dirY };
     setDragging(true);
   }
 
   function onHandleMove(e: React.PointerEvent<HTMLDivElement>) {
     const d = dragRef.current;
     if (!d) return;
-    // clientX 는 화면 px 이므로 zoom 으로 나눠 레이아웃(=실제 뷰포트) px 로 되돌린다.
-    // 가운데 정렬은 좌우가 함께 벌어지므로 끈 거리의 두 배가 폭이 된다.
-    const grow = ((e.clientX - d.x) / zoom) * d.dir * (position === 'center' ? 2 : 1);
+    // clientX·clientY 는 화면 px 이므로 zoom 으로 나눠 레이아웃(=실제 뷰포트) px 로
+    // 되돌린다. 가운데 정렬은 좌우(위아래)가 함께 벌어지므로 끈 거리의 두 배가 된다.
+    // 카드가 비율 고정이라 세로로 끈 거리도 폭으로 환산되고(× 비율), 둘 중 **더 많이
+    // 끈 쪽**을 따라 대각선으로 커진다.
+    const k = position === 'center' ? 2 : 1;
+    const growX = ((e.clientX - d.x) / zoom) * d.dirX * k;
+    const growY = ((e.clientY - d.y) / zoom) * d.dirY * (aspect ?? 0) * k;
+    const grow = Math.abs(growX) >= Math.abs(growY) ? growX : growY;
     commitWidth(d.w + grow);
   }
 
@@ -298,7 +320,7 @@ export function PopupSizeFrame({ form, position, setValue, onUploadImage, busy }
     }
   }
 
-  const card = { ...buildPreviewCard(form, 'desktop'), width };
+  const card = { ...buildPreviewCard(form, 'desktop'), width: effective };
   const handleSize = HANDLE_SCREEN_PX / zoom;
   const showBadge = dragging || hover;
   // 하단 배치는 카드 아래에 배지를 놓을 자리가 없다(프레임이 잘라 낸다)
@@ -373,9 +395,10 @@ export function PopupSizeFrame({ form, position, setValue, onUploadImage, busy }
             type="number"
             aria-label="PC 카드 폭"
             min={POPUP_DESKTOP_WIDTH.min}
-            max={POPUP_DESKTOP_WIDTH.max}
+            // 상한은 이 기준 화면에 들어가는 폭이다(고정 상한은 없다)
+            max={maxWidth}
             step={1}
-            disabled={busy}
+            disabled={busy || !image}
             value={cellText(form, WIDTH_KEY)}
             onChange={(e) => setValue(WIDTH_KEY, e.target.value)}
             onBlur={(e) => setValue(WIDTH_KEY, String(clampWidth(popupDesktopWidth(e.target.value))))}
@@ -427,64 +450,116 @@ export function PopupSizeFrame({ form, position, setValue, onUploadImage, busy }
           <PopupGroup device="desktop" position={position} contained>
             {/* 미리보기는 언제나 한 장 — 캐러셀을 거쳐 실제와 같은 구조로 그린다 */}
             <PopupCarousel device="desktop" count={1}>
-              {() => (
-                <div
-                  ref={cardRef}
-                  className="pointer-events-auto relative"
-                  style={{ width }}
-                  onPointerEnter={() => setHover(true)}
-                  onPointerLeave={() => setHover(false)}
-                >
-                  <PopupDesktop {...card} />
+              {() =>
+                !image ? (
+                  // 사진이 없으면 크기를 정할 수 없다(높이가 비율에서 나온다) — 자리만
+                  // 점선으로 보여 주고 잠근다. 글자·여백은 zoom 안이라 1/zoom 로 되돌린다.
+                  <div
+                    className="pointer-events-none flex items-center justify-center rounded-[2px] border border-dashed border-[#98A4B4] bg-white/80 text-center text-content-faint"
+                    style={{
+                      width: 360,
+                      minHeight: 220,
+                      fontSize: 13 / zoom,
+                      padding: 16 / zoom,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {/* 두 줄로 고정 — 한 줄에 두면 360px 안에서 대시 뒤가 어중간하게 접힌다 */}
+                    <span>
+                      <span className="block">PC 사진을 먼저 올려 주세요</span>
+                      <span className="block">크기는 사진 비율을 따릅니다</span>
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    ref={cardRef}
+                    className="pointer-events-auto relative"
+                    style={{ width: effective }}
+                    onPointerEnter={() => setHover(true)}
+                    onPointerLeave={() => setHover(false)}
+                  >
+                    <PopupDesktop {...card} />
 
-                  {/* 리사이즈 핸들 — 키보드 대안은 툴바의 숫자 입력이라 보조기술에는 감춘다 */}
-                  {CORNERS.map((c) => (
-                    <div
-                      key={c.key}
-                      aria-hidden="true"
-                      onPointerDown={(e) => onHandleDown(e, c.dir)}
-                      onPointerMove={onHandleMove}
-                      onPointerUp={onHandleUp}
-                      onPointerCancel={onHandleUp}
-                      className={`absolute border-[#0057A8] bg-white ${c.cls}`}
-                      style={{
-                        width: handleSize,
-                        height: handleSize,
-                        borderWidth: 1.5 / zoom,
-                        cursor: busy ? 'default' : c.cursor,
-                        touchAction: 'none',
-                      }}
-                    />
-                  ))}
+                    {/* 리사이즈 핸들 — 키보드 대안은 툴바의 숫자 입력이라 보조기술에는 감춘다.
+                        비율을 아직 못 잰 동안에는 감춘다(끌면 비율이 무시된다) */}
+                    {aspect !== undefined &&
+                      CORNERS.map((c) => (
+                        <div
+                          key={c.key}
+                          aria-hidden="true"
+                          onPointerDown={(e) => onHandleDown(e, c.dirX, c.dirY)}
+                          onPointerMove={onHandleMove}
+                          onPointerUp={onHandleUp}
+                          onPointerCancel={onHandleUp}
+                          className={`absolute border-[#0057A8] bg-white ${c.cls}`}
+                          style={{
+                            width: handleSize,
+                            height: handleSize,
+                            borderWidth: 1.5 / zoom,
+                            cursor: busy ? 'default' : c.cursor,
+                            touchAction: 'none',
+                          }}
+                        />
+                      ))}
 
-                  {/* 수치 배지 — 화면에서 11px 로 읽히게 폰트·여백도 1/zoom 로 되돌린다.
-                      하단 배치에서는 카드 아래가 프레임 밖이라(overflow-hidden) 위로 올린다. */}
-                  {showBadge && (
-                    <div
-                      className={`pointer-events-none absolute left-1/2 whitespace-nowrap rounded-[2px] bg-yonsei-navy text-white tabular-nums ${
-                        badgeAbove ? 'bottom-full' : 'top-full'
-                      }`}
-                      style={{
-                        transform: 'translateX(-50%)',
-                        [badgeAbove ? 'marginBottom' : 'marginTop']: 6 / zoom,
-                        padding: `${3 / zoom}px ${6 / zoom}px`,
-                        fontSize: 11 / zoom,
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {width} × {cardHeight} px
-                    </div>
-                  )}
-                </div>
-              )}
+                    {/* 수치 배지 — 화면에서 11px 로 읽히게 폰트·여백도 1/zoom 로 되돌린다.
+                        하단 배치에서는 카드 아래가 프레임 밖이라(overflow-hidden) 위로 올린다. */}
+                    {showBadge && (
+                      <div
+                        className={`pointer-events-none absolute left-1/2 whitespace-nowrap rounded-[2px] bg-yonsei-navy text-white tabular-nums ${
+                          badgeAbove ? 'bottom-full' : 'top-full'
+                        }`}
+                        style={{
+                          transform: 'translateX(-50%)',
+                          [badgeAbove ? 'marginBottom' : 'marginTop']: 6 / zoom,
+                          padding: `${3 / zoom}px ${6 / zoom}px`,
+                          fontSize: 11 / zoom,
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {effective} × {cardHeight} px
+                        {width > effective && (
+                          // 저장값이 이 기준 화면에 안 들어간다 — 실제 화면에서도 같은
+                          // 규칙으로 줄어든다는 것을 숫자로 밝힌다
+                          <span className="block">
+                            저장값 {width} → 이 화면 {effective} (자동 축소)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
             </PopupCarousel>
           </PopupGroup>
         </div>
       </div>
 
       <p className="mt-2 text-xs text-content-faint">
-        카드 폭만 조정됩니다. 높이는 사진 비율을 따르고, 배경 캡처는 관리자 미리보기
-        전용입니다.
+        {image ? (
+          <>
+            높이는 사진 비율을 따르고, 화면에 안 들어가면 비율을 지키며 자동으로
+            줄어듭니다 —{' '}
+            {HINT_VIEWPORTS.map((v, i) => (
+              <span key={`${v.width}x${v.height}`}>
+                {i > 0 && ' · '}
+                {v.width}×{v.height} 화면{' '}
+                {Math.min(
+                  width,
+                  popupDesktopMaxWidth({
+                    aspect,
+                    position,
+                    viewportWidth: v.width,
+                    viewportHeight: v.height,
+                  }),
+                )}{' '}
+                px
+              </span>
+            ))}
+          </>
+        ) : (
+          '배경 캡처는 관리자 미리보기 전용입니다.'
+        )}
       </p>
     </div>
   );

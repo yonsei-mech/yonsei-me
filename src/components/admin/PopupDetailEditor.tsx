@@ -5,6 +5,10 @@
 // 정하는" 화면과 맞지 않아(기간·기기·페이지·닫기 규칙이 서로 떨어져 놓인다) 리소스 전용
 // 편집기로 갈아 끼웠다.
 //
+// 행 순서는 "사진 → 위치·크기 → 버튼·닫기 → 링크" 처럼 **미리보기에 보이는 것**을 먼저 두고,
+// 노출 조건(기간·기기·페이지·노출)은 뒤로 보낸다 — 크기는 사진 비율에서 나오므로 사진이
+// 먼저 있어야 위치·크기 미리보기가 열린다(PopupSizeFrame 의 게이트).
+//
 // 입력 외형은 프로젝트의 기존 폼(PostForm·RecordForm 의 fieldClass)을 그대로 쓴다 —
 // 아임웹의 밑줄 입력은 흉내 내지 않는다(각진 엣지·그림자 없음·금색 금지).
 //
@@ -17,9 +21,10 @@
 //
 // (한국어 UI 문자열은 내부 운영 도구라 컴포넌트에 직접 둔다.)
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FieldDef, FormRecord, LocalizedPair } from '@/lib/admin/resources';
 import { validateForm } from '@/lib/admin/resources';
+import { popupImageAspect } from '@/lib/popup-positions';
 import type { DetailEditorProps } from './DetailEditorTypes';
 import { CmsPanelHead } from './CmsPanelHead';
 import { PopupPositionPicker } from './PopupPositionPicker';
@@ -238,7 +243,7 @@ function PhotoBox({
             </button>
             {/* 규격을 고른 뒤가 아니라 고르기 전에 알려야 다시 만들지 않는다 */}
             <p className="text-[11px] leading-relaxed text-content-faint">
-              권장: 폭 320~600px 세로형, 5MB 이하
+              권장: 표시 폭의 2배 이상 해상도, 5MB 이하 — 크기는 위치 미리보기에서 정합니다
             </p>
           </>
         )}
@@ -308,6 +313,42 @@ export function PopupDetailEditor({
     onDirty?.();
     setForm((prev) => ({ ...prev, [key]: value }));
   }
+
+  const imageUrl = str(form, 'image');
+
+  // PC 사진의 원본 비율을 재서 폼 값(imageAspect)으로 남긴다 — 사이트의 PC 카드가
+  // "이 화면에 들어가는 만큼" 줄어들 때 쓰는 값이라 저장까지 따라가야 한다.
+  // 크기 편집기가 아니라 여기서 재는 이유: 모바일 탭을 보고 있어도 재야 하고,
+  // 결과가 **폼 값**이어야 저장에 실려 가기 때문이다.
+  // ⚠️ set() 이 아니라 setForm 을 직접 쓴다 — 측정은 관리자의 편집이 아니므로
+  // onDirty 를 부르면 안 된다(옛 항목을 열기만 해도 '변경됨' 이 되어 버린다).
+  useEffect(() => {
+    let alive = true;
+    const apply = (v: string) => {
+      if (!alive) return;
+      setForm((prev) => (str(prev, 'imageAspect') === v ? prev : { ...prev, imageAspect: v }));
+    };
+    const url = imageUrl.trim();
+    if (!url) {
+      apply('');
+    } else {
+      const probe = new window.Image();
+      probe.onload = () => {
+        const a =
+          probe.naturalWidth > 0 && probe.naturalHeight > 0
+            ? popupImageAspect(probe.naturalWidth / probe.naturalHeight)
+            : undefined;
+        apply(a ? String(a) : '');
+      };
+      // 읽지 못한 사진은 비율 없음으로 — 옛 항목과 같은 폴백 경로로 그려진다
+      probe.onerror = () => apply('');
+      probe.src = url;
+    }
+    // alive 플래그로 언마운트·URL 교체 중 늦게 도착한 결과를 버린다
+    return () => {
+      alive = false;
+    };
+  }, [imageUrl]);
 
   const field = (key: string) => fields.find((f) => f.key === key);
   const imageField = field('image');
@@ -441,7 +482,102 @@ export function PopupDetailEditor({
           </div>
         </Row>
 
-        {/* 2. 기간 */}
+        {/* 2. 이미지 */}
+        <Row label="이미지" align="control">
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <PhotoBox
+              field={imageField?.kind === 'imageUpload' ? imageField : undefined}
+              value={str(form, 'image')}
+              onChange={(url) => set('image', url)}
+              onUploadImage={onUploadImage}
+              disabled={busy}
+              caption="PC 사진"
+              captionNote="(필수)"
+              note={imageField?.hint}
+              invalid={bad('image')}
+            />
+            <PhotoBox
+              field={imageMobileField?.kind === 'imageUpload' ? imageMobileField : undefined}
+              value={str(form, 'imageMobile')}
+              onChange={(url) => set('imageMobile', url)}
+              onUploadImage={onUploadImage}
+              disabled={busy}
+              caption="모바일 사진"
+              captionNote="(비우면 PC 사진)"
+              note="비우면 PC 사진을 씁니다."
+            />
+          </div>
+        </Row>
+
+        {/* 3. 위치 */}
+        {positionField?.kind === 'popupPosition' && (
+          <Row label="위치" hint={positionField.hint} align="style">
+            {/* 업로드 통로는 사진 칸(PhotoBox)과 같은 하나 — PC 크기 편집기의 배경
+                캡처 교체가 쓴다. */}
+            <PopupPositionPicker
+              form={form}
+              keys={positionField.keys}
+              setValue={set}
+              onUploadImage={onUploadImage}
+              busy={busy}
+            />
+          </Row>
+        )}
+
+        {/* 4. 버튼 설정 */}
+        <Row label="버튼 설정" align="control">
+          <RadioRow
+            name="popup-hide-today-button"
+            value={form.hideTodayButton === true ? 'show' : 'hide'}
+            disabled={busy}
+            options={[
+              { value: 'show', label: '배너 하단 버튼 표시' },
+              { value: 'hide', label: '표시안함' },
+            ]}
+            onChange={(v) => set('hideTodayButton', v === 'show')}
+          />
+          <p className="mt-1.5 text-xs text-content-faint">
+            하단 바의 &lsquo;오늘 하루 보지 않기&rsquo; 칸 (끄면 &lsquo;닫기&rsquo; 만 남습니다)
+          </p>
+        </Row>
+
+        {/* 5. 우측 상단 닫기 설정 */}
+        <Row label="우측 상단 닫기 설정" align="control">
+          <RadioRow
+            name="popup-close-control"
+            value={str(form, 'closeControl') || 'close'}
+            disabled={busy}
+            options={closeOptions}
+            onChange={(v) => set('closeControl', v)}
+          />
+        </Row>
+
+        {/* 6. 이미지 링크 */}
+        <Row label="이미지 링크" htmlFor="popup-link" hint={field('link')?.hint}>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              id="popup-link"
+              type="text"
+              value={str(form, 'link')}
+              disabled={busy}
+              onChange={(e) => set('link', e.target.value)}
+              placeholder="https://"
+              className={`${fieldClass} w-auto min-w-[260px] flex-1`}
+            />
+            <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-content">
+              <input
+                type="checkbox"
+                checked={form.newTab === true}
+                disabled={busy}
+                onChange={(e) => set('newTab', e.target.checked)}
+                className="h-4 w-4 accent-[#0057A8]"
+              />
+              새 창에서 열기
+            </label>
+          </div>
+        </Row>
+
+        {/* 7. 기간 */}
         <Row label="기간" hint="한국 시간 기준입니다.">
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -470,7 +606,7 @@ export function PopupDetailEditor({
           <FieldError show={bad('start') || bad('end')} />
         </Row>
 
-        {/* 3. 대상 기기 */}
+        {/* 8. 대상 기기 */}
         <Row label="대상 기기" hint={field('devices')?.hint} align="control">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             {deviceOptions.map((o) => (
@@ -491,7 +627,7 @@ export function PopupDetailEditor({
           </div>
         </Row>
 
-        {/* 4. 노출 페이지 */}
+        {/* 9. 노출 페이지 */}
         <Row label="노출 페이지" align="control">
           <RadioRow
             name="popup-page-mode"
@@ -529,101 +665,6 @@ export function PopupDetailEditor({
               <p className="mt-2 text-xs text-content-faint">{field('pages')?.hint}</p>
             </div>
           )}
-        </Row>
-
-        {/* 5. 위치 */}
-        {positionField?.kind === 'popupPosition' && (
-          <Row label="위치" hint={positionField.hint} align="style">
-            {/* 업로드 통로는 사진 칸(PhotoBox)과 같은 하나 — PC 크기 편집기의 배경
-                캡처 교체가 쓴다. */}
-            <PopupPositionPicker
-              form={form}
-              keys={positionField.keys}
-              setValue={set}
-              onUploadImage={onUploadImage}
-              busy={busy}
-            />
-          </Row>
-        )}
-
-        {/* 6. 버튼 설정 */}
-        <Row label="버튼 설정" align="control">
-          <RadioRow
-            name="popup-hide-today-button"
-            value={form.hideTodayButton === true ? 'show' : 'hide'}
-            disabled={busy}
-            options={[
-              { value: 'show', label: '배너 하단 버튼 표시' },
-              { value: 'hide', label: '표시안함' },
-            ]}
-            onChange={(v) => set('hideTodayButton', v === 'show')}
-          />
-          <p className="mt-1.5 text-xs text-content-faint">
-            하단 바의 &lsquo;오늘 하루 보지 않기&rsquo; 칸 (끄면 &lsquo;닫기&rsquo; 만 남습니다)
-          </p>
-        </Row>
-
-        {/* 7. 우측 상단 닫기 설정 */}
-        <Row label="우측 상단 닫기 설정" align="control">
-          <RadioRow
-            name="popup-close-control"
-            value={str(form, 'closeControl') || 'close'}
-            disabled={busy}
-            options={closeOptions}
-            onChange={(v) => set('closeControl', v)}
-          />
-        </Row>
-
-        {/* 8. 이미지 */}
-        <Row label="이미지" align="control">
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <PhotoBox
-              field={imageField?.kind === 'imageUpload' ? imageField : undefined}
-              value={str(form, 'image')}
-              onChange={(url) => set('image', url)}
-              onUploadImage={onUploadImage}
-              disabled={busy}
-              caption="PC 사진"
-              captionNote="(필수)"
-              note={imageField?.hint}
-              invalid={bad('image')}
-            />
-            <PhotoBox
-              field={imageMobileField?.kind === 'imageUpload' ? imageMobileField : undefined}
-              value={str(form, 'imageMobile')}
-              onChange={(url) => set('imageMobile', url)}
-              onUploadImage={onUploadImage}
-              disabled={busy}
-              caption="모바일 사진"
-              captionNote="(비우면 PC 사진)"
-              note="비우면 PC 사진을 씁니다."
-            />
-          </div>
-        </Row>
-
-        {/* 9. 이미지 링크 */}
-        <Row label="이미지 링크" htmlFor="popup-link" hint={field('link')?.hint}>
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              id="popup-link"
-              type="text"
-              value={str(form, 'link')}
-              disabled={busy}
-              onChange={(e) => set('link', e.target.value)}
-              placeholder="https://"
-              className={`${fieldClass} w-auto min-w-[260px] flex-1`}
-            />
-            <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-content">
-              <input
-                type="checkbox"
-                checked={form.newTab === true}
-                disabled={busy}
-                onChange={(e) => set('newTab', e.target.checked)}
-                className="h-4 w-4 accent-[#0057A8]"
-              />
-              새 창에서 열기
-            </label>
-          </div>
         </Row>
 
         {/* 10. 노출 */}
