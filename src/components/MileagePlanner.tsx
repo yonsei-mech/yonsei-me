@@ -425,6 +425,42 @@ export function MileagePlanner({ locale }: { locale: Locale }) {
         </p>
       )}
 
+      {/* 결과 직전 경고 — 졸업요건 검사기와 같은 형태. 예측 컷·확률을 보기 전에
+          "참고만, 의존 금지, 본인 책임" 을 못 박는다. 여기서의 오판은 과목을 놓치는 것으로
+          직결되므로 상시 배너보다 강한 어조. */}
+      <div
+        role="alert"
+        className="mb-6 border-l-2 border-[#b42318] bg-surface-soft px-5 py-4 text-[13px] leading-relaxed text-content"
+      >
+        <p className="font-bold text-[#b42318]">
+          {ko
+            ? '⚠ 아래 예측 컷과 확률은 참고용 추정치입니다. 절대 이 결과에만 의존하지 마세요.'
+            : '⚠ The predicted cutoffs and probabilities below are estimates for reference only. Never rely on them alone.'}
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-content-soft">
+          <li>
+            {ko
+              ? '학생이 만든 비공식 도구이며, 학과·대학이 검증하거나 보증하지 않습니다.'
+              : 'This is an unofficial, student-built tool. It is not verified or endorsed by the department or the university.'}
+          </li>
+          <li>
+            {ko
+              ? '과거 기록의 통계일 뿐, 이번 학기 경쟁률·정원·교수·분반 변경은 알 수 없어 실제 컷은 크게 달라질 수 있습니다.'
+              : 'It is a statistic of past records; this semester’s demand, capacity, instructor, and section changes are unknown, so real cutoffs can differ a lot.'}
+          </li>
+          <li>
+            {ko
+              ? '실제 배정은 연세포털 수강신청 규정(우선순위·동점 처리·예외 배정)에 따르며, 이 도구는 그 규정을 대신하지 않습니다.'
+              : 'Actual placement follows the Yonsei portal registration rules (priorities, tie-breaks, exceptions); this tool does not replace them.'}
+          </li>
+          <li>
+            {ko
+              ? '이 결과를 근거로 한 마일리지 배분과 그 결과(미배정·졸업 지연 등)의 책임은 전적으로 본인에게 있습니다.'
+              : 'Any mileage allocation based on this result, and its consequences (missed courses, delayed graduation), are entirely your own responsibility.'}
+          </li>
+        </ul>
+      </div>
+
       {!data ? (
         <p className="px-1 py-10 text-sm text-content-faint">{ko ? '데이터 불러오는 중…' : 'Loading…'}</p>
       ) : (
@@ -1116,6 +1152,49 @@ export function MileagePlanner({ locale }: { locale: Locale }) {
           </section>
         </div>
       )}
+
+      {/* 한계·유의사항 — 위의 경고 박스가 태도(의존 금지)를 말한다면, 여기는 모델이
+          무엇을 모르는지 구체적으로 나열한다. */}
+      <div className="mt-10 max-w-2xl border-t border-surface-border pt-5 text-xs leading-relaxed text-content-faint">
+        <p className="font-bold text-content-soft">{ko ? '유의사항 및 한계' : 'Limitations'}</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            {ko
+              ? '예측 컷은 과거 학기 수강신청 기록을 통계적으로 축소 추정한 값이며, 최근 학기에 더 큰 가중치를 둡니다. 기록이 적은 분반일수록 오차가 큽니다.'
+              : 'Predicted cutoffs are shrinkage estimates from past registration records, weighted toward recent semesters. Sections with little history have larger errors.'}
+          </li>
+          <li>
+            {ko
+              ? '우선·예외 배정(비고 * 표시)은 컷 계산에서 제외했습니다. 본인이 그 대상인지는 직접 확인해야 합니다.'
+              : 'Priority and exceptional placements (marked * in remarks) are excluded from cutoffs. Check for yourself whether you qualify.'}
+          </li>
+          <li>
+            {ko
+              ? '신설·폐강·분반 통합·교수 교체가 있으면 과거 기록이 다른 분반으로 이어질 수 있어 예측이 어긋납니다.'
+              : 'New, cancelled, or merged sections and instructor changes can attach history to the wrong section and break the prediction.'}
+          </li>
+          <li>
+            {ko
+              ? '확률은 각 과목의 합격을 독립 사건으로 가정해 계산합니다. 실제로는 같은 시간대·같은 학년의 수요가 함께 움직여 더 나쁠 수 있습니다.'
+              : 'Probabilities assume each course’s admission is independent. In reality, demand in the same time slot or cohort moves together and outcomes can be worse.'}
+          </li>
+          <li>
+            {ko
+              ? '학기 예산·목표 학점·시간표 충돌은 입력값을 그대로 믿습니다. 마일리지 잔여량과 규정 상한은 연세포털에서 확인하세요.'
+              : 'Budget, target credits, and time conflicts are taken as entered. Check your remaining mileage and the rule limits on the Yonsei portal.'}
+          </li>
+          <li>
+            {ko
+              ? '데이터는 학기마다 수동으로 갱신되므로 최신 개설 내역·학사 규정과 다를 수 있습니다.'
+              : 'Data is updated by hand each semester and may lag behind current offerings and regulations.'}
+          </li>
+        </ul>
+        <p className="mt-3 font-semibold text-content-soft">
+          {ko
+            ? '※ 수강신청 마일리지 규정과 배정 결과는 반드시 연세포털과 학과사무실에서 확인하세요. 이 도구의 오류로 인한 불이익에 대해 제작자는 책임지지 않습니다.'
+            : '※ Always confirm mileage rules and placement results on the Yonsei portal and with the department office. The authors accept no liability for consequences arising from errors in this tool.'}
+        </p>
+      </div>
     </div>
   );
 }
