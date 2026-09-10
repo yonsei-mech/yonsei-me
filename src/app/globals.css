@@ -40,9 +40,15 @@
     --content-soft: 35 35 35; /* #232323 — 본문도 동일(사용자 지정) */
     --content-faint: 110 110 110; /* #6E6E6E 중립 그레이(날짜·캡션) */
 
-    /* --font-sans 는 next/font(localFont)가 <html> 클래스로 주입한다
-       (자체 호스팅 Pretendard + 지표 보정 폴백). 여기서 문자열로 재정의하면
-       로드한 폰트를 덮어써 버리므로 정의하지 않는다. */
+    /* 본문·히어로 서체 패밀리 (2026-09-10, 동적 서브셋 전환).
+       예전엔 next/font 가 <html> 클래스로 --font-sans/--font-hero 를 주입했다. 지금은
+       webfonts.css(생성물)의 @font-face 가 unicode-range 조각으로 폰트를 싣고, 여기서
+       패밀리 순서를 next/font 가 만들던 값과 **똑같이** 잇는다:
+         본체 → 지표 보정 폴백(local Arial + override) → 시스템 서체.
+       순서를 바꾸면 폰트 로드 전 줄바꿈(CLS)과 없는 글자의 대체 서체가 달라진다.
+       --font-subhead(Paperlogy)는 여전히 next/font 가 <html> 클래스로 넣는다. */
+    --font-sans: 'Pretendard Variable', 'Pretendard Fallback', system-ui, sans-serif;
+    --font-hero: 'GmarketSans', 'GmarketSans Fallback', Pretendard, system-ui, sans-serif;
 
     /* 유선 라인아트(FlowLines) 그라디언트 — 흰 여백 위 블루→네이비 스트로크 */
     --flow-a: #0057a8;

@@ -13,8 +13,14 @@
 # dev 전용 첨부 업로드 폴더 — 프로덕션은 Vercel Blob 에 저장(로컬 검증용 대체 경로)
 /public/uploads/
 # 연세체 TTF — 배포 라이선스 불명확, 로고 워드마크는 tools/generate-wordmark.mjs 로
-# 빌드타임에 SVG 패스(src/components/logo-wordmark.ts)로 미리 변환해두므로 폰트 자체는 불필요
-/tools/fonts/
+# 빌드타임에 SVG 패스(src/components/logo-wordmark.ts)로 미리 변환해두므로 폰트 자체는 불필요.
+# 폴더는 통째로 무시하되, 동적 서브셋 생성기와 그 원본 폰트(tools/fonts/src/)는 되살린다 —
+# public/webfonts/ 의 조각을 재생성하려면 이 셋이 저장소에 있어야 한다.
+/tools/fonts/*
+!/tools/fonts/README.md
+!/tools/fonts/korean-slices.json
+!/tools/fonts/split-dynamic-subset.py
+!/tools/fonts/src/
 
 # production
 /build

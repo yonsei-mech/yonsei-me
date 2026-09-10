@@ -15,8 +15,10 @@ import { PerfLiteScript } from '@/components/PerfLiteScript';
 import { PopupNotice } from '@/components/PopupNotice';
 import { getEnabledPopupsRuntime } from '@/lib/content-runtime';
 import { SITE_URL } from '@/lib/site';
-import { pretendard, gmarket, paperlogy } from '../fonts';
+import { paperlogy } from '../fonts';
 import '../globals.css';
+// Pretendard·지마켓산스 @font-face(unicode-range 동적 서브셋, 생성물) — fonts.ts 주석 참고
+import '../webfonts.css';
 
 // 모든 로케일을 정적으로 프리렌더 → 성능(SSG)
 export function generateStaticParams() {
@@ -134,7 +136,23 @@ export default async function LocaleLayout({
   };
 
   return (
-    <html lang={locale} className={`${pretendard.variable} ${gmarket.variable} ${paperlogy.variable}`} suppressHydrationWarning>
+    <html lang={locale} className={paperlogy.variable} suppressHydrationWarning>
+      <head>
+        {/* Pretendard 'core' 조각(KS X 1001 상용 2,350자 + 라틴·기호 전부, ~740KB) preload.
+            어느 페이지든 본문 거의 전부가 이 한 파일에서 나온다 — unicode-range 폰트는 CSS
+            파싱·레이아웃 뒤에야 요청되므로 HTML 단계에서 먼저 띄워 폴백→본체 교체(swap)
+            시점을 앞당긴다. 희귀 음절 조각(PretendardVariable.<n>.woff2)은 실제로 나올 때만
+            내려받으니 preload 하지 않는다. 파일명은 tools/fonts/split-dynamic-subset.py 가
+            정한다(scheme='core'). 홈 히어로 전용 지마켓 조각은 [locale]/page.tsx 가 따로
+            preload 한다(다른 페이지엔 없는 서체라 여기 두지 않는다). */}
+        <link
+          rel="preload"
+          href="/webfonts/pretendard/PretendardVariable.core.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="min-h-dvh bg-surface antialiased">
         {/* GPU 가속 꺼짐 판정 → html.perf-lite. 헤더가 파싱되기 전에 실행돼야
             무거운 backdrop-filter 가 한 프레임도 그려지지 않는다 */}
