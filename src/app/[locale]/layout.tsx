@@ -16,11 +16,12 @@ import { PopupNotice } from '@/components/PopupNotice';
 import { getEnabledPopupsRuntime } from '@/lib/content-runtime';
 import { pickMessageNamespaces } from '@/lib/i18n-client-namespaces';
 import { SITE_URL } from '@/lib/site';
-import { paperlogy } from '../fonts';
 import '../globals.css';
-// Pretendard·지마켓산스 @font-face(unicode-range 동적 서브셋, 생성물) — fonts.ts 주석 참고
+// 웹폰트 @font-face(unicode-range 동적 서브셋, 생성물). 첫 페인트에 필요한 core·히어로 조각만
+// 여기(렌더 차단)에 있고, 나머지 조각은 WEBFONTS_REST_CSS 를 <head> 인라인 스크립트가 비차단으로
+// 끼운다. next/font 는 더 쓰지 않는다 — 배경·재생성은 tools/fonts/README.md.
 import '../webfonts.css';
-import { WEBFONTS } from '../webfonts-manifest';
+import { WEBFONTS, WEBFONTS_REST_CSS } from '../webfonts-manifest';
 
 // 모든 로케일을 정적으로 프리렌더 → 성능(SSG)
 export function generateStaticParams() {
@@ -141,21 +142,32 @@ export default async function LocaleLayout({
   };
 
   return (
-    <html lang={locale} className={paperlogy.variable} suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/* Pretendard 'core' 조각(KS X 1001 상용 2,350자 + 라틴·기호 전부, ~740KB) preload.
             어느 페이지든 본문 거의 전부가 이 한 파일에서 나온다 — unicode-range 폰트는 CSS
             파싱·레이아웃 뒤에야 요청되므로 HTML 단계에서 먼저 띄워 폴백→본체 교체(swap)
             시점을 앞당긴다. 희귀 음절 조각(PretendardVariable.<n>.woff2)은 실제로 나올 때만
             내려받으니 preload 하지 않는다. 파일명은 tools/fonts/split-dynamic-subset.py 가
-            정한다(scheme='core'). 홈 히어로 전용 지마켓 조각은 [locale]/page.tsx 가 따로
-            preload 한다(다른 페이지엔 없는 서체라 여기 두지 않는다). */}
+            정한다(scheme='core'). 홈 히어로 전용 지마켓 조각은 [locale]/page.tsx 가, 세부탭
+            제목의 Paperlogy core 는 TabPageShell 이 따로 preload 한다(쓰는 페이지에서만). */}
         <link
           rel="preload"
           href={WEBFONTS.pretendard.core}
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
+        />
+        {/* 나머지 조각(희귀 음절·히어로 밖 지마켓·Paperlogy 희귀 음절)의 @font-face 묶음을
+            **비차단**으로 끼운다. <link rel=stylesheet> 로 두면 렌더 차단 CSS 가 150KB 늘어난다
+            (PageSpeed "렌더링 차단 요청" 600ms 의 원인이 이것이었다). 동적으로 삽입한 스타일시트는
+            렌더를 막지 않고, 파싱 즉시 실행되므로 critical CSS 와 거의 동시에 받기 시작한다.
+            늦게 와도 글자가 빠지진 않는다 — KS X 1001 밖 음절만 폴백 서체로 잠깐 보였다 바뀐다.
+            자체 생성 정적 문자열(사용자 입력 미포함) — XSS 벡터 없음. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href=${JSON.stringify(WEBFONTS_REST_CSS)};document.head.appendChild(l)})()`,
+          }}
         />
       </head>
       <body className="min-h-dvh bg-surface antialiased">

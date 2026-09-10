@@ -84,7 +84,24 @@ FALLBACK_FACES = """\
   line-gap-override: 11.67%;
   size-adjust: 128.55%;
 }
+@font-face {
+  font-family: 'Paperlogy Fallback';
+  src: local('Arial');
+  ascent-override: 83.48%;
+  descent-override: 17.08%;
+  line-gap-override: 0.00%;
+  size-adjust: 117.13%;
+}
 """
+
+# 첫 페인트에 필요한 조각만 렌더 차단 CSS(src/app/webfonts.css)에 싣고, 나머지 조각의
+# @font-face 는 public/webfonts/webfonts-rest.<hash8>.css 로 빼서 layout 이 비차단으로 끼운다
+# (렌더 차단 CSS 105KB → 수 KB). 구글 구간표 조각은 실제로 나온 문자가 속한 것만 내려받으므로
+# rest 쪽은 "희귀 음절·히어로 밖 지마켓" 전용이다. rest 가 늦게 도착해도 글자가 빠지진 않고,
+# KS X 1001 밖 음절만 폴백 서체로 잠깐 보였다 바뀐다(2,350자 안은 core 가 처음부터 담당).
+# ⚠️ 선언 순서 규약: critical(core) → rest(조각). 같은 문자를 두 face 가 덮으면 나중 선언이
+#    이기므로, core 는 exact 구간만 쓰고 rest 조각은 core 와 겹치지 않는다(생성기가 core 를 뺀다).
+REST_CSS_BASENAME = 'webfonts-rest'
 
 def ksx1001_syllables() -> set[int]:
     """KS X 1001 완성형 한글 2,350자 — EUC-KR 한글 영역(행 0xB0~0xC8)을 디코딩해 얻는다.
@@ -114,6 +131,10 @@ KSX1001 = ksx1001_syllables()
 #             나온다(2026-09-10 픽셀 비교로 실측 — 1px 위치 차이). 상용 한글과 문장부호를 한
 #             파일에 두면 그 문맥이 원본 그대로 살아난다. 대가는 첫 방문 ~740KB 한 파일
 #             (원본 2.06MB, 구글식 조각은 페이지당 ~580KB/20파일).
+# critical: 렌더 차단 CSS 에 남길 조각 id. 나머지는 webfonts-rest 로 간다.
+#  - Pretendard/Paperlogy: core 한 파일(상용 2,350자 + 비음절 전부)
+#  - GmarketSans: 홈 히어로 제목 "연세대학교 기계공학부" 가 쓰는 조각(CDP 실측 2026-09-10) —
+#    문구가 바뀌면 다시 재라([locale]/page.tsx 의 preload 목록과 같은 집합)
 FONTS = [
     dict(
         key='pretendard',
@@ -125,6 +146,7 @@ FONTS = [
         weight='100 900',
         variable=True,
         scheme='core',
+        critical={'core'},
     ),
     dict(
         key='gmarket',
@@ -136,6 +158,35 @@ FONTS = [
         weight='700',
         variable=False,
         scheme='slices',
+        critical={'123', '119', '118', '117', '116'},
+    ),
+    # Paperlogy(세부탭 제목·홈 뉴스 제목) — GSUB 테이블 자체가 없고 한글 커닝도 0 이라(실측)
+    # 어떤 스킴이든 원본과 같다. core 로 두는 이유는 CSS 를 face 하나로 끝내기 위해서다
+    # (원본 164KB → core ≈ 40KB, 희귀 음절은 조각). next/font 가 두 굵기를 매 페이지 preload
+    # 하던 329KB 가 사라진다.
+    dict(
+        key='paperlogy600',
+        src=HERE / 'src' / 'Paperlogy-6SemiBold.woff2',
+        out_dir=REPO / 'public' / 'webfonts' / 'paperlogy',
+        basename='Paperlogy-6SemiBold',
+        url_dir='/webfonts/paperlogy',
+        family='Paperlogy',
+        weight='600',
+        variable=False,
+        scheme='core',
+        critical={'core'},
+    ),
+    dict(
+        key='paperlogy700',
+        src=HERE / 'src' / 'Paperlogy-7Bold.woff2',
+        out_dir=REPO / 'public' / 'webfonts' / 'paperlogy',
+        basename='Paperlogy-7Bold',
+        url_dir='/webfonts/paperlogy',
+        family='Paperlogy',
+        weight='700',
+        variable=False,
+        scheme='core',
+        critical={'core'},
     ),
 ]
 
@@ -261,7 +312,8 @@ def main() -> int:
     for _, cps, _ in slice_cps:
         table_union |= cps
 
-    css_blocks: list[str] = []
+    css_blocks: list[str] = []        # 렌더 차단(critical) — src/app/webfonts.css
+    rest_blocks: list[str] = []       # 비차단(rest) — public/webfonts/webfonts-rest.<hash>.css
     manifest: dict[str, dict[str, str]] = {}
     ok = True
 
@@ -310,7 +362,8 @@ def main() -> int:
             # 순서 보존(map) — CSS 규칙 순서를 실행마다 똑같게 만들어 diff 를 깨끗하게 유지한다.
             results = list(pool.map(build_slice, jobs))
 
-        rules: list[str] = []
+        rules: list[str] = []          # critical
+        rest_rules: list[str] = []     # rest
         total_bytes = 0
         largest = ('', 0)
         union_covered: set[int] = set()
@@ -342,7 +395,7 @@ def main() -> int:
             # 실제로 담긴 코드포인트로 unicode-range 를 다시 만든다.
             # (구간표 그대로 쓰면 폰트에 없는 문자까지 이 조각에 묶여, 오늘은 폴백으로
             #  넘어가던 글자가 두부(.notdef)로 보일 수 있다.)
-            rules.append(
+            (rules if sid in spec['critical'] else rest_rules).append(
                 '@font-face {\n'
                 f"  font-family: '{spec['family']}';\n"
                 '  font-style: normal;\n'
@@ -368,10 +421,12 @@ def main() -> int:
         else:
             print('    ✓ 커버리지 일치 — 렌더 가능한 문자 집합이 원본과 완전히 같다.')
 
-        css_blocks.append(
-            f'/* ── {spec["family"]} — {made} slices, {total_bytes:,} B total '
-            f'(원본 {src.name} {src.stat().st_size:,} B) ── */\n' + '\n'.join(rules)
-        )
+        label = (f'{spec["family"]} {spec["weight"]} — {made} slices, {total_bytes:,} B total '
+                 f'(원본 {src.name} {src.stat().st_size:,} B)')
+        if rules:
+            css_blocks.append(f'/* ── {label} — critical {len(rules)} ── */\n' + '\n'.join(rules))
+        if rest_rules:
+            rest_blocks.append(f'/* ── {label} — rest {len(rest_rules)} ── */\n' + '\n'.join(rest_rules))
 
     header = (
         '/* 이 파일은 tools/fonts/split-dynamic-subset.py 가 생성한다. 손으로 고치지 말 것.\n'
@@ -380,7 +435,22 @@ def main() -> int:
     )
     CSS_OUT.write_text(header + '\n' + FALLBACK_FACES + '\n' + '\n\n'.join(css_blocks) + '\n',
                        encoding='utf-8')
-    print(f'\nCSS: {CSS_OUT} ({CSS_OUT.stat().st_size:,} B)')
+    print(f'\nCSS(critical): {CSS_OUT} ({CSS_OUT.stat().st_size:,} B)')
+
+    # ── rest CSS: public/webfonts/webfonts-rest.<hash8>.css (immutable, layout 이 비차단으로 끼움) ──
+    rest_dir = REPO / 'public' / 'webfonts'
+    for stale in rest_dir.glob(f'{REST_CSS_BASENAME}.*.css'):
+        stale.unlink()
+    rest_text = (
+        '/* 생성물(tools/fonts/split-dynamic-subset.py). 첫 페인트에 필요 없는 조각의 @font-face —\n'
+        '   희귀 음절(KS X 1001 밖)과 히어로 밖 지마켓 조각. layout 이 인라인 스크립트로 비차단 삽입한다. */\n\n'
+        + '\n\n'.join(rest_blocks) + '\n'
+    )
+    rest_hash = hashlib.sha256(rest_text.encode('utf-8')).hexdigest()[:8]
+    rest_path = rest_dir / f'{REST_CSS_BASENAME}.{rest_hash}.css'
+    rest_path.write_text(rest_text, encoding='utf-8')
+    rest_url = f'/webfonts/{rest_path.name}'
+    print(f'CSS(rest):     {rest_path} ({rest_path.stat().st_size:,} B)')
 
     # ── 매니페스트(TS) — preload 가 해시 파일명을 id 로 찾는다 ────────────────
     def sort_key(s: str):
@@ -390,14 +460,19 @@ def main() -> int:
         '// 이 파일은 tools/fonts/split-dynamic-subset.py 가 생성한다. 손으로 고치지 말 것.',
         '// 조각 id → URL. 파일명에 내용 해시가 들어가 있어(immutable 캐시 헤더 전제) 경로를',
         '// 코드에 직접 적지 말고 여기서 찾는다. id: 구글 구간표 0~123 · core(상용 한글+비음절) · rest.',
-        "export const WEBFONTS: Record<'pretendard' | 'gmarket', Record<string, string>> = {",
+        'export const WEBFONTS: Record<' + ' | '.join(f"'{s['key']}'" for s in FONTS)
+        + ', Record<string, string>> = {',
     ]
-    for key in ('pretendard', 'gmarket'):
+    for spec in FONTS:
+        key = spec['key']
         ts_lines.append(f'  {key}: {{')
         for sid in sorted(manifest.get(key, {}), key=sort_key):
             ts_lines.append(f"    '{sid}': '{manifest[key][sid]}',")
         ts_lines.append('  },')
     ts_lines.append('};')
+    ts_lines.append('')
+    ts_lines.append('/** 첫 페인트에 필요 없는 조각의 @font-face 묶음(비차단 로드용, 해시 파일명·immutable) */')
+    ts_lines.append(f"export const WEBFONTS_REST_CSS = '{rest_url}';")
     MANIFEST_OUT.write_text('\n'.join(ts_lines) + '\n', encoding='utf-8')
     print(f'MANIFEST: {MANIFEST_OUT} ({sum(len(v) for v in manifest.values())} entries)')
     if not ok:

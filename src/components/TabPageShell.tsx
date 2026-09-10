@@ -3,6 +3,7 @@ import { Container, NARROW_MAX_W } from '@/components/Container';
 import { Prose } from '@/components/Prose';
 import { TabNavBar, type TabNavItem } from '@/components/TabNavBar';
 import { cn } from '@/lib/utils';
+import { WEBFONTS } from '@/app/webfonts-manifest';
 
 export type { TabNavItem };
 
@@ -47,6 +48,15 @@ export function TabPageShell({
 
   return (
     <>
+      {/* 세부탭 제목 서체(Paperlogy 600 = 탭 큰 제목, 700 = EditorialTab 제목) core preload.
+          예전엔 next/font 가 두 굵기(329KB)를 모든 페이지에 preload 했다. 지금은 unicode-range
+          core(각 ~134KB)를 이 셸을 쓰는 페이지에서만 띄운다 — 제목이 첫 화면에 있으므로
+          CSS 파싱 뒤 발견되길 기다리지 않게. React 가 <head> 로 끌어올린다. */}
+      {[WEBFONTS.paperlogy600.core, WEBFONTS.paperlogy700.core].map((href) =>
+        href ? (
+          <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ) : null,
+      )}
       <TabNavBar navTitle={navTitle} tabs={tabs} activeKey={activeKey} narrow={narrow} />
 
       <Container className={cn('py-10 lg:py-16', containerWidth)}>

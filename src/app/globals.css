@@ -46,9 +46,10 @@
        패밀리 순서를 next/font 가 만들던 값과 **똑같이** 잇는다:
          본체 → 지표 보정 폴백(local Arial + override) → 시스템 서체.
        순서를 바꾸면 폰트 로드 전 줄바꿈(CLS)과 없는 글자의 대체 서체가 달라진다.
-       --font-subhead(Paperlogy)는 여전히 next/font 가 <html> 클래스로 넣는다. */
+       Paperlogy(--font-subhead)도 2026-09-10 부터 같은 방식이다(next/font 완전 제거). */
     --font-sans: 'Pretendard Variable', 'Pretendard Fallback', system-ui, sans-serif;
     --font-hero: 'GmarketSans', 'GmarketSans Fallback', Pretendard, system-ui, sans-serif;
+    --font-subhead: 'Paperlogy', 'Paperlogy Fallback', Pretendard, system-ui, sans-serif;
 
     /* 유선 라인아트(FlowLines) 그라디언트 — 흰 여백 위 블루→네이비 스트로크 */
     --flow-a: #0057a8;

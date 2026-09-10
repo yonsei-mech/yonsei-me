@@ -7,10 +7,22 @@
 
 - `src/PretendardVariable.woff2` (2,057,688 B, 가변 wght 100–900) — 본문 서체 `--font-sans`
 - `src/GmarketSansBold.woff2` (590,972 B, 고정 700) — 홈 히어로 제목 전용 `--font-hero`
+- `src/Paperlogy-6SemiBold.woff2` · `src/Paperlogy-7Bold.woff2` (각 ~164KB) — 세부탭·뉴스 제목 `--font-subhead`
 
-두 파일은 예전에 `src/app/fonts/` 에 있었고 `next/font/local` 이 통짜로 실었다. 지금은
-**빌드 입력**일 뿐이라 `src/` 로 옮겼다. 라이선스 원문은 그대로 `src/app/fonts/LICENSE-*.txt`
-에 남아 있다(Paperlogy 는 여전히 `next/font` 가 싣는다 — 건드리지 않았다).
+네 파일은 예전에 `src/app/fonts/` 에 있었고 `next/font/local` 이 통짜로 실었다. 지금은
+**빌드 입력**일 뿐이라 `src/` 로 옮겼다(`next/font` 는 더 이상 쓰지 않는다 — `src/app/fonts.ts`
+삭제). 라이선스 원문은 그대로 `src/app/fonts/LICENSE-*.txt` 에 남아 있다.
+
+## critical / rest 두 CSS
+
+- `src/app/webfonts.css`(critical, 렌더 차단·정적 import): 지표 보정 폴백 3개 + Pretendard core +
+  Paperlogy 600/700 core + 히어로 제목이 쓰는 지마켓 조각 5개. 첫 페인트에 필요한 것만이라 수 KB.
+- `public/webfonts/webfonts-rest.<hash8>.css`(rest, 비차단): 나머지 조각 전부(희귀 음절·히어로 밖
+  지마켓). `[locale]/layout.tsx` 의 `<head>` 인라인 스크립트가 `<link rel=stylesheet>` 를 동적으로
+  끼워 렌더를 막지 않게 한다. 경로는 매니페스트 `WEBFONTS_REST_CSS`.
+- 결과: 예전엔 105KB(gz 25KB) 가 렌더 차단이었고, 지금은 critical 만 차단이다. rest 가 늦게 와도
+  글자가 빠지진 않는다 — KS X 1001 밖 음절만 폴백 서체로 잠깐 보였다 바뀐다(2,350자 안은 core 가
+  처음부터 담당).
 
 ## 동적 서브셋 (unicode-range 분할)
 
