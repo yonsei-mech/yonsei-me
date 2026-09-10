@@ -14,6 +14,7 @@ import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { PerfLiteScript } from '@/components/PerfLiteScript';
 import { PopupNotice } from '@/components/PopupNotice';
 import { getEnabledPopupsRuntime } from '@/lib/content-runtime';
+import { pickMessageNamespaces } from '@/lib/i18n-client-namespaces';
 import { SITE_URL } from '@/lib/site';
 import { paperlogy } from '../fonts';
 import '../globals.css';
@@ -92,7 +93,10 @@ export default async function LocaleLayout({
   // 정적 렌더링 활성화
   setRequestLocale(locale);
 
-  const messages = await getMessages();
+  // 브라우저로 내려보낼 메시지는 클라이언트가 실제로 쓰는 네임스페이스만 고른다
+  // (전량은 모든 문서의 RSC 페이로드에 인라인된다 — ko 15KB · en 23KB).
+  // 목록 관리·안전망(`npm run check:i18n`)은 lib/i18n-client-namespaces.ts 주석 참고.
+  const messages = pickMessageNamespaces(await getMessages());
   const t = await getTranslations({ locale, namespace: 'nav' });
   const tMeta = await getTranslations({ locale, namespace: 'meta' });
   const tPopup = await getTranslations({ locale, namespace: 'popup' });

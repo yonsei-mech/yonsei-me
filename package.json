@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:i18n": "node tools/i18n/check-client-namespaces.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",

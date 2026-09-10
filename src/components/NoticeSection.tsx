@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from '@/i18n/navigation';
 import { UnderlineTabs } from './UnderlineTabs';
 import { boardPostHref } from '@/lib/board-links';
+// 노출 행 수는 서버(page.tsx)와 공유한다 — 서버가 이 값 기준으로 미리 잘라 보내므로
+// 두 곳이 어긋나면 화면에서 행이 모자란다. 순수 모듈인 이유는 그 파일 주석 참조.
+import { NOTICE_ROWS } from '@/lib/notice-rows';
 import { cn } from '@/lib/utils';
 
 export type NoticeCategory = 'undergrad' | 'graduate' | 'external' | 'scholarship';
@@ -34,8 +37,6 @@ const BADGE: Record<NoticeCategory, string> = {
   scholarship: 'bg-teal-500/10 text-teal-700 dark:text-teal-400',
 };
 
-/** 목록에 노출할 공지 건수 — 1열로 펴면서 4건으로 줄였다(우열 일정 패널과 높이를 맞춘다). */
-const ROWS = 4;
 /** 'N' 배지를 붙일 기간(일). 게시일로부터 이 안이면 새 글로 본다. */
 const NEW_DAYS = 7;
 
@@ -114,6 +115,7 @@ function NoticeRow({
  */
 export function NoticeSection({
   items,
+  counts: countsProp,
   heading,
   listLabel,
   moreLabel,
@@ -124,6 +126,12 @@ export function NoticeSection({
   children,
 }: {
   items: NoticeSectionItem[];
+  /**
+   * 탭 배지에 찍을 건수(키='all' + 각 카테고리). 생략하면 items 로 센다.
+   * ⚠️ items 를 서버가 미리 잘라 보내는 경우(홈) 반드시 넘겨야 한다 — 안 넘기면
+   * 배지가 "전체 132" 대신 잘린 개수를 찍어 화면이 달라진다.
+   */
+  counts?: Record<string, number>;
   heading: string;
   /** 공지 리스트 소제목(예: "공지사항") — 일정 소제목과 같은 장치로 두 반쪽의 위계를 통일 */
   listLabel: string;
@@ -145,12 +153,15 @@ export function NoticeSection({
   useEffect(() => setNow(Date.now()), []);
 
   // 탭별 건수(배지) — 'all' 은 전체, 나머지는 카테고리별.
+  // 서버가 건수를 넘겨줬으면 그것을 쓴다(서버가 items 를 미리 잘라 보내는 경우 items 로
+  // 세면 잘린 개수가 찍힌다).
   const counts = useMemo(() => {
+    if (countsProp) return countsProp;
     const c: Record<string, number> = { all: items.length };
     for (const f of filters) if (f.key !== 'all') c[f.key] = 0;
     for (const it of items) c[it.category] = (c[it.category] ?? 0) + 1;
     return c;
-  }, [items, filters]);
+  }, [countsProp, items, filters]);
 
   // 카테고리 → 배지 라벨(필터 라벨 재사용)
   const catLabel = (cat: NoticeCategory) => filters.find((f) => f.key === cat)?.label ?? cat;
@@ -159,9 +170,10 @@ export function NoticeSection({
   // 서버가 그린 HTML 과 첫 렌더가 정확히 일치한다. 날짜가 깨져 NaN 이어도 false 다.
   const isNew = (date: string) => now !== null && now - Date.parse(date) <= NEW_DAYS * 86400e3;
 
-  // 필터 적용 후 상위 ROWS 건(1열).
+  // 필터 적용 후 상위 NOTICE_ROWS 건(1열).
   const visible = useMemo(
-    () => (active === 'all' ? items : items.filter((i) => i.category === active)).slice(0, ROWS),
+    () =>
+      (active === 'all' ? items : items.filter((i) => i.category === active)).slice(0, NOTICE_ROWS),
     [items, active],
   );
 

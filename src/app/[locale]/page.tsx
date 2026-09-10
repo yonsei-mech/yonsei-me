@@ -8,6 +8,8 @@ import { HomeCalendarPanel } from '@/components/HomeCalendarPanel';
 // 분류 상수는 클라이언트 컴포넌트가 아니라 순수 모듈에서 가져온다 — 이유는 그 파일 주석 참조.
 import { CALENDAR_KIND, type CalendarEntry } from '@/lib/calendar-kinds';
 import { NoticeSection, type NoticeCategory } from '@/components/NoticeSection';
+// 공지 노출 건수·미리 자르기 — 클라이언트 컴포넌트가 아니라 순수 모듈에서 가져온다.
+import { noticeDisplayUnion } from '@/lib/notice-rows';
 import { pick } from '@/lib/content';
 import { parseDateLabelRange } from '@/lib/calendar';
 import { formatDate, nowKst } from '@/lib/utils';
@@ -318,6 +320,18 @@ export default async function HomePage({ params }: { params: { locale: string } 
       })),
     )
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  // 탭 배지 건수는 **전량 기준**으로 미리 센다 — 아래에서 목록을 잘라 보내기 때문에,
+  // 클라이언트가 받은 배열로 세면 배지 숫자가 달라진다(화면 변화).
+  const noticeCounts: Record<string, number> = { all: noticeItems.length };
+  for (const { key } of noticeSources) noticeCounts[key] = 0;
+  for (const it of noticeItems) noticeCounts[it.category] += 1;
+  // 클라이언트가 어느 탭에서도 그릴 수 있는 최대 집합만 넘긴다(탭별 선두 4건의 합집합).
+  // 전량(수백 건)을 넘기면 그 전부가 RSC 페이로드로 HTML 에 인라인된다 — 화면에 나오는
+  // 것은 탭당 4건뿐이다. 필터+slice 결과가 전량을 넘겼을 때와 동일한 이유는 그 모듈 주석.
+  const noticeVisibleItems = noticeDisplayUnion(
+    noticeItems,
+    noticeSources.map((s) => s.key),
+  );
   const noticeFilters = (['all', 'undergrad', 'graduate', 'external', 'scholarship'] as const).map(
     (k) => ({ key: k, label: t(`notices.filters.${k}`) }),
   );
@@ -417,7 +431,8 @@ export default async function HomePage({ params }: { params: { locale: string } 
             각 열이 자기 MORE 를 갖는다(가는 곳이 서로 다른 게시판이다). */}
         <div id="sec-notices" className="scroll-mt-16 lg:scroll-mt-20">
           <NoticeSection
-            items={noticeItems}
+            items={noticeVisibleItems}
+            counts={noticeCounts}
             heading={t('notices.title')}
             listLabel={t('notices.listLabel')}
             moreLabel={t('notices.more')}
