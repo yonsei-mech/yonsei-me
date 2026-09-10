@@ -54,6 +54,16 @@ const nextConfig = {
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       {
+        // 저장소에 든 정적 사진(연구실 카드 33장, 독수리 마스크, 로고 등). public/ 은
+        // 기본이 max-age=0, must-revalidate 라 재방문마다 카드 32장을 전부 재검증했다
+        // (304 여도 왕복은 그대로 든다). 파일명에 내용 해시가 없어 immutable 은 못 쓰므로
+        // 1시간 신선 + 1일 stale-while-revalidate 로 절충한다. CMS 가 올리는 콘텐츠
+        // 사진은 R2(랜덤 접미사 키 = 사실상 immutable)에 있으니 이 규칙과 무관하고,
+        // 저장소 사진을 교체 배포했을 때 최대 1시간 옛 사진이 보이는 것은 감수한다.
+        source: '/img/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' }],
+      },
+      {
         source: '/(.*)',
         headers: [
           // 카카오 로그인 팝업(CMS)이 opener 를 써야 해서 allow-popups 변형을 쓴다.

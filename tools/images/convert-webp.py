@@ -31,9 +31,10 @@ ROOT = Path(__file__).resolve().parents[2]
 JPEG_DIRS = [ROOT / "public" / "img" / "labs", ROOT / "public" / "img" / "research"]
 EAGLE_PNG = ROOT / "public" / "img" / "eagle.png"
 
-# 카드는 aspect-[7/8] w-[185px] sm:w-[290px] → DPR2 에서도 580px 이면 충분하다.
-# 800px 을 상한으로 둔다(대부분의 원본이 이미 800px 폭).
-MAX_WIDTH = 800
+# 카드는 aspect-[7/8] w-[185px] sm:w-[290px] — 데스크톱 최대 290 CSS px 이라 DPR2 에서
+# 580px, 폰(185px)은 DPR3 에서 555px 이면 충분하다. 그래서 상한은 640px 이다.
+# (2026-09 이전에는 800 이었다 — 카드가 쓰지 않는 25% 폭을 그냥 내려보내고 있었다.)
+MAX_WIDTH = 640
 QUALITY = 88
 METHOD = 6
 

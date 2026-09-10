@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
 import gsap from 'gsap';
 import { SplitText } from 'gsap/SplitText';
@@ -41,6 +41,24 @@ function buildSrcSet(src: string): string {
 // (높이에 맞춰 확대되므로). 100vw 로 알리면 그만큼 모자란 파일을 받아 뿌옇게 나온다.
 // 원본이 1620px 이라 과요청해도 그 이상은 안 나가므로 넉넉히 잡는다.
 const PORTRAIT_SIZES = '135vw';
+
+// ── 슬라이드 지연 마운트 ────────────────────────────────────────────────
+// 6장이 겹쳐 쌓여 있고 전부 뷰포트 안이라 loading="lazy" 가 아무 일도 하지 않았다 —
+// 첫 로드에 6장(모바일 640KB)이 한꺼번에 나갔고, 그중 5장은 최소 6.5초 뒤에나 쓰인다.
+// 그래서 <picture> 자체를 마운트 집합으로 통제한다:
+//   · SSR/첫 렌더 {0,1} → 정적 HTML 에 슬라이드 0 이 들어가 파싱 중에 바로 받는다.
+//   · 페인트 직전 레이아웃 이펙트에서 추첨된 시작 슬라이드 k 를 추가(빈 히어로 방지).
+//   · load 이후 유휴 시간에 k+1, k+2 … 순서로 하나씩(직전 장의 decode 완료를 기다린 뒤)
+//     — 첫 전환(6.5초)보다 한참 먼저 도착하면서 LCP 경쟁은 하지 않는다.
+//   · 그래도 못 받은 슬라이드로 넘어가야 하면 goTo 가 최대 800ms 기다렸다 전환한다.
+// 슬라이드 래퍼(.slide/.parallax, 패럴랙스 ref·role·aria)는 그대로 두고 <picture> 만
+// 조건부다. .parallax 가 position:absolute; inset:0 이라 사진이 없어도 레이아웃은 같다.
+const INITIAL_MOUNTED = [0, 1];
+/** 아직 못 받은 슬라이드로 전환해야 할 때 기다려 주는 상한(ms). */
+const DECODE_WAIT_CAP = 800;
+
+const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export type HeroSlide = {
   /** 연구 분야 키(research-gallery.json 과 동일) */
@@ -102,6 +120,39 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
   // 회전 카피 인덱스 — 슬라이드 전환과 동시에 교체(reduced-motion 은 즉시 교체)
   const [tagIdx, setTagIdx] = useState(0);
 
+  // --- 마운트된 슬라이드 집합(위 '슬라이드 지연 마운트' 주석 참조) ---
+  // 진실은 ref 에 두고 렌더만 강제한다 — 전환 직전 동기 판정(goTo)이 필요해서
+  // setState 의 비동기 반영을 기다릴 수 없다. 초기값이 상수라 hydration 은 안전하다.
+  const imgRefs = useRef<Array<HTMLImageElement | null>>([]);
+  const mountedRef = useRef<Set<number>>(new Set(INITIAL_MOUNTED));
+  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const mount = useCallback(
+    (i: number) => {
+      if (i < 0 || i >= slides.length || mountedRef.current.has(i)) return;
+      mountedRef.current.add(i);
+      rerender();
+    },
+    [slides.length],
+  );
+
+  /** 슬라이드 i 를 마운트하고 디코딩까지 끝나길(최대 cap ms) 기다린다. */
+  const ensureReady = useCallback(
+    async (i: number, cap: number) => {
+      mount(i);
+      const until = performance.now() + cap;
+      // React 가 <img> 를 붙일 때까지 프레임 단위로 기다린다(대개 1프레임).
+      while (!imgRefs.current[i] && performance.now() < until) await raf();
+      const img = imgRefs.current[i];
+      if (!img) return false;
+      if (img.complete && img.naturalWidth > 0) return true;
+      const left = Math.max(0, until - performance.now());
+      // decode() 는 src 가 바뀌면 reject 한다 — 실패해도 전환은 막지 않는다.
+      await Promise.race([img.decode().catch(() => undefined), delay(left)]);
+      return img.complete && img.naturalWidth > 0;
+    },
+    [mount],
+  );
+
   // --- 회전 카피 전진 — 슬라이드 전환과 동시에 다음 문구로(사용자 지시: 배경과 동기).
   // 짧은 페이드아웃 → 교체(아래 layout effect 가 글자 타이핑 인). reduced-motion 은
   // 애니메이션 없이 즉시 교체. ---
@@ -121,7 +172,7 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
   }, [taglines.length]);
 
   // --- 슬라이드 전환(wipe + 패럴랙스), crisp navigate() 이식 ---
-  const goTo = useCallback((target: number) => {
+  const runTransition = useCallback((target: number) => {
     const prev = currentRef.current;
     if (animatingRef.current || target === prev) return;
     const direction = target > prev ? 1 : -1;
@@ -158,17 +209,77 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
       .fromTo(inInner, { xPercent: -direction * 75 }, { xPercent: 0 }, 0);
   }, [advanceTagline]);
 
+  // 전환 게이트 — 사진이 아직 없는 슬라이드로 크로스페이드하면 빈 화면이 스친다.
+  // 이미 받아 둔 경우(대부분)는 예전과 똑같이 즉시 전환하고, 아주 느린 회선의 첫
+  // 몇 초에만 최대 DECODE_WAIT_CAP 을 기다렸다 전환한다. 기다리는 동안 들어온
+  // 새 요청(사용자 클릭·다음 자동 전환)이 우선이다.
+  const goRequest = useRef(0);
+  const goTo = useCallback(
+    (target: number) => {
+      if (target === currentRef.current) return;
+      const seq = ++goRequest.current;
+      const img = imgRefs.current[target];
+      if (mountedRef.current.has(target) && img?.complete && img.naturalWidth > 0) {
+        runTransition(target);
+        return;
+      }
+      void ensureReady(target, DECODE_WAIT_CAP).then(() => {
+        if (seq !== goRequest.current) return; // 더 최근 요청에 밀렸다
+        runTransition(target);
+      });
+    },
+    [ensureReady, runTransition],
+  );
+
   // --- 마운트: 시작 슬라이드 추첨(방문마다 다른 연구 분야로 시작) ---
   // SSR/첫 렌더는 0 으로 일치시키고 페인트 전 layout effect 에서 확정 → 깜빡임·
-  // hydration 불일치 없음. 6장 모두 어차피 로드되므로 추가 네트워크 비용도 없다.
+  // hydration 불일치 없음. 추첨 결과 k 는 곧 화면에 보일 슬라이드라 여기서 함께
+  // 마운트한다(레이아웃 이펙트의 setState 는 페인트 전에 동기 반영된다).
+  const startIdxRef = useRef(0);
   useIsoLayoutEffect(() => {
     const k = Math.floor(Math.random() * slides.length);
+    startIdxRef.current = k;
+    mount(k);
     slideRefs.current[k]?.classList.add(styles.current);
     currentRef.current = k;
     setCurrent(k);
+    // StrictMode(dev)는 이 이펙트를 두 번 실행한다 — 정리 없이는 서로 다른 두 슬라이드에
+    // .current 가 남아 두 장이 겹쳐 보인다(프로덕션에선 언마운트 때만 실행되므로 무해).
+    return () => {
+      slideRefs.current[k]?.classList.remove(styles.current);
+    };
     // slides.length 는 정적 콘텐츠 파생 고정값 — 마운트 1회만 실행하면 된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- 나머지 슬라이드: load 이후 유휴 시간에 '다음에 보일 순서'대로 하나씩 ---
+  // 직전 장의 decode 가 끝난 뒤 다음 장을 붙여, 첫 페인트/LCP 와 대역폭을 다투지
+  // 않으면서도 첫 전환(6.5초) 전에 전부 도착한다.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const k = startIdxRef.current;
+      for (let n = 1; n <= slides.length; n += 1) {
+        if (cancelled) return;
+        const i = (k + n) % slides.length;
+        if (mountedRef.current.has(i)) continue;
+        await ensureReady(i, 15000);
+      }
+    };
+    const schedule = () => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(() => void run(), { timeout: 1500 });
+      } else {
+        window.setTimeout(() => void run(), 1500);
+      }
+    };
+    if (document.readyState === 'complete') schedule();
+    else window.addEventListener('load', schedule, { once: true });
+    return () => {
+      cancelled = true;
+      window.removeEventListener('load', schedule);
+    };
+  }, [ensureReady, slides.length]);
 
   // --- 자동 전환 = 하단 진행 바 트윈 — 바가 좌→우로 다 차면(6.5초) 다음 슬라이드.
   // setInterval 대신 바 자체가 타이머라 표시와 전환이 정확히 동기다.
@@ -260,28 +371,35 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
               className={styles.parallax}
             >
               {/* 아트디렉션 — 세로로 긴 화면(≤3:4)에서는 세로 크롭본을 쓴다.
-                  <source> 는 조건에 맞는 하나만 내려받으므로 두 벌을 다 받지 않는다. */}
-              <picture>
-                {s.imageMobile && (
-                  <source
-                    media="(max-aspect-ratio: 3/4)"
-                    srcSet={buildSrcSet(s.imageMobile)}
-                    sizes={PORTRAIT_SIZES}
+                  <source> 는 조건에 맞는 하나만 내려받으므로 두 벌을 다 받지 않는다.
+                  마운트 집합에 든 슬라이드만 그린다(위 '슬라이드 지연 마운트' 참조). */}
+              {mountedRef.current.has(i) && (
+                <picture>
+                  {s.imageMobile && (
+                    <source
+                      media="(max-aspect-ratio: 3/4)"
+                      srcSet={buildSrcSet(s.imageMobile)}
+                      sizes={PORTRAIT_SIZES}
+                    />
+                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- <picture> 아트디렉션은 next/image 로 표현할 수 없다 */}
+                  <img
+                    ref={(el) => {
+                      imgRefs.current[i] = el;
+                    }}
+                    src={optimized(s.image, 1200)}
+                    srcSet={buildSrcSet(s.image)}
+                    sizes="100vw"
+                    alt=""
+                    className={styles.image}
+                    draggable={false}
+                    decoding="async"
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    // 첫 화면에 실제로 보이는 슬라이드가 LCP 후보다(시작 슬라이드는 추첨).
+                    fetchPriority={i === 0 || i === current ? 'high' : 'auto'}
                   />
-                )}
-                {/* eslint-disable-next-line @next/next/no-img-element -- <picture> 아트디렉션은 next/image 로 표현할 수 없다 */}
-                <img
-                  src={optimized(s.image, 1200)}
-                  srcSet={buildSrcSet(s.image)}
-                  sizes="100vw"
-                  alt=""
-                  className={styles.image}
-                  draggable={false}
-                  decoding="async"
-                  loading={i === 0 ? 'eager' : 'lazy'}
-                  fetchPriority={i === 0 ? 'high' : 'auto'}
-                />
-              </picture>
+                </picture>
+              )}
             </div>
           </div>
         ))}
@@ -363,6 +481,10 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
                   className={styles.btn}
                   onClick={() => goTo(i)}
                   onDoubleClick={() => router.push(`/research?field=${s.field}#labs`)}
+                  // 누르기 전에 사진부터 — 목록에서 먼 분야로 건너뛰어도 빈 화면이 없다.
+                  onPointerEnter={() => mount(i)}
+                  onTouchStart={() => mount(i)}
+                  onFocus={() => mount(i)}
                   aria-current={current === i ? 'true' : undefined}
                 >
                   <span className={styles.dot} aria-hidden="true" />

@@ -24,9 +24,10 @@ const FALLBACK_IMAGES = [
 const LOCAL_WEBP_SIBLING = /^\/img\/(labs|research)\/[^?#]+\.(jpe?g|png)$/i;
 
 /**
- * 카드 배경으로 실제 요청할 이미지 URL.
+ * 카드 사진으로 실제 요청할 이미지 URL.
  *
- * 카드는 CSS background-image 라 next/image 를 못 쓴다 — 대신 두 갈래로 줄인다:
+ * 카드는 아트디렉션이 없어 next/image 를 쓸 수도 있지만, 무한 루프로 리스트를 2회
+ * 렌더해 66장이 되므로 런타임 최적화기 대신 정적 파일을 그대로 가리킨다:
  *  1) 로컬 /img/labs·/img/research 의 jpg/png → 같은 이름의 .webp.
  *     ⚠️ 불변식: 그 두 디렉터리의 모든 원본은 .webp 형제를 가진다
  *     (`tools/images/convert-webp.py` 가 생성 — 새 JPEG 을 넣었으면 다시 돌려야 한다).
@@ -45,6 +46,30 @@ export function cardImageUrl(src: string): string {
 const FLOW_SPEED = 0.5;
 /** 사용자가 손으로 민 뒤 자동 흐름을 재개하기까지의 대기(ms). */
 const RESUME_DELAY = 1600;
+
+/**
+ * 즉시(eager) 받아 둘 카드 수 — 나머지는 loading="lazy".
+ *
+ * 리스트를 2회 렌더하므로 카드는 66장이고, 예전처럼 CSS background-image 로 그리면
+ * 브라우저가 66장(중복 제외 33개 파일, 2.0MB)을 첫 로드에 전부 받았다(배경 이미지는
+ * 지연 로드가 불가능). <img loading="lazy"> 로 바꿔 화면 근처만 받게 하고, 처음
+ * 보이는 창만 eager 로 남긴다.
+ *
+ * 가장 넓은 첫 화면(≈1360px)에서 290px 카드가 5장 보이고, 자동 흐름이 왼쪽에서
+ * 들어오므로 앞쪽 2장 + 뒤쪽 1장 여유 = 8장.
+ */
+const EAGER_COUNT = 8;
+/** 하이드레이션 전(트랙 scrollLeft=0) 첫 화면에 보이는 카드 수 + 여유 2 — 위 eager 주석 참조 */
+const EAGER_PREHYDRATION_COUNT = 7;
+/**
+ * eager 창의 시작 인덱스.
+ * ⚠️ 마운트 시 scrollLeft 를 scrollWidth/4(= 한 벌의 절반)에 두므로 처음 보이는 카드는
+ * 0번이 아니라 첫 벌의 중앙(≈N/2)이다. 0번부터 eager 로 잡으면 화면에 없는 카드를
+ * 받고 정작 보이는 카드는 lazy 가 된다. 흐름이 들어오는 왼쪽으로 2장 앞당겨 잡는다.
+ */
+function eagerStartIndex(n: number): number {
+  return Math.max(0, Math.floor(n / 2) - 2);
+}
 
 interface LabCardData extends LabDirectoryEntry {
   image: string;
@@ -84,6 +109,7 @@ export const LabCarousel = forwardRef<
     ...lab,
     image: lab.image ?? FALLBACK_IMAGES[i % FALLBACK_IMAGES.length],
   }));
+  const eagerStart = eagerStartIndex(cards.length);
 
   // 경계에서 scrollLeft 를 절반만큼 되돌려 무한 루프를 만든다.
   const wrap = useCallback(() => {
@@ -231,6 +257,14 @@ export const LabCarousel = forwardRef<
               professorLabel={t('professorLabel')}
               externalLabel={t('externalLabel')}
               ariaHidden={isClone}
+              // 두 창을 eager 로: (1) 마운트 뒤 scrollLeft=scrollWidth/4 에서 보이는 창(eagerStart~),
+              // (2) 하이드레이션 **전** 트랙이 scrollLeft=0 일 때 보이는 첫 카드들(0~6). 느린 기기에서
+              // 사용자가 하이드레이션보다 먼저 이 섹션까지 내려오면 (2)가 화면에 있는데, 이것까지
+              // lazy 면 빈 카드가 잠깐 보인다(2026-09-10 slow-4G 실측 44프레임). 5장 ≈ 200KB 의 대가.
+              eager={
+                !isClone &&
+                (i < EAGER_PREHYDRATION_COUNT || (i >= eagerStart && i < eagerStart + EAGER_COUNT))
+              }
             />
           )),
         )}
@@ -246,12 +280,15 @@ function LabCardView({
   professorLabel,
   externalLabel,
   ariaHidden,
+  eager,
 }: {
   card: LabCardData;
   locale: Locale;
   professorLabel: string;
   externalLabel: string;
   ariaHidden: boolean;
+  /** 첫 화면에 보이는 카드만 true — 나머지는 loading="lazy"(EAGER_COUNT 주석 참조) */
+  eager: boolean;
 }) {
   const name = locale === 'ko' ? card.nameKo : card.nameEn || card.nameKo;
   const professor = locale === 'ko' ? card.professorKo : card.professorEn;
@@ -259,10 +296,19 @@ function LabCardView({
 
   const inner = (
     <>
-      <span
+      {/* 사진. background-image 가 아니라 <img> 인 이유는 오직 지연 로드 때문이다
+          (CSS 배경은 loading="lazy" 가 없어 66장이 첫 로드에 전부 나갔다).
+          object-cover + 기본 object-position:50% 50% 가 예전 bg-cover bg-center 와
+          같은 픽셀을 그리고, 호버 확대 트랜스폼도 같은 클래스로 그대로 옮겼다. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- 66장(2벌) 카드라 런타임 최적화기 대신 정적 .webp 를 직접 가리킨다 */}
+      <img
+        src={cardImageUrl(card.image)}
+        alt=""
         aria-hidden="true"
-        className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-        style={{ backgroundImage: `url(${cardImageUrl(card.image)})` }}
+        draggable={false}
+        decoding="async"
+        loading={eager ? 'eager' : 'lazy'}
+        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
       <span
         aria-hidden="true"
