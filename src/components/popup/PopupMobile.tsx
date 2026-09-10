@@ -9,6 +9,8 @@
 // 가운데면 좌우 16px 을 띄우고 네 면에 테두리를 두른다.
 //
 // children 은 캐러셀 점이다 — 모바일은 점이 시트 **안쪽**(하단 바 아래)에 놓인다.
+// 여백(p-2)까지 **넘겨주는 쪽**이 그린다: 점이 숨겨질 때 패딩만 남아 시트가 길어지는 것을
+// 막으려면 여닫는 상자가 여백을 포함해야 한다(components/popup/parts.tsx 의 PopupStack).
 
 import { PopupCloseX, PopupFooterBar, PopupImage, popupCardWidth } from './parts';
 import type { PopupMobilePosition } from '@/lib/popup-positions';
@@ -37,7 +39,7 @@ export function PopupMobile({
       <PopupImage {...props} device="mobile" />
       <PopupCloseX {...props} />
       <PopupFooterBar {...props} split={false} />
-      {children && <div className="p-2">{children}</div>}
+      {children}
     </div>
   );
 }

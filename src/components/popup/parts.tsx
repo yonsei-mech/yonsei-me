@@ -120,9 +120,10 @@ export function PopupImage({
   aspect,
   width,
   contained = false,
+  defer = false,
 }: Pick<
   PopupCardProps,
-  'image' | 'alt' | 'link' | 'newTab' | 'aspect' | 'width' | 'contained'
+  'image' | 'alt' | 'link' | 'newTab' | 'aspect' | 'width' | 'contained' | 'defer'
 > & {
   device: PopupDevice;
 }) {
@@ -148,23 +149,45 @@ export function PopupImage({
   // 예외로 원본 URL 그대로다 — 저장 전 blob: 미리보기가 즉시 보여야 하기 때문이다.
   // 최적화할 수 없는 소스(blob:·SVG·허용 밖 호스트)도 null 이 돌아와 원본을 쓴다.
   const opt = contained ? null : popupImageDelivery(image, device, width);
-  const delivery = opt
-    ? {
-        src: opt.src,
-        srcSet: opt.srcSet,
-        sizes: opt.sizes,
-        // 팝업 사진은 첫 화면의 LCP 요소다 — 홈이 심는 preload 와 짝을 이룬다.
-        fetchPriority: 'high' as const,
-        decoding: 'async' as const,
-      }
-    : { src: image };
+  // defer = "아직 이 카드가 켜질지 모른다"(서버 렌더·하이드레이션 첫 렌더). src 를 아예
+  // 달지 않고 data-* 로만 들고 있다가, 인라인 게이트가 **뜨는 기기의 뜨는 카드 한 장**에만
+  // 진짜 속성으로 옮긴다 — 그래야 반대 기기 사진을 받지 않는다(display:none 이어도 받는다).
+  // 필요한 바이트는 <head> 의 preload 가 이미 같은 URL 로 받는 중이다(lib/popup-image.ts).
+  // 게이트가 손댄 속성이라 하이드레이션 경고는 이 요소에서만 끈다.
+  const delivery: React.ImgHTMLAttributes<HTMLImageElement> = defer
+    ? ({
+        'data-src': opt ? opt.src : image,
+        'data-srcset': opt ? opt.srcSet : undefined,
+        'data-sizes': opt ? opt.sizes : undefined,
+        ...(opt ? { fetchPriority: 'high' as const, decoding: 'async' as const } : null),
+        suppressHydrationWarning: true,
+      } as React.ImgHTMLAttributes<HTMLImageElement>)
+    : opt
+      ? {
+          src: opt.src,
+          srcSet: opt.srcSet,
+          sizes: opt.sizes,
+          // 팝업 사진은 첫 화면의 LCP 요소다 — 홈이 심는 preload 와 짝을 이룬다.
+          fetchPriority: 'high' as const,
+          decoding: 'async' as const,
+        }
+      : { src: image };
+  // 계측 훅(첫 페인트 검증 스크립트가 이 사진을 집는다) — 미리보기에는 달지 않는다
+  const hook = contained ? undefined : '';
   const img = fixed ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img {...delivery} alt={alt} className="block h-auto w-full" style={{ aspectRatio: String(fixed) }} />
+    <img
+      {...delivery}
+      data-popup-img={hook}
+      alt={alt}
+      className="block h-auto w-full"
+      style={{ aspectRatio: String(fixed) }}
+    />
   ) : (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       {...delivery}
+      data-popup-img={hook}
       alt={alt}
       className="block w-full object-contain"
       style={{
@@ -278,27 +301,58 @@ export function PopupFooterBar({
   );
 }
 
-/** 캐러셀 점 — 현재 남색, 나머지 연회색. 누르면 그 팝업으로 옮긴다 */
+/** 점 색 — 인라인 게이트 스크립트도 같은 값을 써야 해서 상수로 뺐다(PopupNotice 가 전달) */
+export const POPUP_DOT_ON = '#003377';
+export const POPUP_DOT_OFF = '#C8D0DB';
+
+/**
+ * 캐러셀 점 — 현재 남색, 나머지 연회색. 누르면 그 팝업으로 옮긴다.
+ *
+ * 게이트 모드(gated)는 사이트 전용이다. 서버는 "몇 개가 실제로 뜰지" 를 모르므로
+ * **후보 수만큼**(slots) 버튼을 그려 두고 전부 중립(색 없음·display:none)으로 둔다.
+ * 앞의 count 개만 인라인 게이트가, 이어서 React 가 켠다.
+ */
 export function PopupDots({
   count,
   index,
   onSelect,
+  slots,
+  gated = false,
+  boxHook = false,
 }: {
+  /** 실제로 누를 수 있는 점 개수. 0 = 아직 모름(게이트 전) */
   count: number;
+  /** 활성 점. -1 = 아직 모름(게이트 전) → 색을 지정하지 않는다 */
   index: number;
   onSelect: (i: number) => void;
+  /** 그려 둘 버튼 개수(기본 count) — 게이트 모드에서 후보 수 */
+  slots?: number;
+  gated?: boolean;
+  /** 이 컨테이너가 게이트가 여닫는 상자인가(PC). 모바일은 바깥 p-2 가 그 역할을 한다 */
+  boxHook?: boolean;
 }) {
+  const total = slots ?? count;
   return (
-    <div className="pointer-events-auto flex items-center justify-center gap-2">
-      {Array.from({ length: count }, (_, i) => (
+    <div
+      data-popup-dots={boxHook ? '' : undefined}
+      suppressHydrationWarning={boxHook}
+      style={boxHook && count < 2 ? { display: 'none' } : undefined}
+      className="pointer-events-auto flex items-center justify-center gap-2"
+    >
+      {Array.from({ length: total }, (_, i) => (
         <button
           key={i}
           type="button"
+          data-popup-dot={gated ? '' : undefined}
+          suppressHydrationWarning={gated}
           aria-label={String(i + 1)}
           aria-current={i === index ? 'true' : undefined}
           onClick={() => onSelect(i)}
           className="block h-2 w-2 rounded-full transition-colors"
-          style={{ backgroundColor: i === index ? '#003377' : '#C8D0DB' }}
+          style={{
+            backgroundColor: index < 0 ? undefined : i === index ? POPUP_DOT_ON : POPUP_DOT_OFF,
+            ...(gated && i >= count ? { display: 'none' } : null),
+          }}
         />
       ))}
     </div>
@@ -330,14 +384,117 @@ export function PopupCarousel({
 
   if (device === 'mobile') return <>{children(active, dots)}</>;
   return (
-    // min-w-0: flex item 의 기본 min-width:auto 는 카드의 저장 폭을 그대로 붙들어,
-    // 컨테이너(좌우 24 를 뺀 전폭)보다 넓어도 줄지 않게 만든다.
-    // --popup-dots-h: 점이 붙으면 카드의 세로 예산에서 그만큼을 뺀다(점 8 + gap 8).
     <div
-      className="flex min-w-0 max-w-full flex-col items-center gap-2"
+      className={POPUP_DESKTOP_COL}
       style={{ '--popup-dots-h': `${dots ? POPUP_DESKTOP_DOTS_H : 0}px` } as React.CSSProperties}
     >
       {children(active, null)}
+      {dots}
+    </div>
+  );
+}
+
+/** PC 캐러셀 기둥의 클래스 — PopupCarousel(관리자)과 PopupStack(사이트)이 **같은 상자**를
+ *  그려야 해서 한 곳에 둔다.
+ *  min-w-0: flex item 의 기본 min-width:auto 는 카드의 저장 폭을 그대로 붙들어,
+ *  컨테이너(좌우 24 를 뺀 전폭)보다 넓어도 줄지 않게 만든다. */
+const POPUP_DESKTOP_COL = 'flex min-w-0 max-w-full flex-col items-center gap-2';
+
+/**
+ * 사이트용 캐러셀 — PopupCarousel 과 **같은 상자**를 그리되 후보를 전부 그려 둔다.
+ *
+ * 왜 전부 그리나: 게재 기간·'오늘 하루 보지 않기'·화면 폭은 서버가 알 수 없다. 그래서
+ * 서버는 후보를 다 내려보내고 전부 숨긴 채로 두고(인라인 display:none), 첫 페인트 전에
+ * 도는 게이트가 **뜰 한 장**의 숨김만 걷어낸다. 이렇게 해야 팝업이 하이드레이션을
+ * 기다리지 않는다(LCP).
+ *
+ * 켜진 상태의 display 는 클래스(`contents`)가 정한다 — 인라인 display 를 지우기만 하면
+ * 되므로 게이트(문자열 대입)와 React(스타일 diff)가 서로를 덮어써도 결과가 같다.
+ * 트리 모양은 마운트 전후가 동일하다 — <img> DOM 노드가 그대로라 다시 받지도, 깜빡이지도 않는다.
+ */
+export function PopupStack({
+  device,
+  ids,
+  visible,
+  index,
+  onSelect,
+  card,
+}: {
+  device: PopupDevice;
+  /** 이 자리의 후보 id — 서버가 정한 순서 그대로 */
+  ids: readonly string[];
+  /** 지금 뜨는 id (게이트 전에는 빈 배열) */
+  visible: readonly string[];
+  /** 활성 index (visible 기준). -1 = 아직 모름 */
+  index: number;
+  onSelect: (i: number) => void;
+  /** (id, 점) → 카드 하나 */
+  card: (id: string, dots: React.ReactNode) => React.ReactNode;
+}) {
+  const activeId = index >= 0 ? visible[index] : undefined;
+  const dots =
+    ids.length > 1 ? (
+      <PopupDots
+        gated
+        boxHook={device === 'desktop'}
+        slots={ids.length}
+        count={visible.length}
+        index={index}
+        onSelect={onSelect}
+      />
+    ) : null;
+
+  const wrap = (id: string, inner: React.ReactNode) => (
+    <div
+      key={id}
+      data-popup-id={id}
+      className="contents"
+      style={id === activeId ? undefined : { display: 'none' }}
+      suppressHydrationWarning
+    >
+      {inner}
+    </div>
+  );
+
+  // 모바일은 점이 시트 **안쪽**(하단 바 아래)이라 카드에 넘겨 준다 — 여닫는 상자는
+  // 그 p-2 래퍼다(점만 숨기면 패딩 16px 이 남아 시트가 그만큼 길어진다).
+  if (device === 'mobile') {
+    return (
+      <>
+        {ids.map((id) =>
+          wrap(
+            id,
+            card(
+              id,
+              dots ? (
+                <div
+                  className="p-2"
+                  data-popup-dots=""
+                  suppressHydrationWarning
+                  style={visible.length > 1 ? undefined : { display: 'none' }}
+                >
+                  {dots}
+                </div>
+              ) : null,
+            ),
+          ),
+        )}
+      </>
+    );
+  }
+
+  return (
+    <div
+      className={POPUP_DESKTOP_COL}
+      suppressHydrationWarning
+      style={
+        {
+          // 점이 붙으면 카드의 세로 예산에서 그만큼을 뺀다(점 8 + gap 8)
+          '--popup-dots-h': `${visible.length > 1 ? POPUP_DESKTOP_DOTS_H : 0}px`,
+        } as React.CSSProperties
+      }
+    >
+      {ids.map((id) => wrap(id, card(id, null)))}
       {dots}
     </div>
   );

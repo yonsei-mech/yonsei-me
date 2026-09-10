@@ -4,5 +4,12 @@
 
 export { PopupDesktop } from './PopupDesktop';
 export { PopupMobile } from './PopupMobile';
-export { PopupCarousel, PopupDots, PopupGroup } from './parts';
+export {
+  POPUP_DOT_OFF,
+  POPUP_DOT_ON,
+  PopupCarousel,
+  PopupDots,
+  PopupGroup,
+  PopupStack,
+} from './parts';
 export type { PopupCardLabels, PopupCardProps } from './types';

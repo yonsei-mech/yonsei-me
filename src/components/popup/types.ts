@@ -44,4 +44,13 @@ export interface PopupCardProps {
    * 바깥 배치(fixed ↔ absolute)는 PopupGroup 이 같은 값으로 따로 처리한다.
    */
   contained?: boolean;
+  /**
+   * 사진의 src 를 **아직 달지 않는다**(data-src 로만 들고 있는다).
+   *
+   * 사이트는 서버에서 "뜰지 모르는" 후보를 기기별로 다 그려 둔다 — 그대로 src 를 달면
+   * 반대 기기 사진까지 받는다(display:none 이어도 받는다). 첫 페인트 전에 도는 인라인
+   * 게이트가 실제로 뜨는 카드 한 장에만 진짜 속성으로 옮기고, 하이드레이션 뒤에는
+   * React 가 같은 값을 그대로 이어받는다. 관리자 미리보기는 쓰지 않는다.
+   */
+  defer?: boolean;
 }
