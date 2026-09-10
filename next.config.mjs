@@ -47,6 +47,13 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // 동적 서브셋 폰트 조각(public/webfonts, 생성물). public/ 정적 파일은 Vercel 이
+        // max-age=0(매 방문 재검증)으로 내보내는데, 파일명에 내용 해시가 들어가므로
+        // (tools/fonts/split-dynamic-subset.py) next/font 가 쓰던 것과 같은 immutable 1년을 건다.
+        source: '/webfonts/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
         source: '/(.*)',
         headers: [
           // 카카오 로그인 팝업(CMS)이 opener 를 써야 해서 allow-popups 변형을 쓴다.

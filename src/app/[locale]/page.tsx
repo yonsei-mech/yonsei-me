@@ -26,6 +26,7 @@ import {
   getLabsDirectoryRuntime,
 } from '@/lib/content-runtime';
 import { popupImagePreloads } from '@/lib/popup-image';
+import { WEBFONTS } from '../webfonts-manifest';
 import {
   alumniEventHref,
   boardPostHref,
@@ -346,16 +347,19 @@ export default async function HomePage({ params }: { params: { locale: string } 
           116~119). 제목 문구나 구간표(tools/fonts/korean-slices.json)를 바꾸면 다시 재라 —
           빠진 조각은 늦게 올 뿐 글자가 빠지진 않는다. 다른 페이지엔 이 서체가 없어
           layout 이 아니라 여기 둔다. */}
-      {['123', '119', '118', '117', '116'].map((id) => (
-        <link
-          key={`gmarket-${id}`}
-          rel="preload"
-          href={`/webfonts/gmarket/GmarketSansBold.${id}.woff2`}
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
-      ))}
+      {['123', '119', '118', '117', '116'].map((id) => {
+        const href = WEBFONTS.gmarket[id];
+        return href ? (
+          <link
+            key={`gmarket-${id}`}
+            rel="preload"
+            href={href}
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+        ) : null;
+      })}
 
       {/* 1. 애니메이션 히어로 — 고정 배경 레이어(hicoda 식 "fixed background reveal").
           inset-0 으로 모바일 URL바 수축·확장에도 항상 뷰포트를 가득 채우고, 히어로

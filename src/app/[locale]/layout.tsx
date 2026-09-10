@@ -19,6 +19,7 @@ import { paperlogy } from '../fonts';
 import '../globals.css';
 // Pretendard·지마켓산스 @font-face(unicode-range 동적 서브셋, 생성물) — fonts.ts 주석 참고
 import '../webfonts.css';
+import { WEBFONTS } from '../webfonts-manifest';
 
 // 모든 로케일을 정적으로 프리렌더 → 성능(SSG)
 export function generateStaticParams() {
@@ -147,7 +148,7 @@ export default async function LocaleLayout({
             preload 한다(다른 페이지엔 없는 서체라 여기 두지 않는다). */}
         <link
           rel="preload"
-          href="/webfonts/pretendard/PretendardVariable.core.woff2"
+          href={WEBFONTS.pretendard.core}
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

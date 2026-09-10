@@ -20,9 +20,12 @@ Paperlogy 만 남는다).
     python tools/fonts/split-dynamic-subset.py
 
 출력:
-    public/webfonts/pretendard/PretendardVariable.<id>.woff2
-    public/webfonts/gmarket/GmarketSansBold.<id>.woff2
-    src/app/webfonts.css      ← @font-face 전체. 손으로 고치지 말 것(이 스크립트가 덮어쓴다)
+    public/webfonts/pretendard/PretendardVariable.<id>.<hash8>.woff2   (id = core·구간표 번호·rest)
+    public/webfonts/gmarket/GmarketSansBold.<id>.<hash8>.woff2
+    src/app/webfonts.css          ← @font-face 전체. 손으로 고치지 말 것(이 스크립트가 덮어쓴다)
+    src/app/webfonts-manifest.ts  ← id → URL. layout/page 의 preload 가 여기서 경로를 찾는다
+  <hash8> 은 내용 sha256 앞 8자리 — /webfonts/ 는 immutable 1년 캐시(next.config headers)라
+  내용이 바뀌면 이름이 바뀌어야 한다.
 
 주의:
   * 서브셋은 힌팅·레이아웃 피처(GSUB/GPOS)·name 테이블을 **전부 보존**한다.
@@ -34,6 +37,7 @@ Paperlogy 만 남는다).
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -54,6 +58,9 @@ REPO = Path(__file__).resolve().parents[2]          # .../yonsei-me
 HERE = Path(__file__).resolve().parent              # .../yonsei-me/tools/fonts
 SLICE_TABLE = HERE / 'korean-slices.json'
 CSS_OUT = REPO / 'src' / 'app' / 'webfonts.css'
+# 조각 id → URL 매니페스트(생성물). 파일명에 내용 해시가 들어가므로 layout/page 의 preload 가
+# 경로를 직접 적을 수 없다 — 이 파일을 import 해 id 로 찾는다.
+MANIFEST_OUT = REPO / 'src' / 'app' / 'webfonts-manifest.ts'
 
 # next/font 가 지금까지 생성하던 지표 보정 폴백을 그대로 옮겨 적은 것.
 # (dev 빌드 CSS 에서 실측: .next-dev/static/css/app/[locale]/layout.css)
@@ -238,7 +245,13 @@ def build_slice(job: tuple[str, str, str]) -> tuple[str, int, list[int]]:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     subset.save_font(font, str(out_path), opts)
     font.close()
-    return out, n_glyphs, sorted(covered)
+    # 파일명에 내용 해시(sha256 앞 8자리)를 넣는다 — public/ 정적 파일은 Vercel 이
+    # max-age=0 으로 내보내므로 next.config headers() 가 /webfonts/ 에 immutable 1년을 건다.
+    # 그러려면 내용이 바뀔 때 이름도 바뀌어야 한다(같은 이름에 다른 내용 = 1년 묵은 폰트).
+    digest = hashlib.sha256(out_path.read_bytes()).hexdigest()[:8]
+    final = out_path.with_name(f'{out_path.stem}.{digest}{out_path.suffix}')
+    os.replace(out_path, final)
+    return str(final), n_glyphs, sorted(covered)
 
 
 def main() -> int:
@@ -249,6 +262,7 @@ def main() -> int:
         table_union |= cps
 
     css_blocks: list[str] = []
+    manifest: dict[str, dict[str, str]] = {}
     ok = True
 
     for spec in FONTS:
@@ -315,6 +329,9 @@ def main() -> int:
             union_covered |= covered
 
             url = f'{spec["url_dir"]}/{out_path.name}'
+            # 파일명 = <basename>.<sid>.<hash8>.woff2 — sid 를 되읽어 매니페스트에 넣는다.
+            sid = out_path.name.split('.')[1]
+            manifest.setdefault(spec['key'], {})[sid] = url
             if spec['variable']:
                 src_line = (
                     f"  src: url('{url}') format('woff2-variations'),\n"
@@ -364,6 +381,25 @@ def main() -> int:
     CSS_OUT.write_text(header + '\n' + FALLBACK_FACES + '\n' + '\n\n'.join(css_blocks) + '\n',
                        encoding='utf-8')
     print(f'\nCSS: {CSS_OUT} ({CSS_OUT.stat().st_size:,} B)')
+
+    # ── 매니페스트(TS) — preload 가 해시 파일명을 id 로 찾는다 ────────────────
+    def sort_key(s: str):
+        return (0, int(s)) if s.isdigit() else (1, s)
+
+    ts_lines = [
+        '// 이 파일은 tools/fonts/split-dynamic-subset.py 가 생성한다. 손으로 고치지 말 것.',
+        '// 조각 id → URL. 파일명에 내용 해시가 들어가 있어(immutable 캐시 헤더 전제) 경로를',
+        '// 코드에 직접 적지 말고 여기서 찾는다. id: 구글 구간표 0~123 · core(상용 한글+비음절) · rest.',
+        "export const WEBFONTS: Record<'pretendard' | 'gmarket', Record<string, string>> = {",
+    ]
+    for key in ('pretendard', 'gmarket'):
+        ts_lines.append(f'  {key}: {{')
+        for sid in sorted(manifest.get(key, {}), key=sort_key):
+            ts_lines.append(f"    '{sid}': '{manifest[key][sid]}',")
+        ts_lines.append('  },')
+    ts_lines.append('};')
+    MANIFEST_OUT.write_text('\n'.join(ts_lines) + '\n', encoding='utf-8')
+    print(f'MANIFEST: {MANIFEST_OUT} ({sum(len(v) for v in manifest.values())} entries)')
     if not ok:
         print('\nFAILED: 커버리지 불일치. 배포하지 말 것.', file=sys.stderr)
         return 1

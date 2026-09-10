@@ -44,11 +44,17 @@
 python tools/fonts/split-dynamic-subset.py     # fontTools + brotli 필요
 ```
 
-출력 (스크립트가 셋 다 한 번에 만든다 — CSS 와 파일이 어긋날 수 없다):
+출력 (스크립트가 넷 다 한 번에 만든다 — CSS·매니페스트와 파일이 어긋날 수 없다):
 
-- `public/webfonts/pretendard/PretendardVariable.<id>.woff2`
-- `public/webfonts/gmarket/GmarketSansBold.<id>.woff2`
+- `public/webfonts/pretendard/PretendardVariable.<id>.<hash8>.woff2` (`<id>` = core · 구간표 번호 · rest)
+- `public/webfonts/gmarket/GmarketSansBold.<id>.<hash8>.woff2`
 - `src/app/webfonts.css` — `@font-face` 전량 + 지표 보정 폴백 2개. **손으로 고치지 말 것**
+- `src/app/webfonts-manifest.ts` — `WEBFONTS[font][id] → URL`. preload 가 경로를 여기서 찾는다.
+
+파일명의 `<hash8>` 은 내용 sha256 앞 8자리다. `public/` 정적 파일은 Vercel 이
+`max-age=0`(매 방문 재검증)으로 내보내므로 `next.config.mjs` 의 `headers()` 가 `/webfonts/*` 에
+`immutable` 1년을 건다 — 그래서 내용이 바뀌면 이름도 바뀌어야 하고, 경로를 코드에 직접 적지
+말고 매니페스트로 찾아야 한다.
 
 `src/app/[locale]/layout.tsx` 가 `webfonts.css` 를 import 하고, 폰트 패밀리는
 `src/app/globals.css` 의 `:root` 에서 `--font-sans` / `--font-hero` 로 연결된다.
