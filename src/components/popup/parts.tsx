@@ -17,6 +17,7 @@ import {
   type PopupDevice,
   type PopupPositionKey,
 } from '@/lib/popup-positions';
+import { popupImageDelivery } from '@/lib/popup-image';
 import type { PopupCardProps } from './types';
 
 /** 헤더(z-50)보다 위 */
@@ -117,8 +118,12 @@ export function PopupImage({
   newTab,
   device,
   aspect,
+  width,
   contained = false,
-}: Pick<PopupCardProps, 'image' | 'alt' | 'link' | 'newTab' | 'aspect' | 'contained'> & {
+}: Pick<
+  PopupCardProps,
+  'image' | 'alt' | 'link' | 'newTab' | 'aspect' | 'width' | 'contained'
+> & {
   device: PopupDevice;
 }) {
   if (!image) {
@@ -137,17 +142,39 @@ export function PopupImage({
   // aspect-ratio 는 로드 전에 자리를 잡아 카드가 튀지 않게 하는 용도다.
   // 모바일은 전폭 시트라 이 경로를 쓰지 않는다(비율 값이 들어와도 무시).
   const fixed = device === 'desktop' && aspect ? aspect : undefined;
+  // 사진 전달 — Next 이미지 라우트(/_next/image)로 리사이즈·AVIF/WebP 를 받는다.
+  // next/image **컴포넌트**는 치수를 모르는 CMS 사진이라 쓰지 않고, URL 만 손으로
+  // 만든다(lib/popup-image.ts · lib/image-url.ts). 관리자 미리보기(contained)는
+  // 예외로 원본 URL 그대로다 — 저장 전 blob: 미리보기가 즉시 보여야 하기 때문이다.
+  // 최적화할 수 없는 소스(blob:·SVG·허용 밖 호스트)도 null 이 돌아와 원본을 쓴다.
+  const opt = contained ? null : popupImageDelivery(image, device, width);
+  const delivery = opt
+    ? {
+        src: opt.src,
+        srcSet: opt.srcSet,
+        sizes: opt.sizes,
+        // 팝업 사진은 첫 화면의 LCP 요소다 — 홈이 심는 preload 와 짝을 이룬다.
+        fetchPriority: 'high' as const,
+        decoding: 'async' as const,
+      }
+    : { src: image };
   const img = fixed ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={image} alt={alt} className="block h-auto w-full" style={{ aspectRatio: String(fixed) }} />
+    <img {...delivery} alt={alt} className="block h-auto w-full" style={{ aspectRatio: String(fixed) }} />
   ) : (
-    // next/image 는 업로드 도메인(remotePatterns) 설정에 묶여 있어 쓰지 않는다.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={image}
+      {...delivery}
       alt={alt}
       className="block w-full object-contain"
-      style={{ maxHeight: popupImageMaxHeight(device, contained) }}
+      style={{
+        maxHeight: popupImageMaxHeight(device, contained),
+        // 모바일 시트는 사진이 도착해야 높이가 정해져 시트가 통째로 튄다(CLS).
+        // 비율을 알면 로드 전에 자리를 잡아 둔다 — width:100% + height:auto 라
+        // aspect-ratio 가 계산하는 높이가 곧 실제 높이고, max-height 는 그대로
+        // 걸리므로 **최종 배치는 달라지지 않는다**(로드 전 상태만 달라진다).
+        ...(device === 'mobile' && aspect ? { aspectRatio: String(aspect) } : null),
+      }}
     />
   );
   if (!link) return img;

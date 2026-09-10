@@ -26,6 +26,7 @@ import {
   popupPosition,
   type PopupMobilePosition,
 } from '@/lib/popup-positions';
+import { nowKst } from '@/lib/utils';
 import { PopupCarousel, PopupDesktop, PopupGroup, PopupMobile } from './popup';
 
 interface Labels {
@@ -38,21 +39,6 @@ interface Props {
   popups: PopupRecord[];
   locale: string;
   labels: Labels;
-}
-
-/** 지금(KST)을 'YYYY-MM-DDTHH:mm' 로 — CMS 가 저장한 문자열과 그대로 비교한다 */
-function nowKst(): string {
-  const parts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Asia/Seoul',
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date());
-  // sv-SE 는 'YYYY-MM-DD HH:mm' 을 준다 — 사이 공백만 T 로 바꾼다
-  return parts.replace(' ', 'T');
 }
 
 /** 다음날 00:00 KST 의 epoch ms — "오늘 하루 보지 않기" 의 만료 시각 */
@@ -156,8 +142,11 @@ export function PopupNotice({ popups, locale, labels }: Props) {
             <PopupCarousel device={device} count={group.length}>
               {(index, dots) => {
                 const p = group[index];
+                // 모바일 전용 사진으로 바꿔 그리는가 — 비율(imageAspect)은 **PC 사진**을
+                // 재서 저장한 값이라, 다른 파일을 그릴 때 그대로 쓰면 자리를 틀리게 잡는다.
+                const swapped = device === 'mobile' && !!p.imageMobile;
                 const card = {
-                  image: (device === 'mobile' && p.imageMobile) || p.image,
+                  image: swapped ? p.imageMobile! : p.image,
                   alt: localized(p.title, locale),
                   link: p.link || undefined,
                   newTab: p.newTab === true,
@@ -168,7 +157,8 @@ export function PopupNotice({ popups, locale, labels }: Props) {
                   // 모바일 카드는 이 값을 무시한다(전폭 시트).
                   width: p.widthDesktop,
                   // 사진 비율 — 화면에 안 들어가면 카드째 이 비율로 줄어든다.
-                  aspect: p.imageAspect,
+                  // 모바일 전용 사진으로 바꿔 그릴 때는 비율을 모르는 것으로 둔다(위 주석).
+                  aspect: swapped ? undefined : p.imageAspect,
                   onDismiss: (remember: boolean) => dismiss(p, remember),
                 };
                 return device === 'mobile' ? (

@@ -87,6 +87,23 @@ export function kstDate(ts: string): string {
   return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/** 지금(KST)을 'YYYY-MM-DDTHH:mm' 로 — CMS 가 저장한 게재 기간 문자열과 그대로
+ *  문자열 비교한다(팝업 공지의 start/end). 서버·클라이언트 어디서 불러도 같은 값이라,
+ *  홈의 preload 판정(서버)과 실제 노출 판정(PopupNotice, 브라우저)이 어긋나지 않는다. */
+export function nowKst(): string {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
+  // sv-SE 는 'YYYY-MM-DD HH:mm' 을 준다 — 사이 공백만 T 로 바꾼다
+  return parts.replace(' ', 'T');
+}
+
 /** 사용자가 OS 에서 동작 줄이기를 켰는지 — SSR 에서는 false (클라이언트 전용 판별) */
 export function prefersReducedMotion(): boolean {
   return (

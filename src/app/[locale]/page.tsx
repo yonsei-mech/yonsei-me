@@ -10,7 +10,7 @@ import { CALENDAR_KIND, type CalendarEntry } from '@/lib/calendar-kinds';
 import { NoticeSection, type NoticeCategory } from '@/components/NoticeSection';
 import { pick } from '@/lib/content';
 import { parseDateLabelRange } from '@/lib/calendar';
-import { formatDate } from '@/lib/utils';
+import { formatDate, nowKst } from '@/lib/utils';
 import {
   fetchNews,
   fetchNewsBySlug,
@@ -20,7 +20,12 @@ import {
 } from '@/lib/posts';
 import instagramData from '@content/instagram.json';
 import editorialTabs from '@content/editorial-tabs.json';
-import { getHeroSlidesRuntime, getLabsDirectoryRuntime } from '@/lib/content-runtime';
+import {
+  getEnabledPopupsRuntime,
+  getHeroSlidesRuntime,
+  getLabsDirectoryRuntime,
+} from '@/lib/content-runtime';
+import { popupImagePreloads } from '@/lib/popup-image';
 import {
   alumniEventHref,
   boardPostHref,
@@ -63,6 +68,24 @@ export default async function HomePage({ params }: { params: { locale: string } 
   // 히어로 배경 — CMS '메인 이미지' 탭이 편집한다. 정적 import 였으나 런타임 조회로
   // 바꿨다: 정적 import 는 빌드 시점에 값이 굳어 CMS 저장이 재배포 전까지 안 보인다.
   const heroSlidesData = await getHeroSlidesRuntime();
+
+  // 팝업 공지 사진 preload — 홈의 LCP 요소다.
+  // 팝업의 노출 판정은 전부 브라우저(PopupNotice)가 한다. 그런데 그 판정은 하이드레이션
+  // 뒤에야 끝나서, 사진 요청이 문서 로드보다 1초 넘게 늦고 HTML 만 봐서는 발견되지도
+  // 않는다. 그래서 **요청만** HTML 로 앞당긴다 — 실제로 그릴지는 여전히 브라우저가 정한다.
+  // ⚠️ 여기서 거르는 것은 "홈에는 뜰 수 없는 것"과 "이미 끝난 것" 둘뿐이다. 시각·화면폭·
+  //    localStorage 판정은 정적 생성 시점에 할 수 없고, 잘못 거르면 preload 가 헛돈다.
+  //    시작 전(start 미래)도 남긴다 — 페이지가 ISR(revalidate 300)이라 여기의 '지금'은
+  //    이미 낡은 값이고, 몇 KB 를 아끼자고 곧 뜰 팝업을 놓치는 편이 손해다.
+  // 기기 분기는 link 의 media 가 한다(서버는 화면 폭을 모른다).
+  const popupNow = nowKst();
+  const popupPreloads = (await getEnabledPopupsRuntime())
+    .filter((p) => {
+      const pages = p.pages?.length ? p.pages : ['home'];
+      if (!pages.includes('home')) return false;
+      return !(p.end && popupNow > p.end);
+    })
+    .flatMap((p) => popupImagePreloads(p));
 
   // 게시판 데이터 — 기존 매핑 코드 유지를 위해 모듈 상수와 같은 이름의 지역 변수로
   const news = await fetchNews();
@@ -300,6 +323,40 @@ export default async function HomePage({ params }: { params: { locale: string } 
 
   return (
     <>
+      {/* 팝업 공지 사진 preload — React 가 <head> 로 끌어올린다(hoisting).
+          href·imageSrcSet·imageSizes 는 카드가 그릴 <img> 와 **같은 값**이어야 한다
+          (lib/popup-image.ts 가 두 곳의 단일 출처다) — 어긋나면 사진을 두 번 받는다. */}
+      {popupPreloads.map((l) => (
+        <link
+          key={l.key}
+          rel="preload"
+          as="image"
+          href={l.href}
+          imageSrcSet={l.imageSrcSet}
+          imageSizes={l.imageSizes}
+          media={l.media}
+          fetchPriority="high"
+        />
+      ))}
+
+      {/* 히어로 제목 서체(지마켓산스 Bold, 홈 전용) 조각 preload — 팝업이 없는 방문에서는 이
+          제목이 LCP 요소다. unicode-range 조각은 CSS 파싱·레이아웃 뒤에야 요청되므로 제목
+          "연세대학교 기계공학부"가 쓰는 조각을 HTML 단계에서 먼저 띄운다. 목록은 /ko·/en
+          데스크톱·모바일 CDP 실측(2026-09-10)에서 실제 요청된 조각 5개(라틴 123 + 한글
+          116~119). 제목 문구나 구간표(tools/fonts/korean-slices.json)를 바꾸면 다시 재라 —
+          빠진 조각은 늦게 올 뿐 글자가 빠지진 않는다. 다른 페이지엔 이 서체가 없어
+          layout 이 아니라 여기 둔다. */}
+      {['123', '119', '118', '117', '116'].map((id) => (
+        <link
+          key={`gmarket-${id}`}
+          rel="preload"
+          href={`/webfonts/gmarket/GmarketSansBold.${id}.woff2`}
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      ))}
+
       {/* 1. 애니메이션 히어로 — 고정 배경 레이어(hicoda 식 "fixed background reveal").
           inset-0 으로 모바일 URL바 수축·확장에도 항상 뷰포트를 가득 채우고, 히어로
           그라디언트(위→아래)를 이 래퍼가 직접 갖는다. -z-10(음수)이라 in-flow 인
