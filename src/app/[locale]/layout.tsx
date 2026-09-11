@@ -215,11 +215,18 @@ export default async function LocaleLayout({
           </SiteChrome>
         </NextIntlClientProvider>
         {/* Vercel Web Analytics — 프로덕션에서만 /_vercel/insights 로 집계(퍼스트파티
-            경로라 광고 차단기에 잘 안 걸린다). 쿠키를 심지 않아 동의 배너가 필요 없다. */}
-        <Analytics />
-        {/* Vercel Speed Insights — 실사용자 Web Vitals(CWV) 수집. Analytics 와 같은
-            퍼스트파티 경로(/_vercel/speed-insights)·무쿠키 방식이다. */}
-        <SpeedInsights />
+            경로라 광고 차단기에 잘 안 걸린다). 쿠키를 심지 않아 동의 배너가 필요 없다.
+            Speed Insights 는 실사용자 Web Vitals(CWV) 를 같은 방식으로 수집한다.
+            둘 다 /_vercel/* 경로를 Vercel 인프라가 받아 주어야 동작한다 — 자체 호스팅
+            (Cafe24)에서는 그 경로가 없어 스크립트가 404 로 떨어지고 로그만 더럽힌다.
+            VERCEL 은 Vercel 빌드·런타임에서만 주입되는 환경변수라 이 가드 하나로
+            한 코드베이스가 양쪽 호스팅에서 모두 올바르게 동작한다. */}
+        {process.env.VERCEL ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );
