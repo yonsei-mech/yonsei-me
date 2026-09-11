@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import Script from 'next/script';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -35,6 +36,21 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: 'meta' });
+  // 검색 콘솔(구글 서치 콘솔·네이버 서치어드바이저) 소유 확인 메타 태그. 값은 컷오버 때
+  // /etc/yonsei_me/env 에 넣고 빌드에 구워진다. 도메인(me.yonsei.ac.kr) DNS 는 학교가 쥐고
+  // 있어 TXT 레코드 확인이 불가능하므로, URL 접두어 속성 + 이 메타 태그로 확인한다.
+  // 변수가 하나도 없으면 verification 키 자체를 내지 않는다(빈 객체 금지).
+  const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+  const naverVerification = process.env.NAVER_SITE_VERIFICATION;
+  const verification: Metadata['verification'] | null =
+    googleVerification || naverVerification
+      ? {
+          ...(googleVerification ? { google: googleVerification } : {}),
+          ...(naverVerification
+            ? { other: { 'naver-site-verification': naverVerification } }
+            : {}),
+        }
+      : null;
   return {
     title: {
       default: t('siteName'),
@@ -76,6 +92,7 @@ export async function generateMetadata({
     alternates: {
       canonical: './',
     },
+    ...(verification ? { verification } : {}),
   };
 }
 
@@ -232,6 +249,24 @@ export default async function LocaleLayout({
             <Analytics />
             <SpeedInsights />
           </>
+        ) : null}
+        {/* Cloudflare Web Analytics — 자체 호스팅에는 /_vercel/insights 가 없어 위 두 컴포넌트를
+            쓸 수 없으므로 그 자리(방문 집계 + LCP·INP·CLS 실사용자 지표)를 대신한다. 무료이고
+            쿠키·localStorage 를 쓰지 않아 동의 배너가 필요 없으며, 기본값으로 SPA 라우트 전환도
+            페이지뷰로 센다. lazyOnload — 페이지 load 뒤 유휴 시간에 받는다. afterInteractive 는
+            App Router 에서 이 src 를 HTML 의 <link rel=preload> 로 먼저 받게 해 첫 화면 자원과
+            대역폭을 나눠 쓴다(성능개선_2차_계획 의 "전송 순서" 원칙 위반). 늦게 붙어도 LCP·CLS 는
+            브라우저가 쌓아 둔(buffered) 성능 기록으로 소급해 잰다.
+            토큰은 공개값(페이지 소스에 그대로 보인다)이고 NEXT_PUBLIC_ 이라 빌드 시점에
+            /etc/yonsei_me/env 에서 구워진다. Vercel 에는 이 변수를 두지 않고 VERCEL 가드도
+            걸어, 병행 운영 기간에 두 집계가 겹치지 않는다. 토큰은 등록 호스트명 단위다 —
+            지금은 테스트 도메인 것, 컷오버 때 me.yonsei.ac.kr 토큰으로 바꿔 다시 빌드한다. */}
+        {process.env.NEXT_PUBLIC_CF_BEACON_TOKEN && !process.env.VERCEL ? (
+          <Script
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            strategy="lazyOnload"
+            data-cf-beacon={JSON.stringify({ token: process.env.NEXT_PUBLIC_CF_BEACON_TOKEN })}
+          />
         ) : null}
       </body>
     </html>
