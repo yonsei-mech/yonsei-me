@@ -8,9 +8,15 @@
  * 상태코드가 목적이라 이 경로를 쓴다.
  */
 
-/** 로케일 없는 새 경로(board-links 헬퍼 산출물)로 308 영구 이동 */
-export function legacyRedirect(req: Request, locale: string, path: string): Response {
-  return Response.redirect(new URL(`/${locale}${path}`, req.url), 308);
+/** 로케일 없는 새 경로(board-links 헬퍼 산출물)로 308 영구 이동.
+ *
+ *  Location 을 **상대 경로**로 낸다. `new URL(path, req.url)` 로 절대 URL 을 만들면
+ *  리버스 프록시 뒤에서 `req.url` 의 호스트가 내부 주소(`localhost:3000`)라 사용자를
+ *  거기로 내보낸다(2026-09-11 Cafe24 자체 호스팅 실측 — 구 URL 이관이 통째로 깨졌다).
+ *  상대 Location 은 RFC 7231 이 허용하고 브라우저·크롤러가 요청 URL 기준으로 풀어 주므로
+ *  호스팅이 어디든, 도메인이 바뀌어도 항상 맞는다. */
+export function legacyRedirect(_req: Request, locale: string, path: string): Response {
+  return new Response(null, { status: 308, headers: { Location: `/${locale}${path}` } });
 }
 
 /**

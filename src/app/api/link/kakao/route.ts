@@ -13,6 +13,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { publicOrigin } from '@/lib/site';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,8 @@ export const runtime = 'nodejs';
 const KAKAO_STATE_COOKIE = 'kakao_link_state';
 
 export async function GET(request: Request): Promise<Response> {
-  const { origin } = new URL(request.url);
+  // 프록시 뒤에서는 request.url 이 내부 주소라 카카오가 redirect_uri 를 거부한다 — @/lib/site 참고
+  const origin = publicOrigin(request);
 
   const session = await auth();
   if (!session?.user) {

@@ -18,6 +18,7 @@
 
 import { pick, type Attachment } from '@/lib/content';
 import { fetchBoardPost } from '@/lib/posts';
+import { publicOrigin } from '@/lib/site';
 import { buildZip, type ZipEntry } from '@/lib/zip';
 
 export const runtime = 'nodejs'; // 바이트 버퍼 조작 — Edge 런타임 불가
@@ -116,7 +117,7 @@ export async function POST(request: Request): Promise<Response> {
   const postIds = Array.from(new Set(rawIds.map((id) => id.trim())));
 
   // ── 첨부 목록 수집 (URL 은 오직 여기서만 나온다) ──
-  const origin = new URL(request.url).origin;
+  const origin = publicOrigin(request);
   const targets: { attachment: Attachment; url: URL }[] = [];
   let firstTitle = '';
   let skipped = 0;

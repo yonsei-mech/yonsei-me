@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { findUserByKakaoId, linkKakao } from '@/lib/admin/cms-users';
+import { publicOrigin } from '@/lib/site';
 
 export const runtime = 'nodejs';
 
@@ -19,7 +20,10 @@ const KAKAO_STATE_COOKIE = 'kakao_link_state';
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const { origin } = url;
+  // 쿼리(code·state)는 request.url 에서 읽어도 되지만, 오리진은 프록시 뒤에서 내부 주소가
+  // 되므로 헤더 기준으로 구한다 — 인가 요청 때와 redirect_uri 가 한 글자라도 다르면
+  // 카카오가 코드를 거부한다. @/lib/site 의 publicOrigin 주석 참고.
+  const origin = publicOrigin(request);
 
   /** 콘솔로 복귀 + state 쿠키 폐기(한 번 쓰면 끝) */
   const back = (result: string) => {
