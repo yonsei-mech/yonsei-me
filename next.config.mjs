@@ -9,7 +9,12 @@ const nextConfig = {
   // 공유하면 서로의 산출물을 덮어써 500 에러가 나므로, dev는 별도 폴더를 쓴다.
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   images: {
-    formats: ['image/avif', 'image/webp'],
+    // WebP 만 쓴다(AVIF 제외). 자체 호스팅(Cafe24 1 vCPU)에서 AVIF 인코딩이 WebP 의 약 8배
+    // 느렸다 — 히어로 원본(최대 6720px·4.7MB)을 1920w 로: AVIF 5.9초 · WebP 0.75초, 결과는
+    // 59KB 대 69KB 로 15% 차이뿐(2026-09-11 서버 실측). 캐시가 빈 조합(히어로 6장 × 폭 7 ×
+    // 형식)을 처음 받는 방문자가 그 6초를 그대로 기다렸다. Vercel 은 이 인코딩을 자기 인프라가
+    // 대신 해 줘서 드러나지 않던 비용이다. 캐시 키가 형식별이라 AVIF 를 빼면 데울 조합도 절반.
+    formats: ['image/webp'],
     // 최적화 결과 캐시 수명. Next 는 원본 응답의 Cache-Control 을 따라가는데 R2 객체에는
     // 그 헤더가 없어서 기본 60초마다 같은 사진을 다시 최적화했다(Vercel Hobby 에서
     // Image Optimization·Active CPU 를 그대로 먹는다). 업로드 키는 랜덤 접미사가 붙어
