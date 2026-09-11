@@ -9,6 +9,7 @@ import { sectionTabHref } from '@/lib/board-links';
 import { LocaleToggle } from './LocaleToggle';
 import { Container } from './Container';
 import { Logo } from './Logo';
+import { IntentLink } from './IntentLink';
 
 function Chevron({ className }: { className?: string }) {
   return (
@@ -227,21 +228,21 @@ export function Header() {
                   <div className="grid grid-cols-6 divide-x divide-surface-border">
                     {menu.map((group) => (
                       <div key={group.key} className="px-2.5 pb-8 pt-6 text-center">
-                        <Link
+                        <IntentLink
                           href={group.href}
                           className="block border-b border-surface-border pb-3 text-sm font-bold text-content transition-colors hover:text-yonsei-blue"
                         >
                           {tMenu(`${group.key}.label`)}
-                        </Link>
+                        </IntentLink>
                         <ul className="mt-3.5 space-y-0.5">
                           {group.items.map((sub) => (
                             <li key={sub.key}>
-                              <Link
+                              <IntentLink
                                 href={sub.href}
                                 className="block py-1.5 text-[13px] leading-snug text-content-soft transition-colors hover:text-yonsei-navy"
                               >
                                 {tMenu(`${group.key}.items.${sub.key}`)}
-                              </Link>
+                              </IntentLink>
                             </li>
                           ))}
                         </ul>
@@ -343,12 +344,12 @@ export function Header() {
                 return (
                   <li key={group.key} className="border-b border-surface-border/60 last:border-0">
                     <div className="flex items-center">
-                      <Link
+                      <IntentLink
                         href={group.href}
                         className="flex-1 px-3 py-3 text-base font-semibold text-content hover:text-yonsei-navy"
                       >
                         {tMenu(`${group.key}.label`)}
-                      </Link>
+                      </IntentLink>
                       <button
                         type="button"
                         onClick={() => setExpanded(isExp ? null : group.key)}
@@ -363,12 +364,12 @@ export function Header() {
                       <ul className="pb-2 pl-3">
                         {group.items.map((sub) => (
                           <li key={sub.key}>
-                            <Link
+                            <IntentLink
                               href={sub.href}
                               className="block px-3 py-2 text-sm text-content-soft hover:bg-surface-soft hover:text-yonsei-navy"
                             >
                               {tMenu(`${group.key}.items.${sub.key}`)}
-                            </Link>
+                            </IntentLink>
                           </li>
                         ))}
                       </ul>
