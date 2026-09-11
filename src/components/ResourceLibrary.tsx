@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { BoardFilterBar, emptyFilter, isFilterActive, matchesFilter } from '@/components/BoardFilterBar';
 import { BoardCategoryTabs } from '@/components/BoardCategoryTabs';
+import { NewBadge } from '@/components/NewBadge';
+import { isNewPost } from '@/lib/new-post';
 import { cn, formatDate } from '@/lib/utils';
 import { filenameFromDisposition, formatBytes } from '@/lib/files';
 import type { Locale } from '@/i18n/routing';
@@ -24,7 +26,7 @@ import type { Locale } from '@/i18n/routing';
  *    (본문은 zip 바이트, 실패 시 JSON {error}). 진행 중에는 해당 버튼만 잠근다.
  *
  * 주의: 제목은 버튼이 아니라 Link 다 — 상세는 별도 라우트(/news/post/{id})이고 접근성상
- * 새 탭·복사가 되어야 한다. NEW 배지는 Date.now() 의존이라 SSR/CSR 이 갈리므로
+ * 새 탭·복사가 되어야 한다. 'N' 배지는 Date.now() 의존이라 SSR/CSR 이 갈리므로
  * 마운트 후에만 켠다(하이드레이션 불일치 방지).
  */
 
@@ -57,9 +59,6 @@ export interface ResourceAttachment {
   format: string | null;
 }
 
-/** NEW 배지 기준 — 발행일이 최근 30일 이내 */
-const NEW_DAYS = 30;
-
 export function ResourceLibrary({
   items,
   locale,
@@ -76,7 +75,9 @@ export function ResourceLibrary({
   /** 실패 메시지를 붙일 행 id */
   const [zipError, setZipError] = useState<string | null>(null);
 
-  // 오늘 기준 NEW 판정은 클라이언트에서만 (서버 렌더 결과와 어긋나면 하이드레이션 경고)
+  // 'N' 배지 판정은 클라이언트에서만 (서버 렌더 결과와 어긋나면 하이드레이션 경고).
+  // 기준은 다른 게시판·홈 공지와 같은 lib/new-post(KST 달력 기준 오늘 포함 7일) — 예전엔
+  // 자료실만 30일이라 같은 사이트 안에서 '새 글'의 뜻이 갈렸다.
   const [today, setToday] = useState<number | null>(null);
   useEffect(() => setToday(Date.now()), []);
 
@@ -178,7 +179,7 @@ export function ResourceLibrary({
               key={item.id}
               item={item}
               locale={locale}
-              isNew={today !== null && isRecent(item.date, today)}
+              isNew={today !== null && isNewPost(item.date, today)}
               busy={zipBusy === item.id}
               failed={zipError === item.id}
               onZip={() => runZip(item.id)}
@@ -251,11 +252,7 @@ function ResourceRow({
             <Link href={item.href} className="transition-colors hover:text-yonsei-blue">
               {item.title}
             </Link>
-            {isNew && (
-              <span className="border border-yonsei-blue px-[0.3125rem] py-px text-[0.625rem] font-extrabold text-yonsei-blue">
-                {t('library.new')}
-              </span>
-            )}
+            {isNew && <NewBadge label={tBoard('newBadge')} />}
           </h3>
           {item.desc && (
             <p className="mt-2 text-sm leading-relaxed text-content-faint">{item.desc}</p>
@@ -323,13 +320,6 @@ function buildMeta(
     if (files[0].format) parts.push(t('library.formatEtc', { format: files[0].format }));
   }
   return parts.join(' · ');
-}
-
-/** 발행일이 최근 NEW_DAYS 일 이내인가 (기준 시각은 클라이언트에서 주입) */
-function isRecent(date: string, now: number): boolean {
-  const ts = new Date(date).getTime();
-  if (!Number.isFinite(ts)) return false;
-  return now - ts <= NEW_DAYS * 24 * 60 * 60 * 1000;
 }
 
 /** 외부 호스트 첨부인지 — 맞으면 새 탭으로 연다(레거시 사이트 다운로드 URL 등) */

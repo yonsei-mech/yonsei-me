@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from '@/i18n/navigation';
 import { UnderlineTabs } from './UnderlineTabs';
+import { NewBadge } from './NewBadge';
 import { boardPostHref } from '@/lib/board-links';
 // 노출 행 수는 서버(page.tsx)와 공유한다 — 서버가 이 값 기준으로 미리 잘라 보내므로
 // 두 곳이 어긋나면 화면에서 행이 모자란다. 순수 모듈인 이유는 그 파일 주석 참조.
 import { NOTICE_ROWS } from '@/lib/notice-rows';
+import { isNewPost } from '@/lib/new-post';
 import { cn } from '@/lib/utils';
 
 export type NoticeCategory = 'undergrad' | 'graduate' | 'external' | 'scholarship';
@@ -36,9 +38,6 @@ const BADGE: Record<NoticeCategory, string> = {
   external: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
   scholarship: 'bg-teal-500/10 text-teal-700 dark:text-teal-400',
 };
-
-/** 'N' 배지를 붙일 기간(일). 게시일로부터 이 안이면 새 글로 본다. */
-const NEW_DAYS = 7;
 
 /**
  * 공지 한 행 — 1행 제목(+N 배지), 2행 날짜 · 카테고리 배지.
@@ -73,11 +72,7 @@ function NoticeRow({
           <span className="min-w-0 truncate text-base font-semibold leading-snug text-content transition-colors group-hover:text-yonsei-blue sm:text-[19px]">
             {item.title}
           </span>
-          {isNew && (
-            <span className="inline-grid h-[18px] w-[18px] shrink-0 place-items-center bg-yonsei-navy/[0.12] text-[11px] font-bold leading-none text-yonsei-navy">
-              N<span className="sr-only">{newBadgeLabel}</span>
-            </span>
-          )}
+          {isNew && <NewBadge label={newBadgeLabel} />}
         </div>
         <div className="mt-2.5 flex items-center gap-3">
           <time dateTime={item.date} className="text-sm tabular-nums text-content-faint">
@@ -166,9 +161,10 @@ export function NoticeSection({
   // 카테고리 → 배지 라벨(필터 라벨 재사용)
   const catLabel = (cat: NoticeCategory) => filters.find((f) => f.key === cat)?.label ?? cat;
 
-  // 최근 NEW_DAYS 일 이내면 새 글. now 가 아직 null(마운트 전)이면 배지를 달지 않아
-  // 서버가 그린 HTML 과 첫 렌더가 정확히 일치한다. 날짜가 깨져 NaN 이어도 false 다.
-  const isNew = (date: string) => now !== null && now - Date.parse(date) <= NEW_DAYS * 86400e3;
+  // 새 글 판정은 게시판 목록과 같은 규칙(lib/new-post — KST 달력 기준 오늘 포함 7일).
+  // now 가 아직 null(마운트 전)이면 배지를 달지 않아 서버가 그린 HTML 과 첫 렌더가
+  // 정확히 일치한다. 날짜가 깨져 있어도 false 다.
+  const isNew = (date: string) => now !== null && isNewPost(date, now);
 
   // 필터 적용 후 상위 NOTICE_ROWS 건(1열).
   const visible = useMemo(

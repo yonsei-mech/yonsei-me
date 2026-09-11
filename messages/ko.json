@@ -125,6 +125,7 @@
       "catAlumni": "동문"
     },
     "pinned": "고정",
+    "newBadge": "새 글",
     "pagination": {
       "label": "게시물 페이지",
       "prev": "이전 페이지",
@@ -613,7 +614,6 @@
       "catForm": "행정 서식",
       "catRule": "규정·내규",
       "empty": "조건에 맞는 자료가 없습니다.",
-      "new": "NEW",
       "download": "다운로드",
       "downloadAll": "전체 다운로드",
       "attachCount": "첨부 {count}개",

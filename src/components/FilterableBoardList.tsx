@@ -89,6 +89,9 @@ export function FilterableBoardList({
    *  무관하게 마운트 렌더의 클로저가 false 를 봐야 한다(ref 는 같은 커밋에서 이미 true). */
   const [urlApplied, setUrlApplied] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // 'N' 배지 기준 시각 — 첫 렌더에 잡으면 정적 HTML 과 어긋나(하이드레이션 불일치) 마운트 후에 채운다
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
 
   const searchActive = isFilterActive(filter);
   const catActive = !!categories && cat !== 'all';
@@ -193,8 +196,8 @@ export function FilterableBoardList({
     }
 
     const next = `${url.pathname}${url.search}${url.hash}`;
-    const now = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (next === now) return; // 같은 주소를 다시 쓰지 않는다
+    const here = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === here) return; // 같은 주소를 다시 쓰지 않는다
     window.history.replaceState(null, '', next);
   }, [urlApplied, current, catActive, cat, defaultCat, searchActive, filter]);
 
@@ -240,6 +243,7 @@ export function FilterableBoardList({
         locale={locale}
         emptyLabel={searchActive ? t('search.empty') : emptyLabel}
         compactDate={compactDate}
+        now={now}
       />
       {/* 빈 목록에서는 페이지 컨트롤이 의미가 없다 — 빈 상태 안내만 남긴다 */}
       {filtered.length > 0 && (

@@ -125,6 +125,7 @@
       "catAlumni": "Alumni"
     },
     "pinned": "Pinned",
+    "newBadge": "New",
     "pagination": {
       "label": "Post pages",
       "prev": "Previous page",
@@ -613,7 +614,6 @@
       "catForm": "Administrative forms",
       "catRule": "Regulations",
       "empty": "No files match your filters.",
-      "new": "NEW",
       "download": "Download",
       "downloadAll": "Download all",
       "attachCount": "{count} files",
