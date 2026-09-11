@@ -1,0 +1,54 @@
+name: Deploy to Cafe24
+
+# main 에 푸시하면 Cafe24 서버가 최신 코드를 받아 빌드하고 전환한다.
+# 빌드는 서버에서 한다 — 운영 비밀값을 서버에만 두기 위해서다. 이 작업은 SSH 로
+# 서버의 deploy.sh 를 부르고 끝날 때까지 기다릴 뿐이다. 절차·함정은 DEPLOYMENT_GUIDE.md 10장.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 배포는 한 번에 하나. 진행 중인 배포는 끝까지 가고, 그사이 들어온 푸시는 마지막 하나만
+# 대기한다(GitHub 동시성 그룹이 대기 중이던 이전 실행을 자동 취소한다). deploy.sh 가 늘
+# main 최신을 받으므로, 대기하던 실행 하나가 그사이의 커밋을 모두 반영한다.
+concurrency:
+  group: deploy-cafe24
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_HOST: aquaelle06.mycafe24.com
+      DEPLOY_PATH: /opt/yonsei_me
+      # 서버 호스트 키를 고정한다. 실행마다 ssh-keyscan 으로 받아 믿는 방식은 중간자 공격에
+      # 열려 있다. 2026-09-11 첫 접속 때 수락한 키와 같다
+      # (지문 SHA256:lLG0IfqdJt+Do55xT7eVRU3T2snEEyBUClw/Bhsh3J0). 서버를 새로 만들면 바꿔야 한다.
+      DEPLOY_HOST_KEY: "aquaelle06.mycafe24.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFxaWCaB04W+juk/OJkNssj/v2CSDFxB27eUZdZzsstc"
+    steps:
+      - name: 배포 키 준비
+        id: key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::warning::저장소 비밀값 DEPLOY_SSH_KEY 가 없어 배포를 건너뛴다. DEPLOYMENT_GUIDE.md 10-1 참고."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          # Windows 에서 복사해 넣은 키의 CR 을 떼어 낸다 — 남으면 ssh 가 키 형식 오류로 거부한다
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: 서버에서 deploy.sh 실행
+        if: steps.key.outputs.ready == 'true'
+        run: >-
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30
+          "appuser@$DEPLOY_HOST" "$DEPLOY_PATH/bin/deploy.sh"
