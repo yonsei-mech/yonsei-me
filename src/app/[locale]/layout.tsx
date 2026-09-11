@@ -170,15 +170,16 @@ export default async function LocaleLayout({
             __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href=${JSON.stringify(WEBFONTS_REST_CSS)};document.head.appendChild(l)})()`,
           }}
         />
+        {/* 홈이면 html.home-reveal → 콘텐츠 래퍼의 100svh 여백을 body::before 가 대신 진다.
+            ⚠️ body 가 아니라 **head** 여야 한다 — body 가 만들어지기 전에 클래스가 있어야 body 의
+            첫 레이아웃부터 제자리다. body 첫머리에 두었더니 앞선 PerfLiteScript(WebGL 판정,
+            수십 ms) 뒤 파서가 쉬는 틈에 클래스 없는 레이아웃이 돌아 CLS 가 남았다(HomeReveal.tsx) */}
+        <HomeRevealScript />
       </head>
       <body className="min-h-dvh bg-surface antialiased">
         {/* GPU 가속 꺼짐 판정 → html.perf-lite. 헤더가 파싱되기 전에 실행돼야
             무거운 backdrop-filter 가 한 프레임도 그려지지 않는다 */}
         <PerfLiteScript />
-        {/* 홈이면 html.home-reveal → 콘텐츠 래퍼의 100svh 여백을 body::before 가 대신 진다.
-            이것도 헤더 마크업보다 먼저 동기 실행돼야 파싱 도중 body 가 한 화면 뛰는
-            CLS(모바일 1.0)가 생기지 않는다(HomeReveal.tsx) */}
-        <HomeRevealScript />
         {/* 전역 부드러운 스크롤(Lenis) — reduced-motion 시 자동 비활성 */}
         <SmoothScroll />
         {/* 새로고침 시 이전 스크롤 위치 복원을 끈다(맨 아래에서 시작하는 문제) */}

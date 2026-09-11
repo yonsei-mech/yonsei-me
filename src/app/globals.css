@@ -1000,8 +1000,8 @@ html.lenis body {
 }
 
 /* ── 홈 "fixed background reveal" — 100svh 여백을 body::before 가 진다(html.home-reveal) ──
-   클래스는 홈에서만 붙는다: 첫 로드는 components/HomeReveal.tsx 의 인라인 스크립트(body
-   최상단 동기 실행), 클라이언트 내비게이션은 HomeRevealFlag. 원래는 콘텐츠 래퍼의
+   클래스는 홈에서만 붙는다: 첫 로드는 components/HomeReveal.tsx 의 인라인 스크립트(<head>
+   에서 동기 실행 — body 생성 전), 클라이언트 내비게이션은 HomeRevealFlag. 원래는 콘텐츠 래퍼의
    mt-[100svh] 가 main·body 를 뚫고 접혀 body 를 한 화면 아래서 시작시켰는데, 래퍼가 파싱되기
    전의 레이아웃에선 body 가 y=0 이라 래퍼 도착 순간 한 화면 뛰었다(CLS 모바일 1.0 — 실측·기각
    대안은 HomeReveal.tsx). ::before 는 body 를 여는 순간부터 있어 처음부터 제자리다.
