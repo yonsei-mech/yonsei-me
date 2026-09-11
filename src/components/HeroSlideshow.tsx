@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
 import gsap from 'gsap';
 import { SplitText } from 'gsap/SplitText';
@@ -45,17 +45,71 @@ const PORTRAIT_SIZES = '135vw';
 // ── 슬라이드 지연 마운트 ────────────────────────────────────────────────
 // 6장이 겹쳐 쌓여 있고 전부 뷰포트 안이라 loading="lazy" 가 아무 일도 하지 않았다 —
 // 첫 로드에 6장(모바일 640KB)이 한꺼번에 나갔고, 그중 5장은 최소 6.5초 뒤에나 쓰인다.
-// 그래서 <picture> 자체를 마운트 집합으로 통제한다:
-//   · SSR/첫 렌더 {0,1} → 정적 HTML 에 슬라이드 0 이 들어가 파싱 중에 바로 받는다.
-//   · 페인트 직전 레이아웃 이펙트에서 추첨된 시작 슬라이드 k 를 추가(빈 히어로 방지).
+// 그래서 <picture> 는 6장 모두 SSR 하되 주소를 data-* 에 재워 두고(=아무 요청도 안 나간다)
+// 진짜 src/srcSet 을 넣는 순간만 통제한다:
+//   · 파싱 도중 인라인 게이트(startGateScript)가 시작 슬라이드 k 를 추첨해 그 한 장만
+//     주소를 채운다 — 하이드레이션(수백 ms~수 초 뒤)을 기다리지 않고 사진이 바로 나간다.
+//     예전엔 SSR 마운트 집합이 {0,1} 이라 k 가 2 이상이면 하이드레이션 후에야 요청이
+//     시작돼 '사진 없는 히어로' 프레임이 생겼다.
+//   · .current(=가시성)는 그 사진의 load 이후에 붙인다. 사진 없는 current 프레임을
+//     만들지 않겠다는 뜻이고, 예전에도 화면에 보이던 것은 사진뿐이라 외형은 그대로다.
 //   · load 이후 유휴 시간에 k+1, k+2 … 순서로 하나씩(직전 장의 decode 완료를 기다린 뒤)
 //     — 첫 전환(6.5초)보다 한참 먼저 도착하면서 LCP 경쟁은 하지 않는다.
 //   · 그래도 못 받은 슬라이드로 넘어가야 하면 goTo 가 최대 800ms 기다렸다 전환한다.
-// 슬라이드 래퍼(.slide/.parallax, 패럴랙스 ref·role·aria)는 그대로 두고 <picture> 만
-// 조건부다. .parallax 가 position:absolute; inset:0 이라 사진이 없어도 레이아웃은 같다.
-const INITIAL_MOUNTED = [0, 1];
+// 슬라이드 래퍼(.slide/.parallax, 패럴랙스 ref·role·aria)와 <picture> 구조는 6장 모두
+// 항상 같다 — 렌더 트리가 k 에 따라 갈라지지 않으니 hydration 불일치가 없다.
 /** 아직 못 받은 슬라이드로 전환해야 할 때 기다려 주는 상한(ms). */
 const DECODE_WAIT_CAP = 800;
+
+/**
+ * data-src/data-srcset/data-sizes → 진짜 src/srcset/sizes. <source> 를 먼저 채우고
+ * <img> 를 나중에 채워야(문서 순서 그대로) <picture> 선택이 한 번에 끝난다 — 순서가
+ * 뒤집히면 가로본을 받았다가 세로본을 또 받는다.
+ * 같은 값 재대입은 건너뛴다: 인라인 게이트가 이미 채워 둔 시작 슬라이드를
+ * 하이드레이션이 다시 건드려 같은 사진을 두 번 요청하는 일이 없도록.
+ */
+function applySources(slide: HTMLElement | null | undefined) {
+  if (!slide) return;
+  slide.querySelectorAll<HTMLElement>('source[data-srcset], img[data-src]').forEach((el) => {
+    const sizes = el.getAttribute('data-sizes');
+    if (sizes && el.getAttribute('sizes') !== sizes) el.setAttribute('sizes', sizes);
+    const srcSet = el.getAttribute('data-srcset');
+    if (srcSet && el.getAttribute('srcset') !== srcSet) el.setAttribute('srcset', srcSet);
+    const src = el.getAttribute('data-src');
+    if (src && el.getAttribute('src') !== src) el.setAttribute('src', src);
+  });
+}
+
+/**
+ * 슬라이드 스택 바로 뒤에서 파싱 중 동기 실행되는 인라인 게이트.
+ * 하는 일은 셋뿐이다: ① 시작 슬라이드 k 추첨 → data-start 에 기록(하이드레이션이
+ * 그대로 이어받는다. 두 번 추첨하면 화면이 바뀐다) ② 그 한 장의 사진 요청 시작
+ * ③ 그 사진이 도착하면 .current 부여.
+ * ③ 의 권한은 하이드레이션이 data-gate='0' 으로 회수한다 — 아주 느린 회선에서 사진이
+ * 6.5초 뒤에 도착하면 이미 다음 장으로 넘어간 뒤라 두 장이 겹쳐 보이기 때문.
+ * CSS 모듈 클래스명은 해시라 data-current-class 로 받아 쓴다.
+ * (클라이언트 라우팅으로 들어오면 이 스크립트는 실행되지 않는다 — innerHTML 로 삽입된
+ *  스크립트는 브라우저가 실행하지 않는다. 그때는 예전처럼 레이아웃 이펙트가 추첨한다.)
+ */
+function startGateScript(count: number): string {
+  return (
+    '(function(){var s=document.currentScript,r=s&&s.parentElement;if(!r)return;' +
+    `var n=${count},k=Math.floor(Math.random()*n);if(!(k>=0&&n>k))k=0;` +
+    "r.setAttribute('data-start',String(k));r.setAttribute('data-gate','1');" +
+    "var c=r.getAttribute('data-current-class'),d=r.querySelectorAll('[data-hero-slide]')[k];" +
+    'if(!d)return;' +
+    "var e=d.querySelectorAll('source[data-srcset],img[data-src]'),i,x,v,g=null;" +
+    'for(i=0;e.length>i;i++){x=e[i];' +
+    "v=x.getAttribute('data-sizes');if(v)x.setAttribute('sizes',v);" +
+    "if(x.tagName==='IMG'){g=x;x.setAttribute('loading','eager');" +
+    "x.setAttribute('fetchpriority','high');}" +
+    "v=x.getAttribute('data-srcset');if(v)x.setAttribute('srcset',v);" +
+    "v=x.getAttribute('data-src');if(v)x.setAttribute('src',v);}" +
+    'if(!g||!c)return;' +
+    "var f=function(){if(r.getAttribute('data-gate')==='1'&&g.naturalWidth>0)d.classList.add(c);};" +
+    "if(g.complete)f();else g.addEventListener('load',f,{once:true});})();"
+  );
+}
 
 const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -121,16 +175,17 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
   const [tagIdx, setTagIdx] = useState(0);
 
   // --- 마운트된 슬라이드 집합(위 '슬라이드 지연 마운트' 주석 참조) ---
-  // 진실은 ref 에 두고 렌더만 강제한다 — 전환 직전 동기 판정(goTo)이 필요해서
-  // setState 의 비동기 반영을 기다릴 수 없다. 초기값이 상수라 hydration 은 안전하다.
+  // '마운트' = 그 슬라이드의 <img> 에 진짜 주소가 들어갔다. DOM 을 직접 고치므로
+  // React 렌더는 관여하지 않는다(렌더가 k 에 따라 갈라지지 않아 hydration 이 안전하고,
+  // 인라인 게이트가 이미 채워 둔 주소를 React 가 되돌릴 여지도 없다).
+  // 진실은 ref 에 둔다 — 전환 직전 동기 판정(goTo)이 setState 를 기다릴 수 없어서.
   const imgRefs = useRef<Array<HTMLImageElement | null>>([]);
-  const mountedRef = useRef<Set<number>>(new Set(INITIAL_MOUNTED));
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const mountedRef = useRef<Set<number>>(new Set());
   const mount = useCallback(
     (i: number) => {
       if (i < 0 || i >= slides.length || mountedRef.current.has(i)) return;
       mountedRef.current.add(i);
-      rerender();
+      applySources(slideRefs.current[i]);
     },
     [slides.length],
   );
@@ -140,10 +195,12 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
     async (i: number, cap: number) => {
       mount(i);
       const until = performance.now() + cap;
-      // React 가 <img> 를 붙일 때까지 프레임 단위로 기다린다(대개 1프레임).
+      // ref 가 아직 안 붙었으면(이론상 하이드레이션 전) 프레임 단위로 기다린다.
       while (!imgRefs.current[i] && performance.now() < until) await raf();
       const img = imgRefs.current[i];
       if (!img) return false;
+      // 위 mount 가 ref 없이 헛돌았을 수 있으니 한 번 더(같은 값이면 무시된다).
+      applySources(slideRefs.current[i]);
       if (img.complete && img.naturalWidth > 0) return true;
       const left = Math.max(0, until - performance.now());
       // decode() 는 src 가 바뀌면 reject 한다 — 실패해도 전환은 막지 않는다.
@@ -231,21 +288,38 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
     [ensureReady, runTransition],
   );
 
-  // --- 마운트: 시작 슬라이드 추첨(방문마다 다른 연구 분야로 시작) ---
-  // SSR/첫 렌더는 0 으로 일치시키고 페인트 전 layout effect 에서 확정 → 깜빡임·
-  // hydration 불일치 없음. 추첨 결과 k 는 곧 화면에 보일 슬라이드라 여기서 함께
-  // 마운트한다(레이아웃 이펙트의 setState 는 페인트 전에 동기 반영된다).
+  // --- 마운트: 시작 슬라이드 이어받기(방문마다 다른 연구 분야로 시작) ---
+  // 추첨은 파싱 중 인라인 게이트가 이미 했다 — 여기서 다시 뽑으면 게이트가 띄워 둔
+  // 사진과 다른 분야가 나와 화면이 한 번 바뀐다. 게이트가 못 돈 경우(클라이언트 라우팅,
+  // JS 인라인 차단)에만 예전처럼 여기서 추첨한다.
   const startIdxRef = useRef(0);
   useIsoLayoutEffect(() => {
-    const k = Math.floor(Math.random() * slides.length);
+    const root = heroRef.current;
+    const raw = root?.getAttribute('data-start');
+    const parsed = raw == null ? Number.NaN : Number.parseInt(raw, 10);
+    const k =
+      Number.isInteger(parsed) && parsed >= 0 && parsed < slides.length
+        ? parsed
+        : Math.floor(Math.random() * slides.length);
+    // 게이트의 리빌 권한 회수(게이트 주석 ③ 참조) — 이제부터는 이 이펙트가 책임진다.
+    root?.setAttribute('data-gate', '0');
     startIdxRef.current = k;
     mount(k);
-    slideRefs.current[k]?.classList.add(styles.current);
     currentRef.current = k;
     setCurrent(k);
+    // .current(가시성)는 사진이 준비된 뒤에. 대개 게이트가 이미 붙여 둔 뒤라
+    // 아래 reveal 은 같은 클래스를 다시 넣는 무해한 no-op 이다(깜빡임 없음).
+    const img = imgRefs.current[k];
+    const reveal = () => {
+      if (currentRef.current !== k || animatingRef.current) return;
+      slideRefs.current[k]?.classList.add(styles.current);
+    };
+    if (img && img.complete && img.naturalWidth > 0) reveal();
+    else img?.addEventListener('load', reveal);
     // StrictMode(dev)는 이 이펙트를 두 번 실행한다 — 정리 없이는 서로 다른 두 슬라이드에
     // .current 가 남아 두 장이 겹쳐 보인다(프로덕션에선 언마운트 때만 실행되므로 무해).
     return () => {
+      img?.removeEventListener('load', reveal);
       slideRefs.current[k]?.classList.remove(styles.current);
     };
     // slides.length 는 정적 콘텐츠 파생 고정값 — 마운트 1회만 실행하면 된다.
@@ -349,7 +423,15 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
   }, []);
 
   return (
-    <section ref={heroRef} className={styles.hero} aria-roledescription="carousel">
+    <section
+      ref={heroRef}
+      className={styles.hero}
+      aria-roledescription="carousel"
+      // 인라인 게이트가 읽고(해시 클래스명) 쓰는(data-start·data-gate) 자리.
+      // 게이트가 파싱 중에 덧붙인 속성 때문에 hydration 이 시끄러워지므로 억제한다.
+      data-current-class={styles.current}
+      suppressHydrationWarning
+    >
       {/* 슬라이드 스택 — 트랜스폼은 래퍼 div 에만, next/image 엔 걸지 않는다 */}
       <div className={styles.slides}>
         {slides.map((s, i) => (
@@ -359,10 +441,12 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
               slideRefs.current[i] = el;
             }}
             className={styles.slide}
+            data-hero-slide=""
             role="group"
             aria-roledescription="slide"
             aria-label={s.label}
             aria-hidden={current !== i}
+            suppressHydrationWarning
           >
             <div
               ref={(el) => {
@@ -372,38 +456,48 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
             >
               {/* 아트디렉션 — 세로로 긴 화면(≤3:4)에서는 세로 크롭본을 쓴다.
                   <source> 는 조건에 맞는 하나만 내려받으므로 두 벌을 다 받지 않는다.
-                  마운트 집합에 든 슬라이드만 그린다(위 '슬라이드 지연 마운트' 참조). */}
-              {mountedRef.current.has(i) && (
-                <picture>
-                  {s.imageMobile && (
-                    <source
-                      media="(max-aspect-ratio: 3/4)"
-                      srcSet={buildSrcSet(s.imageMobile)}
-                      sizes={PORTRAIT_SIZES}
-                    />
-                  )}
-                  {/* eslint-disable-next-line @next/next/no-img-element -- <picture> 아트디렉션은 next/image 로 표현할 수 없다 */}
-                  <img
-                    ref={(el) => {
-                      imgRefs.current[i] = el;
-                    }}
-                    src={optimized(s.image, 1200)}
-                    srcSet={buildSrcSet(s.image)}
-                    sizes="100vw"
-                    alt=""
-                    className={styles.image}
-                    draggable={false}
-                    decoding="async"
-                    loading={i === 0 ? 'eager' : 'lazy'}
-                    // 첫 화면에 실제로 보이는 슬라이드가 LCP 후보다(시작 슬라이드는 추첨).
-                    fetchPriority={i === 0 || i === current ? 'high' : 'auto'}
+                  주소는 data-* 로만 실어 보낸다 — 6장이 다 그려져도 요청은 0건이고,
+                  인라인 게이트/mount() 가 넣어 주는 순간에만 나간다
+                  (위 '슬라이드 지연 마운트' 참조). */}
+              <picture>
+                {s.imageMobile && (
+                  <source
+                    media="(max-aspect-ratio: 3/4)"
+                    data-srcset={buildSrcSet(s.imageMobile)}
+                    data-sizes={PORTRAIT_SIZES}
+                    suppressHydrationWarning
                   />
-                </picture>
-              )}
+                )}
+                {/* eslint-disable-next-line @next/next/no-img-element -- <picture> 아트디렉션은 next/image 로 표현할 수 없다 */}
+                <img
+                  ref={(el) => {
+                    imgRefs.current[i] = el;
+                  }}
+                  data-src={optimized(s.image, 1200)}
+                  data-srcset={buildSrcSet(s.image)}
+                  data-sizes="100vw"
+                  alt=""
+                  className={styles.image}
+                  draggable={false}
+                  decoding="async"
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  // 첫 화면에 실제로 보이는 슬라이드가 LCP 후보다(시작 슬라이드는 추첨).
+                  fetchPriority={i === 0 || i === current ? 'high' : 'auto'}
+                  suppressHydrationWarning
+                />
+              </picture>
             </div>
           </div>
         ))}
       </div>
+      {/* 슬라이드 스택이 파싱된 직후 동기 실행 — 시작 슬라이드의 사진을 여기서 띄운다.
+          하이드레이션을 기다리지 않으므로 첫 페인트에 사진이 있다(startGateScript 주석).
+          React 는 하이드레이션에서 이 노드를 재사용만 하므로 다시 실행되지 않는다. */}
+      <script
+        suppressHydrationWarning
+        // eslint-disable-next-line react/no-danger -- 정적 문자열(리터럴만), 사용자 입력 없음
+        dangerouslySetInnerHTML={{ __html: startGateScript(slides.length) }}
+      />
 
       {/* 가독성 스크림(그림자 금지 → 균일 다크 + 하단 그라디언트) */}
       <div className={styles.scrim} aria-hidden="true" />
