@@ -5,6 +5,7 @@ import { NewsEventsSection } from '@/components/NewsEventsSection';
 import { InstagramSection } from '@/components/InstagramSection';
 import { GoalsSection } from '@/components/GoalsSection';
 import { HomeCalendarPanel } from '@/components/HomeCalendarPanel';
+import { HomeRevealFlag } from '@/components/HomeRevealFlag';
 // 분류 상수는 클라이언트 컴포넌트가 아니라 순수 모듈에서 가져온다 — 이유는 그 파일 주석 참조.
 import { CALENDAR_KIND, type CalendarEntry } from '@/lib/calendar-kinds';
 import { NoticeSection, type NoticeCategory } from '@/components/NoticeSection';
@@ -375,6 +376,10 @@ export default async function HomePage({ params }: { params: { locale: string } 
         ) : null;
       })}
 
+      {/* 클라이언트 내비게이션으로 홈에 들어오고 나갈 때 html.home-reveal 을 페인트 전에 켜고
+          끈다(첫 문서 로드는 레이아웃의 HomeRevealScript 가 맡는다 — HomeReveal.tsx). */}
+      <HomeRevealFlag />
+
       {/* 1. 애니메이션 히어로 — 고정 배경 레이어(hicoda 식 "fixed background reveal").
           inset-0 으로 모바일 URL바 수축·확장에도 항상 뷰포트를 가득 채우고, 히어로
           그라디언트(위→아래)를 이 래퍼가 직접 갖는다. -z-10(음수)이라 in-flow 인
@@ -404,8 +409,15 @@ export default async function HomePage({ params }: { params: { locale: string } 
           히어로의 재생/일시정지·인디케이터 버튼을 클릭할 수 있다. 상단은 각진 직각 엣지로
           히어로를 덮는다(그림자·둥근 모서리 없음 — 사용자 지시). ⚠️ transform/will-change/
           filter 금지 — containing block 이 생기면 내부의 position:fixed 가 뷰포트 대신 이
-          래퍼 기준이 된다. */}
-      <div className="relative z-10 mt-[100svh] bg-surface">
+          래퍼 기준이 된다.
+          JS 가 켜진 홈 로드에서는 같은 100svh 마진을 이 래퍼 대신 body::before 가 진다
+          (html.home-reveal 이면 .home-reveal-wrap 의 mt 가 0 이 된다). 이 마진은 main·body 를
+          뚫고 접혀 body 박스를 한 화면 아래서 시작시키는데, 래퍼가 파싱되기 전에 레이아웃이
+          돌면 body 가 y=0 에 있다가 래퍼 도착 순간 뛰어내려 CLS 가 1.0 이 됐다. body::before 는
+          body 를 여는 순간부터 있어 처음부터 제자리다. 여전히 박스 없는 접힌 마진이라 위의
+          "마진 영역은 히트테스트가 안 된다" 불변식은 그대로다. ⚠️ mt-[100svh] 는 지우지 말 것 —
+          클래스가 없을 때(JS 꺼짐)의 폴백이자 기존 동작 그대로다. 실측·기각 대안은 HomeReveal.tsx. */}
+      <div className="home-reveal-wrap relative z-10 mt-[100svh] bg-surface">
         {/* ⚠️ 다음 작업(예정): 이 콘텐츠 래퍼 맨 위에 공지사항·일정 섹션을 순서대로
             한 섹션씩 추가한다(사용자 지시). 현재 첫 섹션은 학과 목표. */}
 

@@ -12,6 +12,7 @@ import { SiteChrome } from '@/components/SiteChrome';
 import { SmoothScroll } from '@/components/SmoothScroll';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { PerfLiteScript } from '@/components/PerfLiteScript';
+import { HomeRevealScript } from '@/components/HomeReveal';
 import { PopupNotice } from '@/components/PopupNotice';
 import { getEnabledPopupsRuntime } from '@/lib/content-runtime';
 import { pickMessageNamespaces } from '@/lib/i18n-client-namespaces';
@@ -174,6 +175,10 @@ export default async function LocaleLayout({
         {/* GPU 가속 꺼짐 판정 → html.perf-lite. 헤더가 파싱되기 전에 실행돼야
             무거운 backdrop-filter 가 한 프레임도 그려지지 않는다 */}
         <PerfLiteScript />
+        {/* 홈이면 html.home-reveal → 콘텐츠 래퍼의 100svh 여백을 body::before 가 대신 진다.
+            이것도 헤더 마크업보다 먼저 동기 실행돼야 파싱 도중 body 가 한 화면 뛰는
+            CLS(모바일 1.0)가 생기지 않는다(HomeReveal.tsx) */}
+        <HomeRevealScript />
         {/* 전역 부드러운 스크롤(Lenis) — reduced-motion 시 자동 비활성 */}
         <SmoothScroll />
         {/* 새로고침 시 이전 스크롤 위치 복원을 끈다(맨 아래에서 시작하는 문제) */}
