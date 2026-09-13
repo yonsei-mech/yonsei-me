@@ -98,7 +98,9 @@ const KAKAO_RESULTS: Record<string, string> = {
   error: '카카오 연결이 취소되었거나 실패했습니다.',
 };
 
-const SITE_URL = 'https://yonsei-me.vercel.app/ko';
+// "사이트 보기" — 상대 경로라 콘솔을 연 도메인(실도메인·테스트 도메인·Vercel)의 홈으로 간다.
+// 예전엔 Vercel 주소가 박혀 있어 컷오버 뒤 Vercel 을 지우면 죽은 사이트로 갔다.
+const SITE_HOME = '/ko';
 
 // 트레이 컨텍스트를 셸 자신도 읽어야 해서(이동 가드가 대기 변경을 봐야 한다)
 // Provider 와 본문을 한 겹 나눈다 — Provider 를 렌더하는 컴포넌트는 그 컨텍스트를
@@ -854,7 +856,7 @@ function SidebarBody({
           계정·저장소는 "지금 어디에 무엇으로 쓰고 있는지"라 항상 보여야 한다. */}
       <div className="flex flex-col gap-0.5 border-t border-surface-border px-4 pb-4 pt-3">
         <a
-          href={SITE_URL}
+          href={SITE_HOME}
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-2.5 px-3 py-2 text-[13.5px] font-medium text-content transition-colors duration-200 ease-out-expo hover:bg-surface-soft hover:text-yonsei-navy"
