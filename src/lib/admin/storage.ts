@@ -5,10 +5,10 @@
 //  차단이라 탈락, R2 는 무료 10GB + 전송 영구 무료.)
 //
 // 경로 선택:
-//    본문은 **원시 바이너리 PUT**이다: 예전의 base64+JSON 은 200MB 영상에서
-//    btoa 로 메모리를 3배 쓰고 진행률도 못 보여 줬다.
 //  - dev(NODE_ENV≠production): /api/dev-content 로 public/uploads/ 에 기록 —
 //    실제 스토리지 없이 동일한 흐름을 검증한다(.gitignore, 커밋되지 않음).
+//    본문은 **원시 바이너리 PUT**이다: 예전의 base64+JSON 은 200MB 영상에서
+//    btoa 로 메모리를 3배 쓰고 진행률도 못 보여 줬다.
 //  - 작은 파일(≤4MB, 대부분의 이미지·문서): 같은 출처 /api/upload-file 서버 경유 —
 //    프록시·백신의 HTTPS 검사가 교차 출처 직접 업로드를 막는 환경(과거 Blob 74% 스톨)
 //    에서도 통과한다. XHR upload.onprogress 로 실시간 %.
@@ -112,6 +112,8 @@ function xhrSend(opts: {
   onProgress?: UploadProgressHandler;
   signal?: AbortSignal;
 }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
     // 감시견이 끊은 abort 와 사용자가 누른 취소를 구분하는 표식
     let stalled = false;
     let stallTimer: ReturnType<typeof setTimeout> | null = null;
@@ -126,8 +128,6 @@ function xhrSend(opts: {
         xhr.abort();
       }, UPLOAD_STALL_MS);
     };
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
     const onExternalAbort = () => xhr.abort();
     const cleanup = () => {
       clearStall();
@@ -142,9 +142,9 @@ function xhrSend(opts: {
     xhr.open(opts.method, opts.url, true);
     xhr.timeout = 0; // 절대 제한 없음 — 위 감시견이 대신한다
     for (const [k, v] of Object.entries(opts.headers)) xhr.setRequestHeader(k, v);
-      armStall(); // 조금이라도 나아갔으면 감시견을 처음부터 다시 센다
 
     xhr.upload.onprogress = (e) => {
+      armStall(); // 조금이라도 나아갔으면 감시견을 처음부터 다시 센다
       if (e.lengthComputable) {
         opts.onProgress?.({
           phase: 'uploading',
@@ -169,8 +169,10 @@ function xhrSend(opts: {
     xhr.onerror = () => {
       cleanup();
       reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
-      const byWatchdog = stalled;
     };
+    xhr.onabort = () => {
+      const byWatchdog = stalled;
+      cleanup();
       if (byWatchdog) {
         reject(
           new Error(
@@ -179,13 +181,11 @@ function xhrSend(opts: {
         );
         return;
       }
-    xhr.onabort = () => {
-      cleanup();
       reject(opts.signal?.aborted ? new UploadCancelledError() : new Error('업로드가 중단되었습니다.'));
     };
-    armStall(); // 첫 바이트가 나가기 전에 굳는 경우도 감시 대상
 
     opts.signal?.addEventListener('abort', onExternalAbort, { once: true });
+    armStall(); // 첫 바이트가 나가기 전에 굳는 경우도 감시 대상
     xhr.send(opts.file);
   });
 }
