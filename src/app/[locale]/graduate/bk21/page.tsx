@@ -14,10 +14,10 @@ export async function generateMetadata({
   return sectionTabMetadata(params.locale, 'graduate', 'bk21');
 }
 
-/** BK21 FOUR — content/pages/graduate-bk21.md 를 Prose 로 렌더(셸이 처리) */
+/** BK21 FOUR — content/pages/bk21-vision.md 를 Prose 로 렌더(셸이 처리) */
 export default async function GraduateBk21Page({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
-  const markdown = await getPageMarkdownRuntime('graduate-bk21');
+  const markdown = await getPageMarkdownRuntime('bk21-vision');
 
   return <SectionTabPage locale={params.locale} section="graduate" tab="bk21" markdown={markdown} />;
 }
