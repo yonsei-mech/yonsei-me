@@ -22,6 +22,7 @@ import {
   suggestId,
   today,
   emptyAttachment,
+  emptyInterview,
   type BoardKey,
   type BoardMeta,
 } from '@/lib/admin/boards';
@@ -82,7 +83,9 @@ const BOARD_NOTES: Record<BoardKey, string> = {
   thesis: '학위논문심사 공고 목록에 노출됩니다.',
   resources: '자료실 목록에 노출됩니다. 첨부파일이 본체인 게시판입니다.',
   career: '취업 정보 목록에 노출됩니다.',
-  alumniEvents: '동문 소식·네트워크 목록에 노출되고, ‘행사’로 체크한 글만 캘린더에 표시됩니다.',
+  // 2026-09 인터뷰 개편 — 이 게시판에는 더 이상 ‘행사’ 체크·기간이 없다(캘린더 연동 해제).
+  alumniEvents:
+    '동문 인터뷰 한 편이 글 하나입니다. 이름·소속·학번·요약·대표 사진이 목록 카드와 상세 페이지 헤더에 함께 쓰이니 한 번만 입력하면 됩니다.',
 };
 
 /** 뉴스형 카드의 분류 배지 문구. 구 분류(notice/seminar)로 남은 글은 아래 폴백으로 '일반'이 된다 */
@@ -129,6 +132,8 @@ function blankRecord(key: BoardKey, suggestedId: string): PostEditRecord {
     // 고정 대상 게시판(글 목록이 있는 곳)만 필드를 갖는다 — 새 글은 언제나 고정 해제로 시작
     ...(meta.noBody ? {} : { pinned: false }),
     ...(meta.isNews ? { category: 'general' as const, excerptKo: '', excerptEn: '', image: '' } : {}),
+    // 인터뷰 9칸도 미리 둔다(이유는 time·bodyRaw 와 같다 — dirty 판정)
+    ...(meta.interview ? { interview: emptyInterview() } : {}),
     attachments: [emptyAttachment()],
   };
 }
@@ -342,6 +347,8 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
       isEvent: rec.isEvent,
       pinned: rec.pinned,
       image: rec.image,
+      // 동문 인터뷰 9칸 — 인터뷰 게시판이 아니면 undefined 라 서버가 null 로 눕힌다
+      interview: rec.interview,
       attachments: rec.attachments.filter((a) => a.href.trim() !== '' || a.labelKo.trim() !== ''),
     };
   }

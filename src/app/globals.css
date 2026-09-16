@@ -16,6 +16,22 @@
   initial-value: #0057a8;
 }
 
+/* Newsreader Italic 500 — 동문 인터뷰의 'more' 링크 한 곳에만 쓰는 세리프 이탤릭.
+   라틴 서브셋 한 조각(25.6KB)만 자체 호스팅한다(구글 fonts.gstatic 원본의 latin 조각
+   그대로). unicode-range 가 라틴이라 한글 페이지에서는 아예 내려받지 않고, 'more'
+   여섯 글자가 화면에 있을 때만 로드된다. 라이선스: SIL OFL 1.1 (LICENSES.md §1).
+   ⚠️ src/app/webfonts.css 는 생성물이라 손으로 못 고친다 — 그래서 여기에 둔다. */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/webfonts/newsreader/newsreader-italic-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
 /* =========================================================
    디자인 토큰 — CSS 변수 (RGB 채널값, Tailwind alpha 지원)
    색 대비는 WCAG AA 기준으로 조정
@@ -458,6 +474,27 @@
     margin-right: 0;
   }
 
+  /* 사진 캡션 — 저장 HTML 은 `<img data-caption="…">` 한 속성이고, 이 figure 는
+     서버 렌더 직전에 wrapCaptionedImages(src/lib/post-body-figures.ts)가 만든다.
+     figure 를 문서에 저장하지 않는 이유는 그 파일 상단 주석 참조(재편집 왕복).
+     정렬(img[data-align])은 figure 안에서도 그대로 먹는다 — 위 규칙이 img 자신에게
+     걸리고 figure 는 폭을 제한하지 않는 블록이기 때문이다. */
+  .prose-content figure.post-figure {
+    margin: 2.25rem 0;
+    max-width: none;
+  }
+  /* 사진의 세로 여백은 figure 가 갖는다 — 둘 다 주면 캡션이 사진에서 떨어져 나간다 */
+  .prose-content figure.post-figure > img {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .prose-content figure.post-figure figcaption {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: rgb(var(--content-faint));
+  }
+
   /* 유튜브 임베드 — 저장된 iframe 의 고정 width/height 를 무시하고 본문 폭에 맞춘다 */
   .prose-content [data-youtube-video] {
     @apply my-8;
@@ -507,6 +544,86 @@
   }
   .prose-content.step-prose blockquote p {
     @apply m-0 max-w-none text-base leading-relaxed text-content;
+  }
+
+  /* =========================================================
+     동문 인터뷰 본문(.prose-interview) — 인터뷰 상세 페이지 래퍼와 CMS 편집 영역
+     (PostBodyEditor preset='interview')에만 붙는다.
+     인터뷰 서식(굵은 남색 풀쿼트, Q/A 마커)을 이 클래스 안에 가두는 것이 요점이다 —
+     .prose-content blockquote 를 직접 고치면 3,600여 건의 일반 공지 인용구 외형이
+     함께 바뀐다.
+     ⚠️ .prose-content blockquote 와 명시도가 같아(0,1,1) **순서로 이긴다** —
+     반드시 그 블록보다 뒤에 둘 것. 폭 해제(max-w-none)는 .prose-wide 가 이미 준다.
+     ========================================================= */
+  .prose-interview blockquote {
+    position: relative;
+    margin: 56px 0;
+    border-left: 3px solid rgb(var(--brand));
+    padding: 8px 0 8px 36px;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.6;
+    color: rgb(var(--brand));
+  }
+  /* 큰따옴표 장식 — 좌측 여백(36px)이 이 글자의 자리다. serif 가 아니면 형태가
+     밋밋해져 장식으로 읽히지 않는다(본문 서체엔 이만한 따옴표 글리프가 없다). */
+  .prose-interview blockquote::before {
+    content: '\201C';
+    position: absolute;
+    left: 8px;
+    top: -18px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 64px;
+    line-height: 1;
+    color: rgb(var(--brand-muted));
+    pointer-events: none;
+  }
+  /* 인용 안 문단은 인용구의 타이포를 그대로 물려받는다(자기 여백·색을 갖지 않는다) */
+  .prose-interview blockquote p {
+    margin: 0;
+    max-width: none;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+
+  /* Q&A 문단 — 저장 형식은 `<p data-role="q|a">` 한 속성(별도 노드가 아니다).
+     마커(Q·A)는 ::before 라 본문 텍스트에 섞이지 않는다 — 복사해도 따라붙지 않고
+     화면 낭독기도 건너뛴다. flex 로 마커 열(28px)과 본문을 나란히 세운다:
+     들여쓰기(padding-left)로 하면 두 번째 줄이 마커 아래로 내려온다. */
+  .prose-interview p[data-role] {
+    display: flex;
+    align-items: baseline;
+    max-width: none;
+    margin-bottom: 0;
+  }
+  .prose-interview p[data-role]::before {
+    flex: 0 0 28px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+  .prose-interview p[data-role='q'] {
+    margin-top: 28px;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.6;
+    color: rgb(var(--brand));
+  }
+  .prose-interview p[data-role='q']::before {
+    content: 'Q';
+    color: rgb(var(--brand));
+  }
+  .prose-interview p[data-role='a'] {
+    margin-top: 10px;
+    font-size: 18px;
+    line-height: 1.85;
+    color: rgb(var(--content));
+  }
+  .prose-interview p[data-role='a']::before {
+    content: 'A';
+    color: rgb(var(--content-faint));
   }
 }
 
@@ -896,6 +1013,34 @@
   .rte .rte-area .search-hit-active {
     background: rgb(0 87 168 / 0.38);
     outline: 1px solid #0057a8;
+  }
+  /* Q&A 문단 — 인터뷰 preset 이 아닌 게시판에서도 "이 문단은 Q/A 다"가 보이게 하는
+     최소 표시. 인터뷰 preset 은 편집 영역이 .prose-interview 를 입어 공개 화면과
+     같은 외형을 쓰므로 여기서 손대면 안 된다(그래서 :not 으로 뺀다 — 이 선택자가
+     .prose-interview 규칙보다 명시도가 높아 그냥 두면 이긴다).
+     저장된 문서의 라벨은 preset 과 무관하게 살아 있다(RteParagraphRole 은 항상 실린다). */
+  .rte .rte-area:not(.prose-interview) p[data-role] {
+    display: flex;
+    align-items: baseline;
+    max-width: none;
+  }
+  .rte .rte-area:not(.prose-interview) p[data-role]::before {
+    flex: 0 0 28px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+  .rte .rte-area:not(.prose-interview) p[data-role='q'] {
+    font-weight: 700;
+    color: rgb(var(--brand));
+  }
+  .rte .rte-area:not(.prose-interview) p[data-role='q']::before {
+    content: 'Q';
+    color: rgb(var(--brand));
+  }
+  .rte .rte-area:not(.prose-interview) p[data-role='a']::before {
+    content: 'A';
+    color: rgb(var(--content-faint));
   }
 
   /* 스크롤 고정 헤더 등장 — 위에서 살짝 슬라이드 다운(0.3s). scrolled 상태로

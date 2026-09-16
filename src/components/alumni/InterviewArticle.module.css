@@ -1,0 +1,45 @@
+/* 동문 인터뷰 본문 열의 타이포 — 소제목 24px 남색, 문단 18px/1.85.
+   globals.css 를 건드리지 않고 이 화면에만 거는 이유는 두 가지다:
+     ① .prose-content h3/p 를 고치면 3,600여 건의 일반 게시물이 함께 바뀐다.
+     ② .prose-interview 블록(인용구·Q&A)은 CMS 편집 영역과 공유하는 자리라,
+        상세 페이지 전용 레이아웃 값이 섞이면 편집 화면이 따라 흔들린다.
+
+   ⚠️ 클래스를 두 번 겹쳐(.body.body) 명시도를 올린다 — .prose-content p 와
+      명시도가 같으면(0,1,1) CSS 모듈과 globals 의 삽입 순서에 승패가 걸린다.
+   ⚠️ 자식 결합자(>)와 :not([data-role]) 로 **직계 문단만** 잡는다.
+      인용구 안 문단과 Q&A 문단은 board-editor 쪽(.prose-interview)이 쥐고 있고,
+      여기서 함께 덮으면 풀쿼트가 24px 남색을 잃는다. */
+
+.body.body > :global(h3) {
+  margin: 56px 0 18px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: rgb(var(--brand));
+}
+
+.body.body > :global(h3:first-child) {
+  margin-top: 0;
+}
+
+.body.body > :global(p:not([data-role])) {
+  margin: 0 0 22px;
+  max-width: none;
+  font-size: 18px;
+  line-height: 1.85;
+  color: rgb(var(--content));
+}
+
+/* 모바일은 본문 열이 화면 폭 - 40px 이라 18px 이 답답하다 — 한 단계 줄인다 */
+@media (max-width: 767px) {
+  .body.body > :global(h3) {
+    margin: 40px 0 14px;
+    font-size: 20px;
+  }
+  .body.body > :global(p:not([data-role])) {
+    margin: 0 0 18px;
+    font-size: 16px;
+    line-height: 1.8;
+  }
+}

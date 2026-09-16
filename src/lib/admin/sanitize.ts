@@ -59,6 +59,17 @@ const CELL_STYLES: Record<string, RegExp[]> = {
 /** 문단·제목에 허용하는 디자인 스타일 — 색 배경 제목 바가 이 둘로 이뤄진다 */
 const BLOCK_STYLES: Record<string, RegExp[]> = { background: COLOR, padding: PADDING };
 
+/** 사진 캡션(img[data-caption]) 최대 길이 — 넘치면 잘라낸다.
+ *  ⚠️ 에디터 스키마(lib/admin/rte-schema.ts 의 IMAGE_CAPTION_MAX)에 같은 값이 있다.
+ *  이 파일은 import 가 sanitize-html 하나뿐이어야 해서(상단 주석) 묶지 못했다 —
+ *  한쪽을 고치면 반드시 나머지도 고칠 것. */
+const IMAGE_CAPTION_MAX = 300;
+
+/** Q&A 문단(p[data-role])이 가질 수 있는 값 — 그 외에는 속성째 떨어진다.
+ *  allowedAttributes 는 "속성이 있어도 되는가"만 보고 값은 안 본다. 값 경계는
+ *  아래 transformTags 가 잡는다(열거형이 CSS 한 곳에 갇혀 있어야 하기 때문). */
+const PARAGRAPH_ROLES = new Set(['q', 'a']);
+
 /** 정화 정책 — marked 산출물 + 에디터(Tiptap)가 만들 만한 안전한 리치 텍스트만 허용.
  *  script/style/이벤트 핸들러는 여기서 전부 떨어진다. iframe 은 유튜브 임베드
  *  하나 때문에 열되 호스트를 유튜브로 못 박아(allowedIframeHostnames) 임의 사이트
@@ -76,7 +87,9 @@ export const SANITIZE_OPTS: sanitizeHtml.IOptions = {
   allowedAttributes: {
     a: ['href', 'title', 'target', 'rel'],
     // style 은 아래 allowedStyles 의 img.width(백분율)만 통과 — 픽셀·자유 CSS 는 떨어진다
-    img: ['src', 'alt', 'title', 'width', 'height', 'style', 'data-align'],
+    // data-caption: 사진 캡션(길이는 transformTags 가 자른다). 공개 화면에서
+    // figure/figcaption 으로 감싸는 건 렌더 직전의 wrapCaptionedImages 다.
+    img: ['src', 'alt', 'title', 'width', 'height', 'style', 'data-align', 'data-caption'],
     // 행 높이 드래그 결과(px) — tr 의 height 는 브라우저가 "최소 높이"로 다룬다
     tr: ['style'],
     // data-colwidth: 열 드래그 결과(px) — 재편집 시 Tiptap 이 여기서 폭을 되읽는다.
@@ -94,7 +107,8 @@ export const SANITIZE_OPTS: sanitizeHtml.IOptions = {
     mark: ['style', 'data-color'],
     // Tiptap 글자색(span style="color:…") + 정렬(p/h* style="text-align:…") 허용
     span: ['style'],
-    p: ['style'],
+    // data-role: 인터뷰 Q&A 문단. 값(q|a)은 아래 transformTags 가 검사한다
+    p: ['style', 'data-role'],
     h1: ['style'], h2: ['style'], h3: ['style'], h4: ['style'], h5: ['style'],
     div: ['data-youtube-video'],
     iframe: ['src', 'width', 'height', 'allowfullscreen', 'allow', 'frameborder', 'start'],
@@ -147,6 +161,23 @@ export const SANITIZE_OPTS: sanitizeHtml.IOptions = {
         ? { ...attribs, target: '_blank', rel: 'noopener noreferrer' }
         : attribs,
     }),
+    // 사진 캡션 — 공백만 남는 값은 떨어뜨리고, 길면 자른다.
+    // (allowedAttributes 는 값 길이를 못 본다 — 본문 한복판에 소설이 실리는 걸 막는다)
+    img: (tagName, attribs) => {
+      const caption = (attribs['data-caption'] ?? '').trim();
+      const next = { ...attribs };
+      if (caption) next['data-caption'] = caption.slice(0, IMAGE_CAPTION_MAX);
+      else delete next['data-caption'];
+      return { tagName, attribs: next };
+    },
+    // Q&A 문단 — 열거값(q|a) 밖은 속성째 버린다. 값 검사는 여기 한 곳뿐이다
+    p: (tagName, attribs) => {
+      const role = (attribs['data-role'] ?? '').trim().toLowerCase();
+      const next = { ...attribs };
+      if (PARAGRAPH_ROLES.has(role)) next['data-role'] = role;
+      else delete next['data-role'];
+      return { tagName, attribs: next };
+    },
   },
 };
 

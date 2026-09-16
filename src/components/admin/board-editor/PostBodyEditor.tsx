@@ -38,7 +38,9 @@ import { CharacterCount, Placeholder } from '@tiptap/extensions';
 import { PostCanvas } from '../PostCanvas';
 import { RteRowResize } from '@/lib/admin/rte-row-resize';
 import {
+  IMAGE_CAPTION_MAX,
   RteImage,
+  RteParagraphRole,
   RteStyleCarry,
   RteTable,
   RteTableCell,
@@ -46,6 +48,7 @@ import {
   RteTableRow,
   RteTableView,
   TABLE_BORDER_COLORS,
+  type ParagraphRole,
   type TableBorder,
   type TableBorderColor,
   type TableCellpad,
@@ -115,9 +118,12 @@ import {
   ImageWidthFullIcon,
   ImageWidthHalfIcon,
   IndentIcon,
+  INTERVIEW_TEMPLATE,
+  InterviewTemplateIcon,
   PANEL_BTN,
   PANEL_INPUT,
   PrinterIcon,
+  QuoteIcon,
   SelectAllIcon,
   TableColAddIcon,
   TableColDeleteIcon,
@@ -151,6 +157,15 @@ interface Props {
   onBodyRawChange?: (value: boolean) => void;
   placeholder?: string;
   ariaLabel?: string;
+  /**
+   * 게시판별 도구 묶음. 'interview'(동문 소식) 면 인용·Q·A·인터뷰 틀 버튼이 툴바에
+   * 더 붙고, 편집 영역이 상세 페이지와 같은 .prose-interview 외형을 입는다.
+   * 다른 게시판의 툴바·외형은 한 글자도 바뀌지 않는다 — 인터뷰 서식(굵은 남색 인용,
+   * Q/A 마커)이 일반 공지에 새어 들어가면 안 되기 때문이다.
+   * ⚠️ 편집 영역 클래스는 에디터 생성 시점에 정해진다(editorProps) — 마운트 뒤
+   * preset 을 바꿔도 반영되지 않는다. 게시판 전환은 폼 재마운트가 전제다.
+   */
+  preset?: 'interview';
 }
 
 /** 코드뷰 표시용 얕은 정형화 — 블록 경계에 줄바꿈만 넣는다(구형 CodeMirror 대응) */
@@ -169,10 +184,12 @@ export function PostBodyEditor({
   onBodyRawChange,
   placeholder,
   ariaLabel,
+  preset,
 }: Props) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
   const altRef = useRef<HTMLInputElement | null>(null);
+  const captionRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<Editor | null>(null);
   // 코드뷰 — 켜면 본문 대신 HTML 소스를 편집한다(구형 html 버튼 파리티).
   // 원문 모드로 저장된 글은 코드뷰로 열린다 — WYSIWYG 로 들어가는 순간 Tiptap 이
@@ -234,6 +251,10 @@ export function PostBodyEditor({
       // 코드뷰로 붙여넣은 구형 디자인 공지의 style 을 WYSIWYG 복귀 때 살려 둔다
       // (값 검사는 저장 경로의 정화가 한다 — rte-schema 주석 참조)
       RteStyleCarry,
+      // Q&A 문단 속성(p[data-role]) — preset 과 무관하게 항상 싣는다.
+      // 툴바 버튼만 인터뷰 preset 에 가두고 스키마는 열어 둬야, 인터뷰 글을 다른
+      // 게시판으로 옮기거나 preset 없이 다시 열어도 Q/A 라벨이 증발하지 않는다.
+      RteParagraphRole,
       Youtube.configure({ nocookie: true, width: 640, height: 360 }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
       CharacterCount,
@@ -241,7 +262,9 @@ export function PostBodyEditor({
     content: value || '',
     editorProps: {
       attributes: {
-        class: 'prose-content prose-wide rte-area',
+        // 인터뷰 preset 은 상세 페이지 래퍼와 같은 클래스를 편집 영역에도 입힌다 —
+        // 인용·Q&A 외형이 편집 중에도 공개 화면과 같아야 "보이는 그대로 고친다"가 된다.
+        class: cn('prose-content prose-wide rte-area', preset === 'interview' && 'prose-interview'),
         ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),
       },
       transformPastedHTML: cleanPastedHtml,
@@ -360,6 +383,36 @@ export function PostBodyEditor({
   const charCount = editor.storage.characterCount.characters();
   const wordCount = editor.storage.characterCount.words();
 
+  /** 대체텍스트·캡션을 한 트랜잭션으로 반영 — 두 칸이 '적용' 버튼 하나를 공유한다.
+   *  (칸마다 버튼을 두면 어느 것이 무엇을 적용하는지가 보조 바에서 안 읽힌다) */
+  const applyImageMeta = () => {
+    const caption = captionRef.current?.value.trim().slice(0, IMAGE_CAPTION_MAX) || null;
+    editor
+      .chain()
+      .focus()
+      .updateAttributes('image', { alt: altRef.current?.value.trim() || null, 'data-caption': caption })
+      .run();
+  };
+
+  /** Q·A 라벨 토글 — 같은 값을 다시 누르면 라벨이 떨어져 평범한 문단으로 돌아간다.
+   *  updateAttributes('paragraph') 는 빈 선택(커서)에서도 커서가 든 문단에 닿는다 —
+   *  표(RteTable)와 달리 문단은 선택의 **직계 부모**라 조상 사슬을 걸을 필요가 없다. */
+  const toggleParagraphRole = (role: ParagraphRole) => {
+    editor
+      .chain()
+      .focus()
+      .updateAttributes('paragraph', { role: editor.isActive('paragraph', { role }) ? null : role })
+      .run();
+  };
+
+  /** 인터뷰 뼈대 삽입 — 빈 문서면 통째로 갈아 끼우고(앞에 빈 문단이 남지 않게),
+   *  아니면 커서 자리에 끼워 넣는다. */
+  const insertInterviewTemplate = () => {
+    if (editor.isEmpty) editor.commands.setContent(INTERVIEW_TEMPLATE, { emitUpdate: true });
+    else editor.chain().focus().insertContent(INTERVIEW_TEMPLATE).run();
+    editor.commands.focus();
+  };
+
   return (
     <div className="rte board-editor border border-surface-border bg-surface">
       <EditorContext.Provider value={{ editor }}>
@@ -456,6 +509,54 @@ export function PostBodyEditor({
                 <span aria-hidden="true" className="text-sm font-semibold">—</span>
               </Button>
             </ToolbarGroup>
+            {/* ── 인터뷰 도구 (preset='interview' 전용) — 동문 인터뷰 한 편을 쓰는 데
+                  필요한 네 가지만. 다른 게시판의 툴바는 이 블록이 통째로 빠져 그대로다. ── */}
+            {preset === 'interview' && (
+              <>
+                <ToolbarSeparator />
+                <ToolbarGroup>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    tooltip="인용(풀쿼트) — 본문에서 뽑은 한 문장을 크게"
+                    aria-label="인용"
+                    data-active-state={editor.isActive('blockquote') ? 'on' : 'off'}
+                    onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                  >
+                    <QuoteIcon />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    tooltip="질문 문단 — 다시 누르면 해제"
+                    aria-label="질문 문단"
+                    data-active-state={editor.isActive('paragraph', { role: 'q' }) ? 'on' : 'off'}
+                    onClick={() => toggleParagraphRole('q')}
+                  >
+                    <span aria-hidden="true" className="text-[14px] font-bold leading-none">Q</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    tooltip="답변 문단 — 다시 누르면 해제"
+                    aria-label="답변 문단"
+                    data-active-state={editor.isActive('paragraph', { role: 'a' }) ? 'on' : 'off'}
+                    onClick={() => toggleParagraphRole('a')}
+                  >
+                    <span aria-hidden="true" className="text-[14px] font-bold leading-none">A</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    tooltip="인터뷰 틀 넣기 — 소제목·질문·답변·풀쿼트 뼈대를 깔아 줍니다"
+                    aria-label="인터뷰 틀 넣기"
+                    onClick={insertInterviewTemplate}
+                  >
+                    <InterviewTemplateIcon />
+                  </Button>
+                </ToolbarGroup>
+              </>
+            )}
             <ToolbarSeparator />
             <ToolbarGroup>
               <UndoRedoButton action="undo" tooltip="실행 취소" aria-label="실행 취소" />
@@ -617,25 +718,38 @@ export function PostBodyEditor({
             <label className={CTX_CAPTION} htmlFor="board-editor-image-alt">대체텍스트</label>
             <input
               id="board-editor-image-alt"
-              key={`${String(imageAttrs.src ?? '')}-${editor.state.selection.from}`}
+              key={`alt-${String(imageAttrs.src ?? '')}-${editor.state.selection.from}`}
               ref={altRef}
               type="text"
               defaultValue={(imageAttrs.alt as string | undefined) ?? ''}
               placeholder="사진 설명(화면 낭독기용)"
+              className={cn(PANEL_INPUT, 'w-[220px]')}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                applyImageMeta();
+              }}
+            />
+            {/* 캡션 — 대체텍스트와 다른 것이다. 대체텍스트는 화면 낭독기만 읽고,
+                캡션은 사진 아래에 눈으로 보이는 글이다. 저장은 img[data-caption] 한
+                속성이고 공개 화면의 figure/figcaption 은 서버가 만든다. */}
+            <label className={CTX_CAPTION} htmlFor="board-editor-image-caption">캡션</label>
+            <input
+              id="board-editor-image-caption"
+              key={`cap-${String(imageAttrs.src ?? '')}-${editor.state.selection.from}`}
+              ref={captionRef}
+              type="text"
+              maxLength={IMAGE_CAPTION_MAX}
+              defaultValue={(imageAttrs['data-caption'] as string | undefined) ?? ''}
+              placeholder="사진 아래에 보일 설명(비워 두면 안 나옵니다)"
               className={cn(PANEL_INPUT, 'w-[280px]')}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return;
                 e.preventDefault();
-                editor.chain().focus().updateAttributes('image', { alt: e.currentTarget.value.trim() || null }).run();
+                applyImageMeta();
               }}
             />
-            <button
-              type="button"
-              className={cn(PANEL_BTN, 'ml-1')}
-              onClick={() =>
-                editor.chain().focus().updateAttributes('image', { alt: altRef.current?.value.trim() || null }).run()
-              }
-            >
+            <button type="button" className={cn(PANEL_BTN, 'ml-1')} onClick={applyImageMeta}>
               적용
             </button>
           </div>

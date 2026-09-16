@@ -6,6 +6,8 @@ import boardData from '@content/board.json';
 import historyData from '@content/history.json';
 import staffData from '@content/staff.json';
 import type { Locale } from '@/i18n/routing';
+// 타입만 가져온다(런타임 순환 없음) — 그 모듈은 여기서 Localized 타입을 받아 간다.
+import type { AlumniInterview } from '@/lib/alumni-interview';
 
 /** 한/영 문자열 쌍 → 현재 로케일 값으로 뽑아내는 헬퍼 */
 export type Localized<T = string> = { ko: T; en: T };
@@ -164,6 +166,10 @@ export interface Notice {
  *  isEvent=true 면 date 가 행사일로 간주되어 금주 캘린더 '동문'에 표시된다. */
 export interface AlumniEvent extends Seminar {
   isEvent?: boolean;
+  /** 동문 인터뷰 정보(DB posts.interview, jsonb) — 있으면 인터뷰 글이다.
+   *  없는 글(2026-09 개편 이전 동문 소식)은 레거시 렌더 경로로 떨어진다.
+   *  조립 규칙(바이라인·학번)은 @/lib/alumni-interview 한 곳에 있다. */
+  interview?: AlumniInterview;
 }
 
 export const board = boardData as {

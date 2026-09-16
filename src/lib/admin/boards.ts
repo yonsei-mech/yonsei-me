@@ -72,7 +72,40 @@ export interface EditRecord {
   excerptKo?: string;
   excerptEn?: string;
   image?: string;
+  /** 동문 인터뷰 전용(BoardMeta.interview) — 헤더 6값 중 CMS 입력분.
+   *  폼이 다루기 쉽도록 Localized 쌍을 납작하게 편 형태이고, 저장 직전
+   *  posts-server 의 payloadToRow 가 jsonb({name:{ko,en},…}) 로 접는다. */
+  interview?: EditInterview;
   attachments: EditAttachment[];
+}
+
+/** 인터뷰 입력칸 9개 — 빈 문자열이 기본값이다(키를 미리 둬야 폼의 dirty 판정이 흔들리지 않는다) */
+export interface EditInterview {
+  nameKo: string;
+  nameEn: string;
+  roleKo: string;
+  roleEn: string;
+  /** 입학년도 — 폼은 2자리('05')도 받고, 저장 시 4자리로 정규화된다(normalizeCohort) */
+  cohort: string;
+  closingQKo: string;
+  closingQEn: string;
+  closingAKo: string;
+  closingAEn: string;
+}
+
+/** 빈 인터뷰 레코드 */
+export function emptyInterview(): EditInterview {
+  return {
+    nameKo: '',
+    nameEn: '',
+    roleKo: '',
+    roleEn: '',
+    cohort: '',
+    closingQKo: '',
+    closingQEn: '',
+    closingAKo: '',
+    closingAEn: '',
+  };
 }
 
 export interface EditAttachment {
@@ -113,6 +146,15 @@ export interface BoardMeta {
   /** true 면 뉴스형이 아니어도 '요약' 필드를 노출한다 — 자료실 목록은 제목 아래
    *  한 줄 설명을 쓰므로 관리자가 직접 써야 한다(뉴스는 isNews 로 이미 켜져 있다). */
   hasExcerpt?: boolean;
+  /**
+   * 동문 인터뷰 게시판(2026-09 개편, 현재 alumniEvents 하나).
+   * 켜면 세 가지가 함께 붙는다 —
+   *  ① 폼의 '인터뷰 정보' 섹션(이름·소속/직함·학번 + 마무리 한 줄 2칸),
+   *  ② 본문 에디터의 인터뷰 프리셋(PostBodyEditor preset="interview"),
+   *  ③ 저장 시 posts.interview(jsonb) 기록.
+   * 목록·상세 화면도 이 값이 있는 글만 에디토리얼 레이아웃으로 그린다.
+   */
+  interview?: boolean;
 }
 
 /** 자료실 분류 — posts.category 에 저장. 목록 상단 탭(전체·행정 서식·규정·내규)의 근거이며,
@@ -158,7 +200,10 @@ export const BOARDS: BoardMeta[] = [
   { key: 'thesis', label: '학위논문심사', file: 'board.json', idPrefix: 'th-', hasHost: false, hasDateLabel: false, isNews: false },
   { key: 'resources', label: '자료실', file: 'board.json', idPrefix: 'res-', hasHost: false, hasDateLabel: false, isNews: false, categories: RESOURCE_CATEGORIES, hasExcerpt: true },
   { key: 'career', label: '취업 정보', file: 'board.json', idPrefix: 'cr-', hasHost: false, hasDateLabel: false, isNews: false },
-  { key: 'alumniEvents', label: '동문 소식·네트워크', file: 'board.json', idPrefix: 'ae-', hasHost: true, hasDateLabel: false, hasDateRange: true, isNews: false, hasEventFlag: true },
+  // 동문 소식·네트워크 = 동문 인터뷰(2026-09 개편). 주최·기간·행사 체크는 인터뷰에
+  // 쓸 자리가 없어 껐다 — 플래그만 끈 것이고 host/is_event 저장 경로는 다른 게시판이
+  // 그대로 쓰므로 코드는 남는다(이 게시판 값은 저장 시 null 로 눕는다).
+  { key: 'alumniEvents', label: '동문 소식·네트워크 (개발중)', file: 'board.json', idPrefix: 'ae-', hasHost: false, hasDateLabel: false, hasDateRange: false, isNews: false, hasEventFlag: false, hasExcerpt: true, interview: true },
 ];
 
 export function getBoard(key: BoardKey): BoardMeta {
@@ -270,6 +315,26 @@ export function toEditRecord(meta: BoardMeta, raw: unknown): EditRecord {
     base.excerptKo = excerpt.ko ?? '';
     base.excerptEn = excerpt.en ?? '';
   }
+  if (meta.interview) {
+    // 인터뷰 정보 — git JSON(폴백 스냅샷)과 DB(jsonb) 가 같은 키를 쓴다.
+    // 값이 없으면(개편 이전 글) 빈 칸으로 열려 관리자가 채워 넣을 수 있다.
+    const iv = (r.interview as Record<string, unknown> | undefined) ?? {};
+    const name = loc(iv.name);
+    const role = loc(iv.role);
+    const cq = loc(iv.closingQ);
+    const ca = loc(iv.closingA);
+    base.interview = {
+      nameKo: name.ko,
+      nameEn: name.en,
+      roleKo: role.ko,
+      roleEn: role.en,
+      cohort: String(iv.cohort ?? ''),
+      closingQKo: cq.ko,
+      closingQEn: cq.en,
+      closingAKo: ca.ko,
+      closingAEn: ca.en,
+    };
+  }
   // 대표 이미지(썸네일)는 모든 게시판 공통 — 에디토리얼 목록의 우측 썸네일
   base.image = String(r.image ?? '');
   return base;
@@ -370,6 +435,11 @@ export function convertRecordForBoard(
   }
   if (target.hasEventFlag) {
     rec.isEvent = src.isEvent === true;
+  }
+  if (target.interview) {
+    // 인터뷰 게시판으로 옮겨 오면 빈 인터뷰 칸이 생긴다(관리자가 채운다).
+    // 반대로 인터뷰 게시판에서 나가면 이 필드가 아예 붙지 않아 자연스럽게 탈락한다.
+    rec.interview = src.interview ?? emptyInterview();
   }
   if (!target.noBody) {
     // 고정 상태는 게시판을 옮겨도 따라간다 — 대상이 고정 대상 게시판일 때만

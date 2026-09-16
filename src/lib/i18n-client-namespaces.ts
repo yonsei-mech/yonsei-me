@@ -15,10 +15,13 @@
  * 제외 대상이 아니라 **그냥 넣어 둔다** — 판별 실수보다 몇 바이트가 싸다.
  *
  * 목록에서 의도적으로 빠진 것(2026-09 기준, 전부 서버 전용):
- *   seo · about · pages · alumni · popup · requirements · toc
+ *   seo · about · pages · popup · requirements · toc
  */
 export const CLIENT_MESSAGE_NAMESPACES = [
   'admission',
+  // 2026-09: 동문 인터뷰 목록(InterviewListing)이 클라이언트 컴포넌트라 필요해졌다
+  // — 그 전까지 alumni 는 서버 전용이었다.
+  'alumni',
   'board',
   'breadcrumb',
   'contact',

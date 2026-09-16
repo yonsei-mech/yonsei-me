@@ -5,6 +5,7 @@ import {
   adminDb,
   BODY_RAW_MIGRATION_HINT,
   endDateError,
+  interviewError,
   isMissingBodyRawColumn,
   isValidBoard,
   payloadToRow,
@@ -40,6 +41,9 @@ export async function PUT(
   // 종료일(기간 일정) 검증 — 형식·순서(종료 ≥ 시작)
   const endErr = endDateError(payload);
   if (endErr) return Response.json({ error: endErr }, { status: 400 });
+  // 동문 인터뷰 — 이름·소속·학번 필수 + 길이 상한(인터뷰 게시판이 아니면 통과)
+  const ivErr = interviewError(payload);
+  if (ivErr) return Response.json({ error: ivErr }, { status: 400 });
 
   const row = payloadToRow(payload);
   const update = (r: object) => adminDb().from('posts').update(r).eq('id', id);

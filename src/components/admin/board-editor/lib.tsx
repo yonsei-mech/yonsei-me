@@ -556,3 +556,66 @@ export function ImageWidthHalfIcon() {
     </CtxIcon>
   );
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   동문 인터뷰 도구 — preset="interview" 인 게시판(동문 소식)에서만 툴바에 뜬다.
+   구형 파리티 대상이 아니라 새로 만든 묶음이라 여기 따로 모아 둔다.
+   ════════════════════════════════════════════════════════════════════ */
+
+/** 인용(풀쿼트) — 여는 큰따옴표 두 벌. 툴바 아이콘 규격(tiptap-button-icon)을 따른다 */
+export function QuoteIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="tiptap-button-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9.5 6.5c-2.6 0-4.5 2-4.5 4.6 0 2 1.4 3.4 3.2 3.4 1.5 0 2.6-1 2.6-2.4 0-1.3-.9-2.3-2.2-2.3-.3 0-.6 0-.8.1.3-1 1.2-1.7 2.4-1.9z" />
+      <path d="M19 6.5c-2.6 0-4.5 2-4.5 4.6 0 2 1.4 3.4 3.2 3.4 1.5 0 2.6-1 2.6-2.4 0-1.3-.9-2.3-2.2-2.3-.3 0-.6 0-.8.1.3-1 1.2-1.7 2.4-1.9z" />
+    </svg>
+  );
+}
+
+/** 인터뷰 틀 넣기 — 문서 위에 Q·A 줄이 번갈아 놓인 꼴 */
+export function InterviewTemplateIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="tiptap-button-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="3.5" width="17" height="17" rx="1.5" />
+      <line x1="7" y1="8.5" x2="17" y2="8.5" />
+      <line x1="7" y1="12" x2="17" y2="12" />
+      <line x1="7" y1="15.5" x2="13" y2="15.5" />
+    </svg>
+  );
+}
+
+/**
+ * 인터뷰 뼈대 — "인터뷰 틀 넣기" 가 삽입하는 HTML.
+ * 소제목 → 도입 → Q/A 세 벌 → 풀쿼트 → 마무리. 실제 문안은 전부 자리표시자이고,
+ * 관리자가 지우고 쓰는 것이 전제다(빈 화면 앞에서 멈추지 않게 하는 것이 목적).
+ */
+export const INTERVIEW_TEMPLATE =
+  '<h3>소제목을 입력하세요</h3>' +
+  '<p>도입 문단…</p>' +
+  '<p data-role="q">질문 1</p>' +
+  '<p data-role="a">답변 1</p>' +
+  '<p data-role="q">질문 2</p>' +
+  '<p data-role="a">답변 2</p>' +
+  '<p data-role="q">질문 3</p>' +
+  '<p data-role="a">답변 3</p>' +
+  '<blockquote><p>본문에서 뽑은 한 문장(풀쿼트)</p></blockquote>' +
+  '<h3>마무리 소제목</h3>' +
+  '<p>마무리 문단…</p>';

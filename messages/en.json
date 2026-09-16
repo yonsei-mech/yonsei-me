@@ -641,6 +641,20 @@
     "hero": {
       "title": "Alumni",
       "subtitle": "The Yonsei ME alumni network — connected, wherever you are."
+    },
+    "interview": {
+      "kicker": "Alumni Interviews",
+      "lead": "Our alumni are pursuing their dreams in many places, building on what they learned as undergraduates. From research labs and production floors to startups and lecture halls, the way of thinking that mechanical engineering taught them takes a different shape in each career. The stories of those who walked the path first are the closest map for the juniors now standing at the same starting line.\nHere you can meet Yonsei mechanical engineers from around the world through their interviews.",
+      "latest": "Latest interview",
+      "past": "Past interviews",
+      "count": "{count} interviews",
+      "more": "more",
+      "closing": "In one line",
+      "prev": "Previous interview",
+      "next": "Next interview",
+      "latestNote": "This is the latest interview",
+      "related": "More alumni interviews",
+      "readInterview": "Read the interview"
     }
   },
   "contact": {

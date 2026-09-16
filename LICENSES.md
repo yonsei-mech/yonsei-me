@@ -45,6 +45,13 @@ src/app/fonts/Paperlogy-7Bold.woff2
 | Pretendard (Variable) | 본문·UI 전역 (`--font-sans`) | Kil Hyung-jin | [github.com/orioncactus/pretendard](https://github.com/orioncactus/pretendard) |
 | Gmarket Sans Bold | 홈 히어로 제목 (`--font-hero`) | eBay Korea Co., Ltd. | [corp.gmarket.com/fonts](https://corp.gmarket.com/fonts/) |
 | Paperlogy 6·7 | 탭·세부탭 제목 (`--font-subhead`) | PT& (이주임) | [freesentation.blog/paperlogyfont](https://freesentation.blog/paperlogyfont) |
+| Newsreader Italic 500 | 동문 인터뷰 목록의 'more' 링크 | Production Type | [fonts.google.com/specimen/Newsreader](https://fonts.google.com/specimen/Newsreader) |
+
+> Newsreader(2026-09 추가)는 구글 폰트가 배포하는 **라틴 서브셋 woff2 한 조각**만
+> 자체 호스팅한다(`public/webfonts/newsreader/newsreader-italic-500-latin.woff2`,
+> 25.6KB · `@font-face` 는 `src/app/globals.css`). 서브셋 역시 OFL 1.1 이 허용하는
+> 파생이며, 예약 이름을 쓰는 파생 폰트의 재배포가 아니라 동일 서체를 웹 포맷으로
+> 싣는 것이라 이름 제약과 무관하다(아래 '포맷 변환' 문단과 같은 근거).
 
 **이용 근거.** OFL 1.1은 폰트를 웹사이트에 임베딩·번들·재배포하는 것을 명시적으로 허용한다
 ("The fonts, including any derivative works, can be bundled, embedded, redistributed and/or

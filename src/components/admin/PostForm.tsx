@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import { cn } from '@/lib/utils';
-import type { BoardMeta, EditAttachment } from '@/lib/admin/boards';
+import { emptyInterview, type BoardMeta, type EditAttachment, type EditInterview } from '@/lib/admin/boards';
 // 첨부 크기 표기는 사이트 목록("PDF · 1.2MB")과 같은 함수를 쓴다 — 관리자와 학생이
 // 같은 문자열을 보게 해야 "왜 다르게 보이냐"는 문의가 생기지 않는다.
 import { formatBytes } from '@/lib/files';
@@ -36,6 +36,7 @@ import {
   type PostEditRecord,
 } from '@/lib/admin/post-draft';
 import { formatPeriodLabel } from '@/lib/calendar';
+import { normalizeCohort } from '@/lib/alumni-interview';
 import { UploadCancelledError, type UploadProgress, type UploadProgressHandler } from '@/lib/admin/storage';
 // '한국어에서 번역해 채우기'(English 탭) — 제목·본문을 한 번에 초안으로 채운다
 import { translate } from '@/lib/admin/translate';
@@ -281,6 +282,16 @@ export function PostForm({
     setRec((prev) => ({ ...prev, [key]: value }));
   }
 
+  /** 인터뷰 9칸 중 한 칸 — 레코드 안의 중첩 객체라 통째로 새로 만든다.
+   *  (blankRecord·rowToEditRecord 가 키를 미리 채워 두므로 ?? 는 방어선일 뿐이다) */
+  function setInterview<K extends keyof EditInterview>(key: K, value: string) {
+    setRec((prev) => ({
+      ...prev,
+      interview: { ...(prev.interview ?? emptyInterview()), [key]: value },
+    }));
+  }
+  const iv = rec.interview ?? emptyInterview();
+
   /** 진행 중 업로드 취소 (취소 버튼) */
   function cancelUpload() {
     abortRef.current?.abort();
@@ -493,6 +504,23 @@ export function PostForm({
     if (showEndDate && rec.endDate && rec.date && rec.endDate < rec.date) {
       setError('종료일은 시작일보다 빠를 수 없습니다.');
       return;
+    }
+    // 동문 인터뷰 — 이름·소속·학번은 목록 카드의 바이라인을 만드는 값이라 필수다.
+    // (서버도 같은 규칙으로 막지만, 여기서 먼저 잡아야 어느 칸이 비었는지 보인다.)
+    if (meta.interview) {
+      const ivRec = rec.interview;
+      if (!ivRec || ivRec.nameKo.trim() === '') {
+        setError('동문 이름을 입력하세요 — 목록 카드의 바이라인에 쓰입니다.');
+        return;
+      }
+      if (ivRec.roleKo.trim() === '') {
+        setError('소속·직함을 입력하세요 — 목록 카드의 바이라인에 쓰입니다.');
+        return;
+      }
+      if (normalizeCohort(ivRec.cohort) === '') {
+        setError('학번(입학년도)을 두 자리 또는 네 자리 숫자로 입력하세요. 예: 05 또는 2005');
+        return;
+      }
     }
     // 넣으려고 올려 놓고 잊은 사진은 저장 전에 한 번 되묻는다 — 막지는 않는다
     // (첨부로만 남기려는 경우도 있어서). 확인하면 confirmUnused 경유로 다시 들어온다.
@@ -719,6 +747,9 @@ export function PostForm({
                   onBodyRawChange={(v) => set('bodyRaw', v)}
                   placeholder="본문을 입력하세요 — 사진은 끌어다 놓거나 붙여넣어도 됩니다"
                   ariaLabel="본문 (한국어)"
+                  // 인터뷰 게시판은 에디터가 인터뷰 프리셋으로 열린다(소제목·Q&A·풀쿼트·
+                  // 사진 캡션). 판정은 BoardMeta.interview 하나다.
+                  {...(meta.interview ? { preset: 'interview' as const } : {})}
                 />
               </div>
             </div>
@@ -786,6 +817,7 @@ export function PostForm({
                   onBodyRawChange={(v) => set('bodyRaw', v)}
                   placeholder="English body — 비워두면 저장 시 한국어 값이 복사됩니다"
                   ariaLabel="본문 (English)"
+                  {...(meta.interview ? { preset: 'interview' as const } : {})}
                 />
               </div>
             </div>
@@ -1018,6 +1050,142 @@ export function PostForm({
                 ))}
               </select>
             </MetaField>
+          )}
+
+          {/* ── 인터뷰 정보 (동문 인터뷰) ──
+              목록 카드의 바이라인과 상세 페이지 헤더가 **같은 값**을 쓴다 — 그래서
+              한 번만 받는다. 이름·소속·학번은 필수(handleSubmit 에서 검증),
+              마무리 한 줄은 선택이며 질문·답이 둘 다 있을 때만 화면에 그려진다. */}
+          {meta.interview && (
+            <>
+              <div className="border-b border-[#f1f4f8] py-3 md:col-span-2">
+                <p className="text-[12px] font-bold text-content">인터뷰 정보</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-content-faint">
+                  목록 카드의 바이라인(“김연세 동문 · ○○자동차 책임연구원 · 기계공학과 05학번”)과
+                  상세 페이지 헤더에 함께 쓰입니다.
+                </p>
+              </div>
+
+              <MetaField label="이름" htmlFor="pf-iv-name-ko">
+                <input
+                  id="pf-iv-name-ko"
+                  type="text"
+                  value={iv.nameKo}
+                  onChange={(e) => setInterview('nameKo', e.target.value)}
+                  placeholder="김연세"
+                  className={fieldClass}
+                />
+              </MetaField>
+              <MetaField label="이름 (EN)" htmlFor="pf-iv-name-en">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="pf-iv-name-en"
+                    type="text"
+                    value={iv.nameEn}
+                    onChange={(e) => setInterview('nameEn', e.target.value)}
+                    placeholder="비우면 한국어 이름이 그대로 노출됩니다"
+                    className={fieldClass}
+                  />
+                  <TranslateButton source={iv.nameKo} onTranslated={(v) => setInterview('nameEn', v)} />
+                </div>
+              </MetaField>
+
+              <MetaField label="소속·직함" htmlFor="pf-iv-role-ko">
+                <input
+                  id="pf-iv-role-ko"
+                  type="text"
+                  value={iv.roleKo}
+                  onChange={(e) => setInterview('roleKo', e.target.value)}
+                  placeholder="○○자동차 로보틱스랩 책임연구원"
+                  className={fieldClass}
+                />
+              </MetaField>
+              <MetaField label="소속 (EN)" htmlFor="pf-iv-role-en">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="pf-iv-role-en"
+                    type="text"
+                    value={iv.roleEn}
+                    onChange={(e) => setInterview('roleEn', e.target.value)}
+                    className={fieldClass}
+                  />
+                  <TranslateButton source={iv.roleKo} onTranslated={(v) => setInterview('roleEn', v)} />
+                </div>
+              </MetaField>
+
+              <MetaField
+                label="학번"
+                htmlFor="pf-iv-cohort"
+                full
+                hint="입학년도입니다. 두 자리로 적으면 저장할 때 네 자리로 고쳐 넣습니다(05 → 2005)."
+              >
+                <input
+                  id="pf-iv-cohort"
+                  type="text"
+                  inputMode="numeric"
+                  value={iv.cohort}
+                  onChange={(e) => setInterview('cohort', e.target.value)}
+                  placeholder="05 또는 2005"
+                  className={cn(fieldClass, 'max-w-[180px]')}
+                />
+              </MetaField>
+
+              <MetaField
+                label="한 줄 질문"
+                htmlFor="pf-iv-cq-ko"
+                hint="본문 끝의 ‘한 줄로’ 상자입니다(선택). 질문과 답을 둘 다 채워야 그려집니다."
+              >
+                <input
+                  id="pf-iv-cq-ko"
+                  type="text"
+                  value={iv.closingQKo}
+                  onChange={(e) => setInterview('closingQKo', e.target.value)}
+                  placeholder="김연세 동문에게 ‘설계’란"
+                  className={fieldClass}
+                />
+              </MetaField>
+              <MetaField label="질문 (EN)" htmlFor="pf-iv-cq-en">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="pf-iv-cq-en"
+                    type="text"
+                    value={iv.closingQEn}
+                    onChange={(e) => setInterview('closingQEn', e.target.value)}
+                    className={fieldClass}
+                  />
+                  <TranslateButton
+                    source={iv.closingQKo}
+                    onTranslated={(v) => setInterview('closingQEn', v)}
+                  />
+                </div>
+              </MetaField>
+
+              <MetaField label="한 줄 답" htmlFor="pf-iv-ca-ko">
+                <textarea
+                  id="pf-iv-ca-ko"
+                  rows={2}
+                  value={iv.closingAKo}
+                  onChange={(e) => setInterview('closingAKo', e.target.value)}
+                  placeholder="“돌아가지 않는 이유를 끝까지 적어 두는 일입니다.”"
+                  className={cn(fieldClass, 'resize-y')}
+                />
+              </MetaField>
+              <MetaField label="답 (EN)" htmlFor="pf-iv-ca-en">
+                <div className="flex items-start gap-2">
+                  <textarea
+                    id="pf-iv-ca-en"
+                    rows={2}
+                    value={iv.closingAEn}
+                    onChange={(e) => setInterview('closingAEn', e.target.value)}
+                    className={cn(fieldClass, 'resize-y')}
+                  />
+                  <TranslateButton
+                    source={iv.closingAKo}
+                    onTranslated={(v) => setInterview('closingAEn', v)}
+                  />
+                </div>
+              </MetaField>
+            </>
           )}
 
           {/* 요약 — 뉴스형은 목록 카드에 2줄로, 자료실(hasExcerpt)은 목록의 제목 아래

@@ -2,10 +2,22 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Hero } from '@/components/Hero';
+import { Container, NARROW_MAX_W } from '@/components/Container';
+import { TabNavBar } from '@/components/TabNavBar';
 import { PostArticle } from '@/components/PostArticle';
 import { BoardShell } from '@/components/BoardShell';
+import {
+  InterviewArticle,
+  type InterviewNeighbor,
+} from '@/components/alumni/InterviewArticle';
 import { pick } from '@/lib/content';
-import { fetchAlumniEventById, postsBodyFormat } from '@/lib/posts';
+import { fetchAlumniEventById, fetchAlumniEvents, postsBodyFormat } from '@/lib/posts';
+import { alumniEventHref } from '@/lib/board-links';
+import {
+  formatByline,
+  formatInterviewMonth,
+  type InterviewCard,
+} from '@/lib/alumni-interview';
 import { pageMetadata } from '@/lib/page-metadata';
 import { htmlToDescription } from '@/lib/excerpt';
 import { getAlumniTabs } from '../../_shared/tabs';
@@ -52,6 +64,8 @@ export default async function AlumniNetworkDetailPage({
   const event = await fetchAlumniEventById(params.id);
   const t = await getTranslations({ locale, namespace: 'news' });
   const tMenu = await getTranslations({ locale, namespace: 'menu' });
+  const tAlumni = await getTranslations({ locale, namespace: 'alumni' });
+  const tIv = await getTranslations({ locale, namespace: 'alumni.interview' });
 
   // 없는 글은 진짜 404 다(예전 인라인 "찾을 수 없음" 렌더는 HTTP 200 → GSC Soft 404).
   if (!event) notFound();
@@ -59,22 +73,103 @@ export default async function AlumniNetworkDetailPage({
   const boardName = tMenu('alumni.items.network');
   const tabs = await getAlumniTabs(locale);
 
+  // 히어로·크럼은 인터뷰와 레거시 글이 같다 — 아래 두 갈래가 공유한다.
+  const hero = (
+    <Hero
+      // 히어로 제목은 이 문서가 속한 **섹션**이다 — 목록(/alumni/network)과 같은 '동문'.
+      // 예전에는 소식 게시판에서 복사해 온 news.hero 를 그대로 써서 크럼은 '동문'인데
+      // 큰 제목만 '소식'이었다(와이어프레임 확정본도 '동문').
+      title={tAlumni('hero.title')}
+      subtitle={tAlumni('hero.subtitle')}
+      // 게시판 크럼의 href 는 JSON-LD 용이다 — 화면에서는 마지막 항목이라 링크로 그려지지
+      // 않지만, 중간 항목에 item 이 없으면 구글이 crumbLeaf 까지 버린다(Hero 의 ③ 주석).
+      breadcrumb={[
+        { label: tMenu('alumni.label'), href: '/alumni' },
+        { label: boardName, href: '/alumni/network' },
+      ]}
+      crumbLeaf={pick(event.title, locale)}
+      titleTag="p"
+    />
+  );
+
+  // ── 인터뷰 글 — 에디토리얼 레이아웃 ──
+  if (event.interview) {
+    // 이웃·관련은 이미 정렬된 목록(byPinnedDate)에서 고른다. 날짜순 이웃이므로
+    // '이전'은 더 오래된 글(배열 뒤), '다음'은 더 최신 글(배열 앞)이다.
+    const all = await fetchAlumniEvents();
+    const idx = all.findIndex((e) => e.id === event.id);
+    const toNeighbor = (i: number): InterviewNeighbor | null => {
+      const n = all[i];
+      if (!n) return null;
+      return {
+        href: alumniEventHref(n.id),
+        title: pick(n.title, locale),
+        byline: formatByline(n.interview, locale),
+      };
+    };
+    const related: InterviewCard[] = all
+      .filter((e) => e.id !== event.id)
+      .slice(0, 3)
+      .map((e) => ({
+        id: e.id,
+        href: alumniEventHref(e.id),
+        month: formatInterviewMonth(e.date, locale),
+        title: pick(e.title, locale),
+        byline: formatByline(e.interview, locale),
+        excerpt: '',
+        ...(e.image ? { image: e.image } : {}),
+      }));
+
+    return (
+      <>
+        {hero}
+        <TabNavBar navTitle={tMenu('alumni.label')} tabs={tabs} activeKey="network" narrow />
+        <Container className={`pb-14 pt-10 md:pb-24 md:pt-[72px] ${NARROW_MAX_W}`}>
+          <InterviewArticle
+            month={formatInterviewMonth(event.date, locale)}
+            title={pick(event.title, locale)}
+            byline={formatByline(event.interview, locale)}
+            excerpt={event.excerpt ? pick(event.excerpt, locale) : ''}
+            {...(event.image ? { image: event.image } : {})}
+            body={pick(event.body, locale)}
+            {...(event.interview.closingQ
+              ? { closingQ: pick(event.interview.closingQ, locale) }
+              : {})}
+            {...(event.interview.closingA
+              ? { closingA: pick(event.interview.closingA, locale) }
+              : {})}
+            prev={idx >= 0 ? toNeighbor(idx + 1) : null}
+            next={idx >= 0 ? toNeighbor(idx - 1) : null}
+            related={related}
+            {...(event.attachments && event.attachments.length > 0
+              ? {
+                  attachments: event.attachments.map((a) => ({
+                    label: pick(a.label, locale),
+                    href: a.href,
+                  })),
+                }
+              : {})}
+            backHref="/alumni/network"
+            labels={{
+              kicker: tIv('kicker'),
+              closing: tIv('closing'),
+              prev: tIv('prev'),
+              next: tIv('next'),
+              latestNote: tIv('latestNote'),
+              related: tIv('related'),
+              attachments: t('detail.attachmentsLabel'),
+              backToList: t('backToList'),
+            }}
+          />
+        </Container>
+      </>
+    );
+  }
+
+  // ── 인터뷰 정보가 없는 구 동문 소식 — 기존 게시물 렌더 그대로(폴백) ──
   return (
     <>
-      {/* 히어로 제목은 섹션명이라 h1 은 본문의 글 제목이 갖는다(시각 변화 없음).
-          crumbLeaf 는 JSON-LD 에만 붙는 마지막 항목 — 화면 크럼은 게시판까지만 그린다. */}
-      <Hero
-        title={t('hero.title')}
-        subtitle={t('hero.subtitle')}
-        // 게시판 크럼의 href 는 JSON-LD 용이다 — 화면에서는 마지막 항목이라 링크로 그려지지
-        // 않지만, 중간 항목에 item 이 없으면 구글이 crumbLeaf 까지 버린다(Hero 의 ③ 주석).
-        breadcrumb={[
-          { label: tMenu('alumni.label'), href: '/alumni' },
-          { label: boardName, href: '/alumni/network' },
-        ]}
-        crumbLeaf={pick(event.title, locale)}
-        titleTag="p"
-      />
+      {hero}
       <BoardShell tabs={tabs} activeKey="network" navTitle={tMenu('alumni.label')}>
         <PostArticle
           boardName={boardName}

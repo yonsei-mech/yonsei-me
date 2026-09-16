@@ -1,13 +1,15 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { Metadata } from 'next';
 import { Hero } from '@/components/Hero';
-import { TabPageShell } from '@/components/TabPageShell';
+import { Container, NARROW_MAX_W } from '@/components/Container';
+import { TabNavBar } from '@/components/TabNavBar';
 import { LegacyBoardHash } from '@/components/LegacyBoardHash';
-import { type BoardRow } from '@/components/BoardList';
-import { FilterableBoardList } from '@/components/FilterableBoardList';
+import { InterviewCover } from '@/components/alumni/InterviewCover';
+import { InterviewListing } from '@/components/alumni/InterviewListing';
 import { pick } from '@/lib/content';
 import { fetchAlumniEvents } from '@/lib/posts';
 import { alumniEventHref, LEGACY_ALUMNI_HASH } from '@/lib/board-links';
+import { formatByline, formatInterviewMonth, type InterviewCard } from '@/lib/alumni-interview';
 import { pageMetadata } from '@/lib/page-metadata';
 import { getAlumniTabs } from '../_shared/tabs';
 import type { Locale } from '@/i18n/routing';
@@ -38,18 +40,21 @@ export default async function AlumniNetworkListPage({ params }: { params: { loca
   const tMenu = await getTranslations({ locale, namespace: 'menu' });
   const tAlumni = await getTranslations({ locale, namespace: 'alumni' });
   const tStub = await getTranslations({ locale, namespace: 'stub' });
+  const tIv = await getTranslations({ locale, namespace: 'alumni.interview' });
 
   const alumniEvents = await fetchAlumniEvents();
 
-  // 동문 소식·네트워크: 세미나형 게시판(alumniEvents) → 게시판 행
-  const eventRows: BoardRow[] = alumniEvents.map((e) => ({
+  // 로케일 해석은 여기서 끝낸다 — 목록이 클라이언트 컴포넌트라 Localized 를 경계
+  // 너머로 넘기면 content/*.json 이 브라우저 번들로 따라간다.
+  const cards: InterviewCard[] = alumniEvents.map((e) => ({
     id: e.id,
-    date: e.date,
-    title: pick(e.title, locale),
-    subtitle: pick(e.host, locale),
     href: alumniEventHref(e.id),
-    image: e.image,
-    pinned: e.pinned,
+    month: formatInterviewMonth(e.date, locale),
+    title: pick(e.title, locale),
+    // 인터뷰 정보가 없는 구 동문 소식은 바이라인 없이 제목·요약만 나온다
+    byline: formatByline(e.interview, locale),
+    excerpt: e.excerpt ? pick(e.excerpt, locale) : '',
+    ...(e.image ? { image: e.image } : {}),
   }));
 
   const tabs = await getAlumniTabs(locale);
@@ -57,9 +62,9 @@ export default async function AlumniNetworkListPage({ params }: { params: { loca
 
   return (
     <>
-      {/* narrow: 히어로 → 남색 바 → 목록이 한 좌측선에 선다(뉴스 목록과 동일) */}
-      {/* 히어로 제목은 섹션명('동문')이라 h1 은 아래 탭 제목(게시판 라벨)이 갖는다 —
-          한 문서에 큰 제목이 둘이면 구글이 제목 링크를 임의로 골라 쓴다. 시각 변화 없음. */}
+      {/* narrow: 히어로 → 남색 바 → 커버 → 목록이 한 좌측선에 선다.
+          히어로 제목은 섹션명('동문')이라 h1 은 커버의 큰 제목이 갖는다 —
+          한 문서에 큰 제목이 둘이면 구글이 제목 링크를 임의로 골라 쓴다. */}
       <Hero
         title={tAlumni('hero.title')}
         subtitle={tAlumni('hero.subtitle')}
@@ -67,17 +72,24 @@ export default async function AlumniNetworkListPage({ params }: { params: { loca
         titleTag="p"
         breadcrumb={[{ label: tMenu('alumni.label'), href: '/alumni' }, { label: boardName }]}
       />
-      {/* 히어로 하단 남색 내비게이션 바 + 목록 — title 은 h2 큰 제목(게시판 라벨) */}
-      <TabPageShell
-        navTitle={tMenu('alumni.label')}
-        tabs={tabs}
-        activeKey="network"
-        title={boardName}
-        titleTag="h1"
-        narrow
-      >
-        <FilterableBoardList items={eventRows} locale={locale} emptyLabel={tStub('empty')} />
-      </TabPageShell>
+      {/* 히어로 하단 남색 내비게이션 바 — 사용자가 명시적으로 요구한 불변 요소 */}
+      <TabNavBar navTitle={tMenu('alumni.label')} tabs={tabs} activeKey="network" narrow />
+
+      {/* 커버 밴드(풀블리드) — 이 페이지의 h1 이 여기 있다 */}
+      <InterviewCover kicker={tIv('kicker')} title={boardName} lead={tIv('lead')} />
+
+      <Container className={`pb-14 pt-10 md:pb-[104px] md:pt-20 ${NARROW_MAX_W}`}>
+        {cards.length > 0 ? (
+          <InterviewListing items={cards} />
+        ) : (
+          /* 빈 상태 — 다른 게시판 목록(BoardList)과 같은 독수리 마스코트 문법(사용자 지정) */
+          <div className="flex flex-col items-center gap-5 rounded-card border border-surface-border bg-surface-soft px-6 py-20 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/img/eagle_empty.png" alt="" aria-hidden="true" className="h-20 w-auto opacity-70" />
+            <p className="max-w-sm text-content-soft">{tStub('empty')}</p>
+          </div>
+        )}
+      </Container>
       {/* 구 링크 /alumni#network 가 여기로 떨어졌을 때(해시 잔류) 자기 자신이면 무시된다 */}
       <LegacyBoardHash map={LEGACY_ALUMNI_HASH} />
     </>

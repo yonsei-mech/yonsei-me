@@ -11,6 +11,7 @@ import sanitizeHtml from 'sanitize-html';
 import { auth } from '@/auth';
 import { SANITIZE_OPTS, sanitizeEditorHtml, scrubRawHtml } from '@/lib/admin/sanitize';
 import { formatPeriodLabel, isoToDays, parseDateLabelRange } from '@/lib/calendar';
+import { normalizeCohort } from '@/lib/alumni-interview';
 import { kstDate } from '@/lib/utils';
 
 // 사이트 렌더와 동일 설정(breaks: 단일 개행도 줄바꿈 — 게시판 본문 관례)
@@ -93,7 +94,22 @@ export interface AdminPostPayload {
   /** 원문 모드 — true 면 본문을 화이트리스트 정화 대신 scrubRawHtml 로 처리한다.
    *  (부재·false 면 예전과 완전히 같은 경로) 배경은 sanitize.ts 의 원문 모드 주석. */
   bodyRaw?: boolean;
+  /** 동문 인터뷰 정보(동문 소식·네트워크 전용) — 폼의 납작한 9칸.
+   *  다른 게시판에서 오면 통째로 무시하고 posts.interview 를 null 로 눕힌다. */
+  interview?: AdminInterviewPayload;
   attachments?: { labelKo?: string; labelEn?: string; href: string; size?: number }[];
+}
+
+export interface AdminInterviewPayload {
+  nameKo?: string;
+  nameEn?: string;
+  roleKo?: string;
+  roleEn?: string;
+  cohort?: string;
+  closingQKo?: string;
+  closingQEn?: string;
+  closingAKo?: string;
+  closingAEn?: string;
 }
 
 const BOARDS = new Set([
@@ -127,6 +143,63 @@ function kstTime(ts: string): string {
   const t = Date.parse(ts);
   if (!Number.isFinite(t)) return '';
   return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
+}
+
+// ── 동문 인터뷰(posts.interview, jsonb) ───────────────────────────────
+//
+// 인터뷰 헤더의 여섯 값 중 넷(이름·소속/직함·학번·마무리 한 줄)이 여기 들어간다.
+// 나머지 둘(제목·요약)과 대표사진은 기존 칼럼(title_*, excerpt_*, thumbnail_url)이
+// 이미 갖고 있어 따로 두지 않는다 — 목록 카드와 상세 헤더가 같은 값을 쓰기 때문이다.
+
+/** 인터뷰 칸 길이 상한 — 화면 한 줄에 들어가야 의미가 있는 값들이라 넉넉히 잡되 막는다 */
+const INTERVIEW_LIMITS = { name: 60, role: 120, closing: 200 } as const;
+
+/** 인터뷰 페이로드 검증 — 오류 메시지 반환(정상이면 null). 인터뷰 게시판일 때만 부른다 */
+export function interviewError(p: AdminPostPayload): string | null {
+  if (p.board !== 'alumniEvents') return null;
+  const iv = p.interview;
+  const t = (s: string | undefined) => (s ?? '').trim();
+  if (!iv || t(iv.nameKo) === '') return '동문 이름을 입력하세요.';
+  if (t(iv.roleKo) === '') return '소속·직함을 입력하세요.';
+  const cohort = normalizeCohort(iv.cohort);
+  if (cohort === '') return '학번(입학년도)은 2자리 또는 4자리 숫자로 입력하세요.';
+  const over = (v: string | undefined, max: number) => t(v).length > max;
+  if (over(iv.nameKo, INTERVIEW_LIMITS.name) || over(iv.nameEn, INTERVIEW_LIMITS.name)) {
+    return `이름은 ${INTERVIEW_LIMITS.name}자를 넘을 수 없습니다.`;
+  }
+  if (over(iv.roleKo, INTERVIEW_LIMITS.role) || over(iv.roleEn, INTERVIEW_LIMITS.role)) {
+    return `소속·직함은 ${INTERVIEW_LIMITS.role}자를 넘을 수 없습니다.`;
+  }
+  const closings = [iv.closingQKo, iv.closingQEn, iv.closingAKo, iv.closingAEn];
+  if (closings.some((v) => over(v, INTERVIEW_LIMITS.closing))) {
+    return `마무리 한 줄은 ${INTERVIEW_LIMITS.closing}자를 넘을 수 없습니다.`;
+  }
+  return null;
+}
+
+/** 폼의 납작한 9칸 → posts.interview(jsonb). 인터뷰 게시판이 아니면 null 로 눕힌다. */
+function interviewColumn(p: AdminPostPayload): Record<string, unknown> | null {
+  if (p.board !== 'alumniEvents') return null;
+  const iv = p.interview;
+  if (!iv) return null;
+  const pair = (ko: string | undefined, en: string | undefined) => {
+    const k = (ko ?? '').trim();
+    const e = (en ?? '').trim();
+    // en 이 비면 ko 를 복사한다 — 사이트의 en 폴백 규칙(localized)과 같은 문법
+    return { ko: k, en: e === '' ? k : e };
+  };
+  const name = pair(iv.nameKo, iv.nameEn);
+  // 이름이 비면 인터뷰로 보지 않는다(사이트 렌더도 같은 기준이다 — lib/posts 의 interviewOf)
+  if (name.ko === '') return null;
+  const closingQ = pair(iv.closingQKo, iv.closingQEn);
+  const closingA = pair(iv.closingAKo, iv.closingAEn);
+  return {
+    name,
+    role: pair(iv.roleKo, iv.roleEn),
+    cohort: normalizeCohort(iv.cohort),
+    // 마무리 한 줄은 질문·답이 **둘 다** 있을 때만 의미가 있다(화면도 그때만 그린다)
+    ...(closingQ.ko !== '' && closingA.ko !== '' ? { closingQ, closingA } : {}),
+  };
 }
 
 /** 종료일 페이로드 검증 — 오류 메시지 반환(정상이면 null). 라우트 400 응답용(POST/PUT 공용) */
@@ -203,6 +276,8 @@ export function payloadToRow(p: AdminPostPayload) {
     // 고정 — 페이로드에 없으면(고정 대상이 아닌 게시판) 항상 false 로 눕힌다
     pinned: p.pinned === true,
     thumbnail_url: nn(p.image),
+    // 동문 인터뷰 — 그 게시판이 아니면 null(다른 게시판에서 옮겨 온 글의 잔존값 제거)
+    interview: interviewColumn(p),
     // 게시일 + 공개 시각(KST). 시각을 비운 글은 이전과 같은 T00:00 이라 값이 안 바뀐다.
     // 오프셋을 문자열에 박는 이유는 예전과 같다 — 서버 TZ 가 무엇이든 KST 자정이 되어야 한다.
     // ⚠️ 세미나만 이 키를 통째로 뺀다(2026-08-31 분리). 세미나 폼의 날짜는 행사일이므로
@@ -265,6 +340,8 @@ export interface DbPostRow {
   date_label_ko: string | null;
   date_label_en: string | null;
   thumbnail_url: string | null;
+  /** 동문 인터뷰(jsonb) — 컬럼 추가(2026-09-alumni-interview.sql) 전 DB 는 undefined */
+  interview?: Record<string, unknown> | null;
   attachments?: {
     label_ko: string | null;
     label_en: string | null;
@@ -274,6 +351,30 @@ export interface DbPostRow {
   }[];
 }
 
+
+/** posts.interview(jsonb) → 폼의 납작한 9칸. 값이 없어도 빈 칸 9개를 돌려준다. */
+function interviewToEdit(raw: Record<string, unknown> | null | undefined) {
+  const v = raw ?? {};
+  const pair = (key: string) => {
+    const o = (v[key] as { ko?: string; en?: string } | undefined) ?? {};
+    return { ko: o.ko ?? '', en: o.en ?? '' };
+  };
+  const name = pair('name');
+  const role = pair('role');
+  const cq = pair('closingQ');
+  const ca = pair('closingA');
+  return {
+    nameKo: name.ko,
+    nameEn: name.en,
+    roleKo: role.ko,
+    roleEn: role.en,
+    cohort: String(v.cohort ?? ''),
+    closingQKo: cq.ko,
+    closingQEn: cq.en,
+    closingAKo: ca.ko,
+    closingAEn: ca.en,
+  };
+}
 
 /** DB 행 → CMS 편집 레코드(마크다운 우선, 없으면 빈 문자열 — 구 데이터 호환) */
 export function rowToEditRecord(r: DbPostRow) {
@@ -325,6 +426,9 @@ export function rowToEditRecord(r: DbPostRow) {
     isEvent: r.is_event === true,
     pinned: r.pinned === true,
     image: r.thumbnail_url ?? '',
+    // 인터뷰 9칸 — 값이 없는 글(개편 이전·다른 게시판)도 **키는 언제나 있다**.
+    // 폼의 dirty 판정이 JSON 비교라, 열자마자 키가 생기면 안 고친 글이 '고침'으로 잡힌다.
+    interview: interviewToEdit(r.interview),
     attachments: (r.attachments ?? [])
       .slice()
       .sort((a, b) => a.sort - b.sort)

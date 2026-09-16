@@ -56,6 +56,11 @@ alter table posts add column if not exists source_url text;
 -- 그래서 "중복 방지(source_url)" 와 "갱신 대상(import_managed)" 을 분리한다.
 -- 롤백도 이 값 하나로 정확해진다: delete from posts where import_managed;
 alter table posts add column if not exists import_managed boolean not null default false;
+-- 동문 인터뷰(2026-09) — 동문 소식·네트워크 글의 인터뷰 헤더 정보.
+-- {name:{ko,en}, role:{ko,en}, cohort:"2005", closingQ:{ko,en}, closingA:{ko,en}}
+-- null 이면 인터뷰가 아닌 글(개편 이전 동문 소식)이다. 자세한 설명·주의는
+-- scripts/sql/2026-09-alumni-interview.sql.
+alter table posts add column if not exists interview jsonb;
 
 create index if not exists posts_board_created_idx on posts (board, created_at desc);
 create index if not exists posts_published_idx on posts (published);

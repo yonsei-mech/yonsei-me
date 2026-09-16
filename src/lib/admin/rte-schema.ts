@@ -346,10 +346,32 @@ export const RteStyleCarry = Extension.create({
 export const IMAGE_ALIGNS = ['left', 'center', 'right'] as const;
 export type ImageAlign = (typeof IMAGE_ALIGNS)[number];
 
+/** 사진 캡션 최대 길이 — 사진 아래 한두 줄용이다.
+ *  ⚠️ 정화(lib/admin/sanitize.ts)에도 같은 값이 **따로** 있다 — 그 파일은 의존성이
+ *  sanitize-html 하나뿐이어야 한다는 계약(그 파일 상단 주석)이라 import 로 묶지 못한다.
+ *  둘 중 하나를 고치면 반드시 나머지도 고칠 것. */
+export const IMAGE_CAPTION_MAX = 300;
+
 export const RteImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      // 캡션 — **img 의 속성 하나**로 저장한다(figure 노드가 아니라).
+      // 이유: 정렬(data-align)·폭(widthPct)·표 안 배치 같은 기존 이미지 기능이
+      // 전부 img 노드에 붙어 있어서, figure 로 감싸는 순간 재편집 왕복(HTML →
+      // Tiptap → HTML)에서 그 속성들이 새어 나간다. 공개 화면의 figure/figcaption
+      // 은 서버 렌더 직전에 wrapCaptionedImages(lib/post-body-figures.ts)가 만든다.
+      'data-caption': {
+        default: null,
+        parseHTML: (element: HTMLElement) => {
+          const raw = (element.getAttribute('data-caption') ?? '').trim();
+          return raw ? raw.slice(0, IMAGE_CAPTION_MAX) : null;
+        },
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const raw = typeof attributes['data-caption'] === 'string' ? attributes['data-caption'].trim() : '';
+          return raw ? { 'data-caption': raw.slice(0, IMAGE_CAPTION_MAX) } : {};
+        },
+      },
       'data-align': {
         default: null,
         parseHTML: (element: HTMLElement) => pickEnum(element.getAttribute('data-align'), IMAGE_ALIGNS),
@@ -367,5 +389,40 @@ export const RteImage = Image.extend({
           attributes.widthPct ? { style: `width: ${attributes.widthPct}%` } : {},
       },
     };
+  },
+});
+
+/* ── Q&A 문단 (동문 인터뷰 도구) ──────────────────────────────────────
+   질문·답변을 별도 노드로 만들지 않고 **문단의 속성**으로 둔다: 노드를 새로
+   만들면 기존 게시물(전부 paragraph)과 스키마가 갈리고, 정렬·글꼴·목록 같은
+   문단 기능을 전부 다시 구현해야 한다. 속성이면 문단 하나에 라벨만 붙는 꼴이라
+   toggle 이 자연스럽고, 라벨을 떼면 평범한 문단으로 돌아간다.
+   저장 형식은 `<p data-role="q|a">` — 정화(sanitize.ts)가 q|a 만 통과시킨다. */
+
+/** 문단 역할 — 질문/답변. 그 외 값은 파싱 단계에서 버린다 */
+export const PARAGRAPH_ROLES = ['q', 'a'] as const;
+export type ParagraphRole = (typeof PARAGRAPH_ROLES)[number];
+
+export const RteParagraphRole = Extension.create({
+  name: 'rteParagraphRole',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['paragraph'],
+        attributes: {
+          role: {
+            default: null,
+            // ⚠️ keepOnSplit:false — Enter 로 나뉜 다음 문단은 **라벨 없는** 평범한
+            // 문단이다. 기본값(true)이면 답변 끝에서 Enter 를 친 마무리 문단까지
+            // 조용히 'A' 마커를 달고 공개 화면에 나간다. 라벨은 명시적으로 켜는 것.
+            keepOnSplit: false,
+            parseHTML: (element: HTMLElement) =>
+              pickEnum((element.getAttribute('data-role') ?? '').toLowerCase(), PARAGRAPH_ROLES),
+            renderHTML: (attributes: Record<string, unknown>) =>
+              attributes.role ? { 'data-role': String(attributes.role) } : {},
+          },
+        },
+      },
+    ];
   },
 });

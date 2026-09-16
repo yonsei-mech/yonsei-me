@@ -15,6 +15,7 @@
 import { unstable_cache } from 'next/cache';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { kstDate } from '@/lib/utils';
+import type { AlumniInterview } from '@/lib/alumni-interview';
 import {
   news as gitNews,
   board as gitBoard,
@@ -92,8 +93,22 @@ interface DbPost {
   /** 목록 최상단 고정 — 구 행은 null(스키마 추가 이전) */
   pinned: boolean | null;
   thumbnail_url: string | null;
+  /** 동문 인터뷰 헤더 6값 중 CMS 전용 입력분(jsonb) — alumniEvents 외 게시판은 항상 null.
+   *  ⚠️ 컬럼은 scripts/sql/2026-09-alumni-interview.sql 로 먼저 추가해야 한다 —
+   *  LIST_COLUMNS 에 이름이 실려 있어 컬럼이 없으면 목록 조회 자체가 실패한다. */
+  interview: AlumniInterviewRow | null;
   created_at: string;
   attachments: DbAttachment[] | null;
+}
+
+/** posts.interview(jsonb) 의 실제 모양 — 저장은 posts-server.ts 의 payloadToRow 가 한다.
+ *  DB 의 값은 사람이 CMS 로 넣은 것이라 키가 빠져 있을 수 있어 전부 선택으로 읽는다. */
+interface AlumniInterviewRow {
+  name?: { ko?: string; en?: string };
+  role?: { ko?: string; en?: string };
+  cohort?: string;
+  closingQ?: { ko?: string; en?: string };
+  closingA?: { ko?: string; en?: string };
 }
 
 // ⚠️⚠️ 목록 조회의 컬럼을 **명시**하는 이유 — `select('*')` 로 되돌리지 말 것.
@@ -117,10 +132,12 @@ interface DbPost {
 // 백필 이후로는 본문 없이 동작한다.
 //
 // 새 컬럼을 어댑터에서 읽기 시작했다면 이 목록에도 더해야 한다 — 빠뜨리면 undefined 다.
+// ⚠️ interview(jsonb)는 **목록에도** 필요하다 — 카드 바이라인이 그 값으로 만들어진다.
+//    alumniEvents 외 게시판에서는 항상 null 이라 캐시 크기에 영향이 없다.
 const LIST_COLUMNS =
   'id, board, slug, title_ko, title_en, excerpt_ko, excerpt_en, category, ' +
   'host_ko, host_en, date_label_ko, date_label_en, is_event, event_date, end_date, ' +
-  'link_url, pinned, thumbnail_url, created_at, attachments(*)';
+  'link_url, pinned, thumbnail_url, interview, created_at, attachments(*)';
 
 /** 상세 조회용 — 본문 포함 전체 행 */
 const DETAIL_COLUMNS = '*, attachments(*)';
@@ -378,8 +395,30 @@ function toEvent(r: DbPost): EventItem {
   };
 }
 
+/** posts.interview(jsonb) → AlumniInterview. 이름이 비면 인터뷰로 치지 않는다 —
+ *  화면이 "동문 인터뷰" 킥커·바이라인을 그릴 근거가 이름이라, 빈 껍데기 행이
+ *  에디토리얼 렌더로 새어 들어가면 바이라인 없는 인터뷰 카드가 된다. */
+function interviewOf(r: DbPost): AlumniInterview | undefined {
+  const v = r.interview;
+  if (!v) return undefined;
+  const name = loc(v.name?.ko, v.name?.en);
+  if (name.ko.trim() === '') return undefined;
+  return {
+    name,
+    role: loc(v.role?.ko, v.role?.en),
+    cohort: v.cohort ?? '',
+    ...(v.closingQ?.ko ? { closingQ: loc(v.closingQ.ko, v.closingQ.en) } : {}),
+    ...(v.closingA?.ko ? { closingA: loc(v.closingA.ko, v.closingA.en) } : {}),
+  };
+}
+
 function toAlumniEvent(r: DbPost): AlumniEvent {
-  return { ...toSeminar(r), ...(r.is_event ? { isEvent: true } : {}) };
+  const interview = interviewOf(r);
+  return {
+    ...toSeminar(r),
+    ...(r.is_event ? { isEvent: true } : {}),
+    ...(interview ? { interview } : {}),
+  };
 }
 
 // ── 통합 게시판 글(BoardPost) 라벨 — 단일 출처 ─────────────────────────
