@@ -207,7 +207,7 @@ export function LabList({
   const [query, setQuery] = useState('');
   const [internOnly, setInternOnly] = useState(false);
 
-  // 홈 연구 분야 갤러리에서 /research?field=<분야>#labs 로 진입 시 해당 분야로 초기 필터.
+  // 홈 히어로 분야 목록(더블클릭·화살표)에서 /research/labs?field=<분야> 로 진입 시 해당 분야로 초기 필터.
   // (정적 페이지 유지를 위해 useSearchParams 대신 window 로 읽는다.)
   useEffect(() => {
     const field = new URLSearchParams(window.location.search).get('field');

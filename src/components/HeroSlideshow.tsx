@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
+import { sectionTabHref } from '@/lib/board-links';
 import gsap from 'gsap';
 import { SplitText } from 'gsap/SplitText';
 import { CustomEase } from 'gsap/CustomEase';
@@ -19,6 +20,17 @@ const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : use
 
 // 자동 전환 간격(ms) — 사용자가 '슬라이드쇼'임을 인지하도록 천천히 순환한다.
 const AUTO_ADVANCE_MS = 6500;
+
+// ── 분야 → 연구실 목록 딥링크 ────────────────────────────────────────────
+// 분야명 더블클릭·화살표 링크의 목적지. 연구실 탭은 2차 IA 개편으로 경로(/research/labs)가
+// 됐다 — 예전 목적지 `/research?field=…#labs` 는 섹션 루트의 308 이 쿼리를 버려 연구실
+// 탭에 도착해도 분야 필터가 걸리지 않았다(LabList 는 ?field= 를 마운트 때 읽는다).
+// 해시 앵커(#labs-title)는 일부러 안 붙인다 — 클라이언트 전환에선 스크롤이 안 되고, 풀 로드에선
+// 제목이 sticky 남색 바 뒤에 가려져(scroll-mt 96 < 헤더 80+바 49) 두 경로의 화면이 달라졌다(실측).
+// 상단 진입으로도 분야 필터·인트로가 첫 화면에 들어온다(1440×900 에서 필터 y≈450).
+function labsHref(field: string): string {
+  return `${sectionTabHref('research', 'labs')}?field=${encodeURIComponent(field)}`;
+}
 
 // ── 히어로 사진 서빙 ────────────────────────────────────────────────────
 // next/image 를 쓰지 않고 <picture> 를 직접 짜는 이유: 화면비에 따라 가로본/세로본이라는
@@ -147,7 +159,7 @@ type Props = {
  * 슬라이드 전환(crisp-slideshow): CustomEase wipe + 패럴랙스(슬라이드 래퍼
  * overflow:hidden 클리핑으로 왼쪽 끝부터 닦아내듯 리빌). 6.5초 자동 전환 = 하단
  * 진행 바 트윈 완료가 트리거(표시와 전환이 정확히 동기). 분야 텍스트 클릭=슬라이드
- * 전환(미리보기), 더블클릭·화살표=연구 페이지 해당 분야로 이동. 호버/포커스 시
+ * 전환(미리보기), 더블클릭·화살표=연구실 목록의 해당 분야로 이동(labsHref). 호버/포커스 시
  * 자동 전환 일시정지. 제목 아래 회전 카피는 슬라이드 전환과 동시에 교체된다.
  * 분야 목록(gallery-to-overlay): :has() 호버로 호버 항목만 선명, 나머지 흐림(순수 CSS).
  *
@@ -162,7 +174,7 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
   // 하단 진행 바 — 채움 트윈의 완료가 곧 자동 전환 트리거(타이밍 완전 동기)
   const barRef = useRef<HTMLDivElement | null>(null);
   const barTweenRef = useRef<gsap.core.Tween | null>(null);
-  // 분야명 더블클릭 시 연구 페이지 해당 분야로 이동(화살표 링크와 동일 목적지)
+  // 분야명 더블클릭 시 연구실 목록의 해당 분야로 이동(화살표 링크와 동일 목적지 — labsHref)
   const router = useRouter();
 
   // 현재 슬라이드 인덱스 — nav 의 aria-current/블루 강조에만 쓰인다.
@@ -549,12 +561,12 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
             <li key={s.field} className={`${styles.item}${current === i ? ` ${styles.current}` : ''}`}>
               {/* inner: [바로가기 화살표(현재 분야만)] [분야명 버튼] — 화살표를 왼쪽에 두어
                   우측 정렬된 분야명 끝선이 흔들리지 않는다. 텍스트 클릭=슬라이드 전환(미리보기),
-                  더블클릭=연구 페이지의 해당 분야로 이동(화살표와 동일 목적지 — 키보드·터치
+                  더블클릭=연구실 목록(/research/labs)의 해당 분야로 이동(화살표와 동일 목적지 — 키보드·터치
                   접근은 화살표 링크가 담당). */}
               <div className={styles.inner}>
                 {current === i && s.linkLabel && (
                   <Link
-                    href={`/research?field=${s.field}#labs`}
+                    href={labsHref(s.field)}
                     className={styles.quick}
                     aria-label={s.linkLabel}
                     title={s.linkLabel}
@@ -574,7 +586,7 @@ export function HeroSlideshow({ slides, title, navLabel, taglines, aboutLabel }:
                   type="button"
                   className={styles.btn}
                   onClick={() => goTo(i)}
-                  onDoubleClick={() => router.push(`/research?field=${s.field}#labs`)}
+                  onDoubleClick={() => router.push(labsHref(s.field))}
                   // 누르기 전에 사진부터 — 목록에서 먼 분야로 건너뛰어도 빈 화면이 없다.
                   onPointerEnter={() => mount(i)}
                   onTouchStart={() => mount(i)}
