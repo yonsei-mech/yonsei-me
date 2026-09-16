@@ -19,7 +19,7 @@
  *
  * 흐름 (각 단계 로그 · 하나라도 걸리면 그 자리에서 멈춘다)
  *   ① 잠금 + 로그 tee     `<state-dir>/board-sync.lock` (12시간 지난 것은 유물로 치운다)
- *   ② 크롤               `crawl-boards.mjs --since=<오늘-since-days>` (--skip-crawl 이면 생략)
+ *   ② 크롤               `crawl-boards.mjs --since=<오늘-since-days>` (--skip-crawl 이면 생략, --full 이면 --all)
  *                        게시판 전부 "목록 0건" 이면 구 사이트가 죽은 것으로 보고 실패
  *   ③ 후보               `tools/boards-raw/*.json` 중 최근 60일 글 (날짜 없는 글은 제외·경고)
  *   ④ DB 확인            REST 로 source_url 존재 여부 조회(50건씩) + **센티널 3건 검증**
@@ -126,10 +126,11 @@ const USAGE = [
   '  --state-dir <경로>     상태·잠금·로그 위치 (기본 tools/automation/.state)',
   '  --since-days N         크롤 대상 기간, 기본 45일',
   '  --max-pending N        이 수를 넘는 신규 글이 나오면 실패로 멈춘다, 기본 100',
+  '  --full                 전량 대조 — 크롤 --all + 후보 기간 제한 없음(구 사이트 전 글 ↔ DB). 컷오버 최종 동기화용',
 ].join('\n');
 
 function parseArgs(argv) {
-  const out = { dryRun: false, skipCrawl: false, stateDir: null, sinceDays: 45, maxPending: 100 };
+  const out = { dryRun: false, skipCrawl: false, stateDir: null, sinceDays: 45, maxPending: 100, full: false };
   const num = (name, raw) => {
     const n = Number(raw);
     if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} 은 양의 정수여야 한다: ${raw}`);
@@ -139,6 +140,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--dry-run') out.dryRun = true;
     else if (a === '--skip-crawl') out.skipCrawl = true;
+    else if (a === '--full') out.full = true;
     else if (a === '--state-dir') out.stateDir = argv[++i];
     else if (a === '--since-days') out.sinceDays = num('--since-days', argv[++i]);
     else if (a === '--max-pending') out.maxPending = num('--max-pending', argv[++i]);
@@ -544,6 +546,19 @@ async function run(opts, ctx) {
   // ② 크롤
   if (opts.skipCrawl) {
     log('② 크롤 — --skip-crawl 이라 생략한다(기존 tools/boards-raw 스냅샷만 본다).');
+  } else if (opts.full) {
+    // --full: 목록의 전 글을 대상으로 잡되, 크롤러가 이미 받아 둔 글은 다시 받지 않는다(증분).
+    // 그래서 비용은 게시판 수만큼의 목록 요청 + 스냅숏에 없던 글의 상세 요청뿐이다.
+    log('② 크롤 — 전량(--all): 구 사이트 목록의 모든 글을 대상으로 본다');
+    const r = await runNode('CRAWL', ['--all']);
+    if (r.code !== 0) {
+      throw new Fail('크롤', `crawl-boards.mjs 가 exit ${r.code} 로 끝났다.`, r.stderr || r.stdout);
+    }
+    const { counts, allZero } = parseListCounts(r.stdout);
+    if (!counts.length || allZero) {
+      throw new Fail('크롤', '전량 크롤인데 "목록 N건" 이 없거나 전부 0건이다 — 구 사이트가 응답하지 않는다.', r.stdout);
+    }
+    log(`  목록 합계 ${counts.reduce((a, b) => a + b, 0)}건 (게시판 ${counts.length}개)`);
   } else {
     const since = daysAgo(today, opts.sinceDays);
     log(`② 크롤 — 최근 ${opts.sinceDays}일(--since=${since})`);
@@ -564,14 +579,17 @@ async function run(opts, ctx) {
   }
 
   // ③ 후보
-  const cutoff = daysAgo(today, CANDIDATE_DAYS);
+  // --full 이면 기간 제한 없이 스냅숏의 전 글(구 사이트 전 글)을 후보로 본다.
+  // 날짜 비교가 문자열이라 '0000-00-00' 은 어떤 날짜보다 앞선다.
+  const cutoff = opts.full ? '0000-00-00' : daysAgo(today, CANDIDATE_DAYS);
+  const cutoffLabel = opts.full ? '전 기간' : `${cutoff} 이후`;
   let cands;
   try {
     cands = collectCandidates(cutoff);
   } catch (e) {
     throw new Fail('후보 수집', String(e.message || e));
   }
-  log(`③ 후보 — ${cutoff} 이후 ${cands.total}건 (스냅샷 ${cands.files}개 · 게시판 ${cands.boards.length}개)`);
+  log(`③ 후보 — ${cutoffLabel} ${cands.total}건 (스냅샷 ${cands.files}개 · 게시판 ${cands.boards.length}개)`);
   if (cands.skippedNoDate) warn(`  경고: 날짜 없는 글 ${cands.skippedNoDate}건은 후보에서 제외했다.`);
   if (cands.skippedNoUrl) warn(`  경고: sourceUrl 없는 글 ${cands.skippedNoUrl}건은 후보에서 제외했다.`);
   if (cands.total === 0) {
