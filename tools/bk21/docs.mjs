@@ -25,6 +25,16 @@ export const SEED_PATH = join(HERE, 'bk21-reports.seed.json');
 export const ORIGIN = 'https://me.yonsei.ac.kr';
 export const R2_PREFIX = 'uploads/legacy/bk21';
 
+/**
+ * PDF 파일 버전. R2 키(`<key>-<버전>.pdf`)와 로컬 산출물 이름에 붙는다.
+ * R2 객체는 immutable 캐시라 **같은 키에 덮어써도 옛 바이트가 계속 서빙**된다 — PDF 를
+ * 다시 만들 때(구조·품질 변경)는 이 값을 올리고 upload-pdf → seed-reports 를 다시 돌린다.
+ *  v2 (2026-09-16): 객체 순서를 "이미지 전부 → 쪽 객체 전부" + 객체 스트림으로 바꿈.
+ *     pdf.js 의 마지막 쪽 검사가 파일 전체를 훑던 문제(첫 쪽까지 전량 다운로드) 해결.
+ */
+export const PDF_VERSION = 'v2';
+export const pdfFileName = (key) => `${key}-${PDF_VERSION}.pdf`;
+
 /** .env.local 로더 (scripts/mirror-legacy-assets.mjs 와 동일한 규약). */
 export function loadEnvLocal() {
   for (const p of ['.env.local', join(ROOT, '.env.local')]) {
@@ -50,7 +60,7 @@ export function loadEnvLocal() {
  * category     분류 탭. plan | self | performance
  * createdAt    글의 대표 날짜. **발간 실일자가 아니라 연도 표기용 대푯값**이다
  *              (목록이 created_at 으로 정렬·연도 표기를 하므로 연도만 맞으면 된다).
- * pdfLabel     첨부 파일 표시 이름(한/영). 실제 R2 키는 `<key>.pdf` 로 따로 간다.
+ * pdfLabel     첨부 파일 표시 이름(한/영). 실제 R2 키는 pdfFileName(key)(`<key>-<버전>.pdf`)로 따로 간다.
  * postSlug     posts.slug 에 들어갈 **고정 식별자**. 리졸버가 이 값을 하드코딩한다.
  */
 export const DOCS = [

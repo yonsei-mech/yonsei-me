@@ -20,9 +20,15 @@
 //     장별로 폭 1240 으로 줄이고(업스케일 금지) JPEG 로 다시 인코딩해 embedJpg 한다 —
 //     pdf-lib 은 JPEG 바이트를 DCTDecode 로 **재인코딩 없이** 품는다.
 //  3) **임시 파일을 만들지 않는다.** sharp → Buffer → embedJpg 로 장마다 흘려보낸다.
-//  4) **useObjectStreams:false** 로 저장한다. 객체 스트림은 여러 객체를 한 덩어리로
-//     압축해 버려서, Range 로 한 쪽만 받고 싶은 리더가 덩어리째 받아야 한다.
-//     끄면 쪽 객체가 각각 xref 로 주소를 갖는다(파일은 조금 커진다).
+//  4) **객체 순서: 이미지 전부 → 쪽 객체 전부**, 그리고 **useObjectStreams:true**.
+//     pdf.js 는 문서를 열 때 첫 쪽과 **마지막 쪽**을 검사한다(checkLastPage). 마지막 쪽에
+//     닿으려면 /Kids 의 쪽 사전을 앞에서부터 하나씩 읽어야 하는데, 쪽 사전이 각 쪽 이미지
+//     옆에 흩어져 있으면(예전 구조) 그 검사가 **파일 전체를 훑는다** — 실측: 38MB 를 다
+//     받은 뒤에야 첫 쪽이 떴고 Range 요청 34회·전송 70MB. 이미지를 먼저 전부 등록하고
+//     쪽 사전·콘텐츠 스트림을 마지막에 만들면 전부 파일 끝 몇백 KB 에 모이고, 객체
+//     스트림이 그것을 한 덩어리로 압축해 xref 옆에 둔다 — 같은 실측에서 Range 2회,
+//     첫 쪽까지 0.2초. 파일명에 버전(-v2)을 붙이는 이유: R2 키가 immutable 캐시라
+//     같은 키에 덮어쓰면 옛 바이트가 계속 서빙된다(docs.mjs PDF_VERSION).
 //  5) 날짜 메타는 문서의 대표 연도로 **고정**한다 — 다시 돌려도 같은 결과가 나오게.
 //
 // 함정
@@ -40,7 +46,7 @@ import { readdirSync, existsSync, mkdirSync, statSync, writeFileSync, readFileSy
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { PDF_DIR, RAW_DIR, loadManifest, saveManifestEntry, selectDocs, mb } from './docs.mjs';
+import { PDF_DIR, PDF_VERSION, RAW_DIR, loadManifest, pdfFileName, saveManifestEntry, selectDocs, mb } from './docs.mjs';
 
 // ── 인자 ─────────────────────────────────────────────────────────
 const ARGV = process.argv.slice(2);
@@ -74,7 +80,7 @@ const rawPages = (key) => {
 
 // ── 빌드 ─────────────────────────────────────────────────────────
 async function buildDoc(doc) {
-  const out = join(PDF_DIR, `${doc.key}.pdf`);
+  const out = join(PDF_DIR, pdfFileName(doc.key));
   if (existsSync(out) && statSync(out).size > 0 && !FORCE) {
     const prev = loadManifest().docs.find((d) => d.key === doc.key)?.pdf ?? {};
     console.log(`  = ${doc.key}: 이미 있음 ${mb(statSync(out).size)} (다시 만들려면 --force)`);
@@ -103,6 +109,8 @@ async function buildDoc(doc) {
 
   const sizes = [];
   let jpegBytes = 0;
+  // 1차: 이미지만 전부 등록한다 — 객체 번호(=파일 위치)가 앞쪽에 몰린다 (설계 4)
+  const embedded = [];
   for (let i = 0; i < files.length; i += 1) {
     const { data, info } = await sharp(files[i])
       .resize({ width: MAX_WIDTH, withoutEnlargement: true })
@@ -110,19 +118,20 @@ async function buildDoc(doc) {
       .jpeg({ quality: QUALITY, progressive: false })
       .toBuffer({ resolveWithObject: true });
     jpegBytes += data.length;
-
-    const img = await pdf.embedJpg(data);
-    const w = toPt(info.width);
-    const h = toPt(info.height);
+    embedded.push({ img: await pdf.embedJpg(data), px: [info.width, info.height] });
+    if ((i + 1) % 100 === 0) console.log(`     ${doc.key} ${i + 1}/${files.length}장 인코딩 (JPEG 누적 ${mb(jpegBytes)})`);
+  }
+  // 2차: 쪽 사전·콘텐츠 스트림은 마지막에 — 전부 파일 끝에 연속으로 놓인다 (설계 4)
+  embedded.forEach(({ img, px }, i) => {
+    const w = toPt(px[0]);
+    const h = toPt(px[1]);
     const page = pdf.addPage([w, h]);
     page.drawImage(img, { x: 0, y: 0, width: w, height: h });
-    sizes.push({ n: i + 1, w, h, px: [info.width, info.height] });
-
-    if ((i + 1) % 100 === 0) console.log(`     ${doc.key} ${i + 1}/${files.length}쪽 (JPEG 누적 ${mb(jpegBytes)})`);
-  }
+    sizes.push({ n: i + 1, w, h, px });
+  });
 
   mkdirSync(PDF_DIR, { recursive: true });
-  const bytes = await pdf.save({ useObjectStreams: false }); // 설계 4
+  const bytes = await pdf.save({ useObjectStreams: true }); // 설계 4
   writeFileSync(out, bytes);
 
   const first = sizes[0];
@@ -139,6 +148,8 @@ async function buildDoc(doc) {
   saveManifestEntry({
     key: doc.key,
     pdf: {
+      version: PDF_VERSION,
+      file: pdfFileName(doc.key),
       maxWidth: MAX_WIDTH,
       quality: QUALITY,
       pages: sizes.length,
@@ -158,7 +169,7 @@ async function buildDoc(doc) {
 // 비율(폭 1240 → 595pt 환산)인지 본다. 기대값은 manifest 가 아니라 raw 이미지를
 // 직접 재서 만든다 — 빌드가 참조한 값을 그대로 믿으면 검증이 아니다.
 async function verifyDoc(doc) {
-  const out = join(PDF_DIR, `${doc.key}.pdf`);
+  const out = join(PDF_DIR, pdfFileName(doc.key));
   if (!existsSync(out)) return { key: doc.key, ok: false, why: 'PDF 없음' };
   const files = rawPages(doc.key);
 

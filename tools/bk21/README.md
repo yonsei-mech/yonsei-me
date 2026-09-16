@@ -59,10 +59,11 @@ node tools/bk21/mirror-scans.mjs seed                  # 프런트용 씨앗 JSO
 (낱장 WebP 세트는 R2 에 그대로 남는다 — 지우지 마라.)
 
 ```bash
-node tools/bk21/build-pdf.mjs                          # raw JPG → pdf/<key>.pdf (6종)
+node tools/bk21/build-pdf.mjs                          # raw JPG → pdf/<key>-<버전>.pdf (6종, 버전은 docs.mjs PDF_VERSION)
+node tools/bk21/build-pdf.mjs --doc=plan --quality=65  # plan 만 q65 (q80 은 100MB 상한 초과)
 node tools/bk21/build-pdf.mjs --verify-only            # 만든 PDF 를 다시 열어 쪽수·쪽 크기 검증
 node tools/bk21/mirror-scans.mjs upload-pdf            # 드라이런
-node tools/bk21/mirror-scans.mjs upload-pdf --apply    # R2 uploads/legacy/bk21/<key>.pdf
+node tools/bk21/mirror-scans.mjs upload-pdf --apply    # R2 uploads/legacy/bk21/<key>-<버전>.pdf
 node tools/bk21/seed-reports.mjs                       # 드라이런 — 들어갈 행을 표로
 node tools/bk21/seed-reports.mjs --apply               # posts(board='bk21Reports') + attachments
 ```
@@ -100,7 +101,7 @@ node tools/bk21/seed-reports.mjs --apply               # posts(board='bk21Report
 | `raw/<key>/NNNN.jpg` | 원본 JPG (4자리 0 패딩, 1부터) | ✗ gitignore |
 | `derived/<key>/NNNN.webp` | 뷰어용 WebP q80, **최대 폭 1240**(업스케일 없음) | ✗ gitignore |
 | `derived/<key>/cover.webp` | 표지 썸네일(너비 480, `coverPage` 장) | ✗ gitignore |
-| `pdf/<key>.pdf` | 게시판 첨부용 문서 PDF (`build-pdf.mjs`) | ✗ gitignore |
+| `pdf/<key>-<버전>.pdf` | 게시판 첨부용 문서 PDF (`build-pdf.mjs`, 버전은 `docs.mjs` PDF_VERSION) | ✗ gitignore |
 | `manifest.json` | 문서·장수·바이트·원본 URL + 파생 장별 `{n,w,h,bytes}` + `pdf` 항목 | ✓ |
 | `bk21-reports.seed.json` | 프런트가 쓸 문서 목록(R2 URL·결락 정보 포함) | ✓ |
 
@@ -206,7 +207,12 @@ R2 키는 `uploads/legacy/bk21/<key>/NNNN.webp`·`cover.webp`(`--include-jpg` �
 6. **`created_at` 은 발간 실일자가 아니다** — 목록 정렬·연도 표기용 대푯값이다
    (plan `2020-09-01`, 보고서 `<연도>-12-31`).
 7. **같은 R2 키에 덮어쓰지 않는다.** `upload-pdf` 는 `HeadObject` 로 이미 있으면 건너뛴다.
-   캐시가 `immutable` 이라 내용을 바꿔 올리려면 R2 에서 지우고 다시 올려야 한다.
-8. **`useObjectStreams:false` 로 저장한다.** 객체 스트림은 여러 객체를 한 덩어리로 압축해서,
-   Range 로 한 쪽만 받고 싶은 리더가 덩어리째 받아야 한다. 끄면 쪽 객체가 각각 xref 주소를
-   갖는다(파일은 조금 커지지만 리더가 필요한 쪽만 집어 간다).
+   캐시가 `immutable` 이라 옛 바이트가 계속 서빙된다 — PDF 를 다시 만들면 `docs.mjs` 의
+   `PDF_VERSION` 을 올려(키가 `<key>-v3.pdf` 식으로 바뀜) `upload-pdf --apply` → `seed-reports --apply`
+   순으로 다시 돌린다(시드는 slug upsert 라 첨부 URL·크기만 갈린다). 옛 키는 남겨 둬도 무방하다.
+8. **객체 순서가 곧 첫 쪽 속도다(v2, 2026-09-16 실측).** pdf.js 는 문서를 열 때 마지막 쪽까지
+   검사하는데(`checkLastPage`), 쪽 사전이 각 쪽 이미지 옆에 흩어져 있으면(pdf-lib 기본 순서)
+   그 검사가 **파일 전체를 훑는다** — 38MB 를 다 받은 뒤에야 첫 쪽이 떴다(Range 34회·전송 70MB).
+   그래서 `build-pdf` 는 이미지를 **전부 먼저** 등록하고 쪽 객체를 마지막에 만들며
+   `useObjectStreams:true` 로 저장한다 — 쪽 사전이 xref 옆 한 덩어리에 모여 Range 2회로 첫 쪽이
+   0.2초에 뜬다. 낱장 이미지는 각자 xref 주소를 그대로 가지므로 "필요한 쪽만 받기"도 유지된다.

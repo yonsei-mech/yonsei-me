@@ -34,7 +34,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
-import { DOCS, ORIGIN, PDF_DIR, R2_PREFIX, loadEnvLocal, selectDocs, mb } from './docs.mjs';
+import { DOCS, ORIGIN, PDF_DIR, R2_PREFIX, loadEnvLocal, pdfFileName, selectDocs, mb } from './docs.mjs';
 
 loadEnvLocal();
 
@@ -66,7 +66,7 @@ const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_R
 
 /** 한 문서 → posts 행 + attachments 행 하나. */
 function buildRow(doc) {
-  const pdfPath = join(PDF_DIR, `${doc.key}.pdf`);
+  const pdfPath = join(PDF_DIR, pdfFileName(doc.key));
   const hasPdf = existsSync(pdfPath) && statSync(pdfPath).size > 0;
   const post = {
     board: BOARD,
@@ -89,7 +89,7 @@ function buildRow(doc) {
     import_managed: false, // 임포터가 만든 행이 아니다 — 재크롤 갱신 대상에서 제외
   };
   const attachment = {
-    url: `${PUBLIC_BASE}/${R2_PREFIX}/${doc.key}.pdf`,
+    url: `${PUBLIC_BASE}/${R2_PREFIX}/${pdfFileName(doc.key)}`, // 버전 키(docs.mjs PDF_VERSION)
     label_ko: doc.pdfLabel.ko,
     label_en: doc.pdfLabel.en,
     sort: 0,

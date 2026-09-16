@@ -62,6 +62,7 @@ import {
   SEED_PATH,
   loadEnvLocal,
   loadManifest,
+  pdfFileName,
   saveManifestEntry,
   selectDocs,
   pad4,
@@ -456,14 +457,15 @@ async function cmdUpload() {
 async function cmdUploadPdf() {
   const items = [];
   for (const doc of selectedDocs) {
-    const path = join(PDF_DIR, `${doc.key}.pdf`);
+    const path = join(PDF_DIR, pdfFileName(doc.key));
     if (!existsSync(path) || statSync(path).size === 0) {
       console.log(`  ⚠ ${doc.key}: ${path} 없음 — build-pdf.mjs 먼저 돌려라.`);
       continue;
     }
     items.push({
       doc,
-      key: `${R2_PREFIX}/${doc.key}.pdf`,
+      // 버전이 키에 들어간다(docs.mjs PDF_VERSION) — immutable 캐시라 같은 키 덮어쓰기 금지
+      key: `${R2_PREFIX}/${pdfFileName(doc.key)}`,
       path,
       bytes: statSync(path).size,
       type: 'application/pdf',

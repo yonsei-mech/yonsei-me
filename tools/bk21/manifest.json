@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-16T13:15:06.914Z",
+  "updatedAt": "2026-09-16T14:58:23.387Z",
   "docs": [
     {
       "key": "plan",
@@ -10358,10 +10358,12 @@
       "coverWidth": 480,
       "coverHeight": 678,
       "pdf": {
+        "version": "v2",
+        "file": "plan-v2.pdf",
         "maxWidth": 1240,
         "quality": 65,
         "pages": 939,
-        "bytes": 100771228,
+        "bytes": 100549442,
         "jpegBytes": 100230292,
         "firstPage": {
           "w": 595,
@@ -10371,7 +10373,7 @@
           "w": 595,
           "h": 420.34
         },
-        "builtAt": "2026-09-16T13:13:40.052Z"
+        "builtAt": "2026-09-16T14:57:04.425Z"
       }
     },
     {
@@ -12426,10 +12428,12 @@
       "coverWidth": 480,
       "coverHeight": 679,
       "pdf": {
+        "version": "v2",
+        "file": "report-2021-v2.pdf",
         "maxWidth": 1240,
         "quality": 80,
         "pages": 184,
-        "bytes": 35418459,
+        "bytes": 35375207,
         "jpegBytes": 35312319,
         "firstPage": {
           "w": 380.51,
@@ -12439,7 +12443,7 @@
           "w": 595,
           "h": 840.68
         },
-        "builtAt": "2026-09-16T13:10:12.353Z"
+        "builtAt": "2026-09-16T14:57:57.181Z"
       }
     },
     {
@@ -14439,10 +14443,12 @@
       "coverWidth": 480,
       "coverHeight": 678,
       "pdf": {
+        "version": "v2",
+        "file": "report-2022-v2.pdf",
         "maxWidth": 1240,
         "quality": 80,
         "pages": 179,
-        "bytes": 40163229,
+        "bytes": 40120638,
         "jpegBytes": 40059051,
         "firstPage": {
           "w": 571.01,
@@ -14452,7 +14458,7 @@
           "w": 571.01,
           "h": 807.09
         },
-        "builtAt": "2026-09-16T13:10:16.015Z"
+        "builtAt": "2026-09-16T14:58:00.672Z"
       }
     },
     {
@@ -16485,10 +16491,12 @@
       "coverWidth": 480,
       "coverHeight": 678,
       "pdf": {
+        "version": "v2",
+        "file": "report-2023-v2.pdf",
         "maxWidth": 1240,
         "quality": 80,
         "pages": 182,
-        "bytes": 42972431,
+        "bytes": 42929085,
         "jpegBytes": 42866492,
         "firstPage": {
           "w": 571.01,
@@ -16498,7 +16506,7 @@
           "w": 571.01,
           "h": 807.09
         },
-        "builtAt": "2026-09-16T13:10:19.685Z"
+        "builtAt": "2026-09-16T14:58:04.352Z"
       }
     },
     {
@@ -17849,10 +17857,12 @@
       "coverWidth": 480,
       "coverHeight": 679,
       "pdf": {
+        "version": "v2",
+        "file": "report-2024-v2.pdf",
         "maxWidth": 1240,
         "quality": 80,
         "pages": 120,
-        "bytes": 35006423,
+        "bytes": 34978492,
         "jpegBytes": 34936927,
         "firstPage": {
           "w": 595,
@@ -17862,7 +17872,7 @@
           "w": 595,
           "h": 841.16
         },
-        "builtAt": "2026-09-16T13:09:41.107Z"
+        "builtAt": "2026-09-16T14:58:16.064Z"
       }
     },
     {
@@ -19312,10 +19322,12 @@
       "coverWidth": 480,
       "coverHeight": 679,
       "pdf": {
+        "version": "v2",
+        "file": "report-2025-v2.pdf",
         "maxWidth": 1240,
         "quality": 80,
         "pages": 129,
-        "bytes": 37735494,
+        "bytes": 37705383,
         "jpegBytes": 37660800,
         "firstPage": {
           "w": 595,
@@ -19325,7 +19337,7 @@
           "w": 571.01,
           "h": 807.09
         },
-        "builtAt": "2026-09-16T13:10:27.158Z"
+        "builtAt": "2026-09-16T14:58:23.385Z"
       }
     }
   ]
