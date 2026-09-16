@@ -30,8 +30,9 @@
  *   ⑧ 적재               import-boards → mirror-legacy-assets → rewrite-legacy-links →
  *                        backfill-attachment-sizes (앞이 비-0 이면 뒤는 돌리지 않는다)
  *   ⑨ 검증               pending 의 source_url 이 전부 DB 에 있어야 성공
- *   ⑩ 상태 파일          `<state-dir>/board-sync.json`
- *   ⑪ 실패 알림          `[자동] 구 게시판 동기화 실패 (<날짜>)` 이슈(402 보류는 이슈 없음)
+ *   ⑩ 목록 캐시 무효화   `REVALIDATE_URLS` 의 호스트마다 `POST /api/revalidate` (실패해도 계속)
+ *   ⑪ 상태 파일          `<state-dir>/board-sync.json`
+ *   ⑫ 실패 알림          `[자동] 구 게시판 동기화 실패 (<날짜>)` 이슈(402 보류는 이슈 없음)
  *
  * 종료 코드: 0 = 성공 / 보류 / 신규 없음 · 1 = 실패
  *
@@ -39,10 +40,15 @@
  *   - **센티널 가드**: 우리 DB 에는 이미 3,500건이 들어 있다. REST 가 빈 배열을 주면
  *     (권한 상실·URL 오타·프로젝트 정지) 전부 "신규" 로 보여 **전량 재적재**가 된다.
  *     그래서 가장 오래된 글 3건을 따로 물어보고, 하나라도 없으면 그 자리에서 멈춘다.
- *   - **사이트 반영은 즉시가 아니다**: 목록 캐시 수명이 하루라 적재 후 최대 24시간 뒤에
- *     보인다(fd3427d, Supabase egress 절감). 급하면 재배포하면 된다.
+ *   - **사이트 반영**: 목록 캐시 수명이 하루라(fd3427d, Supabase egress 절감) DB 에 넣는 것만으로는
+ *     최대 24시간 뒤에야 보인다. 그래서 ⑩ 에서 배포된 호스트의 `/api/revalidate` 를 부른다.
+ *     이 단계가 실패하거나 환경변수가 없으면 옛날처럼 캐시 만료를 기다리게 된다(글은 이미 들어갔다).
  *   - 여기서 하는 DB 접근은 **읽기뿐**이다. 쓰기는 전부 자식 스크립트가 한다.
  *   - 비밀값(SUPABASE_SERVICE_ROLE_KEY 등)은 로그·이슈 어디에도 찍지 않는다.
+ *
+ * 환경변수 (⑩ 무효화 — 없으면 그 단계만 건너뛴다)
+ *   REVALIDATE_URLS                 무효화할 호스트 origin 쉼표 구분 목록
+ *   REVALIDATE_SECRET               `/api/revalidate` 가 헤더로 받는 공유 비밀값
  *
  * 시험용 환경변수 (운영에서는 쓰지 않는다)
  *   BOARD_SYNC_REST_BASE            SUPABASE_URL 대신 쓸 REST 베이스(모의 서버)
@@ -70,6 +76,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { BOARDS } from '../board-source.mjs';
 import { createOrComment } from './issue.mjs';
+import { revalidateHosts } from './revalidate.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
@@ -527,7 +534,8 @@ async function reportFailure({ fail, dryRun, logFile, stateDir, today }) {
 
 // ── 본체 ──────────────────────────────────────────────────────
 /**
- * @returns {Promise<{status:'deferred'|'none'|'dry-run'|'ok', candidates?:number, pending?:Array, verified?:boolean}>}
+ * @returns {Promise<{status:'deferred'|'none'|'dry-run'|'ok', candidates?:number, pending?:Array, verified?:boolean,
+ *                    revalidate?:{at:string, results:Array<{url:string, ok:boolean, status:number|null, ms:number, error:string|null}>}|null}>}
  * @throws {Fail}
  */
 async function run(opts, ctx) {
@@ -636,6 +644,7 @@ async function run(opts, ctx) {
     log(`  node ${SCRIPTS.MIRROR} --apply`);
     log(`  node ${SCRIPTS.REWRITE} --apply`);
     log(`  node ${SCRIPTS.BACKFILL} --write`);
+    log('  node tools/automation/revalidate.mjs --tags posts');
     return { status: 'dry-run', pending, candidates: cands.total };
   }
 
@@ -674,7 +683,40 @@ async function run(opts, ctx) {
     else throw new Fail('검증', String(e.message || e));
   }
 
-  return { status: 'ok', pending, candidates: cands.total, verified };
+  // ⑩ 목록 캐시 무효화 — 우리는 DB 에 직접 넣었으므로 앱의 태그 캐시(posts, 수명 하루)는
+  // 그대로다. 호스트마다 `/api/revalidate` 를 한 번씩 두드려야 목록에 바로 뜬다.
+  // ⚠️ 여기서 실패해도 Fail 을 던지지 않는다 — 글은 이미 DB 에 있고, 최악이 "늦게 보인다" 다.
+  const revalidate = await revalidateStep();
+
+  return { status: 'ok', pending, candidates: cands.total, verified, revalidate };
+}
+
+/** ⑩ 단계. 환경변수가 없으면 null(=건너뜀), 있으면 {at, results}. 절대 던지지 않는다. */
+async function revalidateStep() {
+  const urls = String(process.env.REVALIDATE_URLS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const secret = process.env.REVALIDATE_SECRET ?? '';
+  if (!urls.length || !secret) {
+    warn('⑩ 목록 캐시 무효화 — 건너뜀');
+    warn('  REVALIDATE_URLS/REVALIDATE_SECRET 미설정 — 목록은 캐시 만료(최대 24시간)까지 안 보인다.');
+    return null;
+  }
+
+  log(`⑩ 목록 캐시 무효화 — 호스트 ${urls.length}개(태그 posts)`);
+  const results = await revalidateHosts({ urls, secret, tags: ['posts'], log });
+  for (const r of results) {
+    if (r.ok) {
+      log(`  ✔ ${r.url} — HTTP ${r.status} (${r.ms}ms)`);
+    } else {
+      warn(
+        `  ✘ 호스트 ${r.url} 무효화 실패(${r.error}) — 그 호스트 목록은 캐시 만료(최대 24h)까지 옛 상태. ` +
+          '수동: node tools/automation/revalidate.mjs',
+      );
+    }
+  }
+  return { at: new Date().toISOString(), results };
 }
 
 // ── CLI ───────────────────────────────────────────────────────
@@ -735,6 +777,8 @@ async function main() {
         date: p.date ?? null,
         importedAt: now(),
       }));
+      const rev = r.revalidate ?? null;
+      const revFailed = rev ? rev.results.filter((x) => !x.ok).map((x) => x.url) : [];
       writeState(
         stateFile,
         {
@@ -743,11 +787,20 @@ async function main() {
           deferred: false,
           lastImported: imported.map(({ board, articleNo, title, date }) => ({ board, articleNo, title, date })),
           lastVerified: r.verified !== false,
+          lastRevalidateAt: rev?.at ?? null,
+          lastRevalidateOk: rev ? revFailed.length === 0 : null,
+          lastRevalidateFailed: revFailed,
         },
         imported,
       );
       log(`결과: 성공 — 신규 ${imported.length}건 적재.`);
-      log('  사이트 반영은 목록 캐시가 만료된 뒤(최대 24시간) 보인다.');
+      if (!rev) {
+        log('  사이트 반영은 목록 캐시가 만료된 뒤(최대 24시간) 보인다.');
+      } else if (revFailed.length) {
+        log(`  목록 캐시 무효화 실패: ${revFailed.join(', ')} — 그 호스트는 캐시 만료(최대 24시간) 뒤에 보인다.`);
+      } else {
+        log(`  목록 캐시 무효화 완료(호스트 ${rev.results.length}개) — 사이트에 바로 보인다.`);
+      }
     }
   } catch (e) {
     exitCode = 1;

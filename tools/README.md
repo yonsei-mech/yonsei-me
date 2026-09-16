@@ -13,6 +13,8 @@
   `remind.mjs`+`reminders/`(정기 리마인더), `admission-watch.mjs`(입학처 변경 감지),
   `update-semester.mjs`(학기 갱신 오케스트레이터 — 쿠키 한 번이면 체커·마일리지 전 단계).
   `board-sync.mjs`(**컷오버 전 한시** — 구 게시판의 새 글만 매일 Supabase 로, P3-7),
+  `revalidate.mjs`(배포된 호스트의 `/api/revalidate` 를 불러 목록 캐시 태그를 턴다 —
+  DB 직행 적재는 앱 캐시를 못 털므로 board-sync 가 끝에 이걸 호출한다),
   `register-tasks.ps1`(작업 스케줄러 등록 — `-Only <이름조각>` 으로 한 작업만).
   `.state/` 는 실행 상태·백테스트 덤프(미추적). 워크플로는 `.github/workflows/`
 
