@@ -82,19 +82,26 @@ const STATIC_PAGES: Record<string, string> = {
   'sitemap.do': '/sitemap', // 사용자용 HTML 사이트맵이 그대로 있다
   'legal_notice.do': '/legal',
   'privacy.do': '/privacy',
+  // 구 푸터는 .jsp 로 링크하고 구 서버가 .do 로 302 하던 주소 — 우리는 한 홉으로 끝낸다(2026-09 감사).
+  'legal_notice.jsp': '/legal',
+  'privacy.jsp': '/privacy',
   'calender_main.do': newsTabHref('calendar'),
 
   // 학부 소개
-  'faculty/intro.do': tab('about', 'history'),
+  // ⚠️ 이름과 달리 학부 소개가 아니다 — 구 페이지 제목 "학부 › 교과목 소개"(2026-09-16 실측)
+  'faculty/intro.do': tab('undergraduate', 'courses'),
   'faculty/history.do': tab('about', 'history'),
   'faculty/education.do': tab('undergraduate', 'goals'),
   'faculty/graduation.do': tab('undergraduate', 'requirements'),
   'faculty/professor_list.do': tab('about', 'faculty'),
-  'faculty/schedule.do': newsTabHref('calendar'), // 학사일정
+  // ⚠️ 학사일정이 아니다 — 구 페이지 제목 "학부 › 교과목 체계도"(2026-09-16 실측)
+  'faculty/schedule.do': tab('undergraduate', 'curriculum'),
   'facultyjob/facultyjob.do': newsTabHref('recruit'), // 교수초빙안내(2026-09 소식 섹션으로 이관)
+  'facultyjob.do': newsTabHref('recruit'), // 영문 미러(/me_en)는 디렉터리 없이 한 세그먼트다
 
   // 대학원·연구
-  'graduate/graduate_intro.do': tab('graduate', 'requirements'),
+  // ⚠️ 대학원 소개가 아니다 — 구 페이지 제목 "대학원 › 교과목 소개"(2026-09-16 실측)
+  'graduate/graduate_intro.do': tab('graduate', 'courses'),
   // 연구 역량은 2026-09 에 연구 비전과 한 탭으로 합쳐졌다
   'graduate/capacity.do': tab('research', 'vision'),
   'graduate/graduation.do': tab('graduate', 'requirements'),
