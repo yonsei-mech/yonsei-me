@@ -78,8 +78,12 @@ export interface LabDirectoryEntry {
   description?: { ko: string; en: string };
   /** 연구실별 실제 이미지 경로(public 기준). 없으면 더미 이미지 3장을 순환 사용. */
   image?: string;
-  /** 연구실 소개 영상 URL (YouTube watch 또는 Google Drive file 링크). 없으면 영상 미제공 */
+  /** 연구실 소개 영상 URL — YouTube watch·Google Drive 링크 **또는 업로드한 영상
+   *  파일 URL**(R2 uploads/labs/…). 없으면 영상 미제공 */
   video?: string;
+  /** 파일 업로드 영상의 정지 화면(포스터) URL — 갤러리 카드 썸네일.
+   *  video 가 링크(YouTube·Drive)면 무시된다 */
+  videoPoster?: string;
   /** 6개 연구 분야 중 하나 (분야 필터용) */
   field: ResearchField;
   /** 학부 인턴 모집 여부 — 연구실 목록의 "학부 인턴 모집 중" 배지 + 상단 필터에 사용 */

@@ -6,35 +6,43 @@ import { useTranslations } from 'next-intl';
 import { FieldBarTabs } from '@/components/FieldBarTabs';
 import { cn } from '@/lib/utils';
 import { RESEARCH_FIELDS, type ResearchField } from '@/lib/research-fields';
+import { isVideoFileUrl } from '@/lib/video-url';
 import type { LabDirectoryEntry } from '@/lib/faculty';
 import type { Locale } from '@/i18n/routing';
 
 /**
  * 연구실 소개 영상 갤러리 — 대학원 "연구실 소개 자료 및 영상" 탭.
- * YouTube / Google Drive 링크를 파사드(썸네일+재생 오버레이) 카드로 보여주고,
- * 재생 버튼 클릭 시 심플한 풀스크린 라이트박스에서 크게 재생한다.
+ * YouTube / Google Drive 링크와 **직접 올린 영상 파일**을 파사드(썸네일+재생 오버레이)
+ * 카드로 보여주고, 재생 버튼 클릭 시 심플한 풀스크린 라이트박스에서 크게 재생한다
+ * (링크는 iframe, 파일은 네이티브 <video>).
  * (라이트박스는 createPortal 로 body 직속 렌더 — 탭 패널의 anim-panel 이 남기는
  *  transform 이 fixed 의 기준을 가로채 오버레이가 그리드 안에 갇히는 문제 방지.)
  * 데이터는 content/labs-directory.json → getLabsDirectory() 를 통해 주입받는다.
  */
 
-/** 영상 제공처 구분 — 배지 라벨과 임베드 URL 규칙이 서로 다르다 */
-type VideoSource = 'youtube' | 'drive';
+/** 영상 제공처 구분 — 배지 라벨과 재생 방식(iframe/video)이 서로 다르다 */
+type VideoSource = 'youtube' | 'drive' | 'file';
 
 interface ParsedVideo {
   source: VideoSource;
-  /** 파사드에 깔 정지 썸네일 */
-  thumbnail: string;
-  /** 재생 시 삽입할 iframe src (autoplay 포함) */
+  /** 파사드에 깔 정지 썸네일. 업로드 파일은 포스터가 없을 수 있다(대표 이미지로 폴백) */
+  thumbnail?: string;
+  /** 재생 시 삽입할 주소 — 링크는 iframe src(autoplay 포함), 파일은 video src */
   embed: string;
 }
 
 /**
- * 영상 URL을 썸네일/임베드 주소로 파싱한다. 순수 함수 — 서버·클라이언트 어디서 불러도 동일.
- * YouTube watch 링크와 Google Drive file 링크 두 형태만 다루며, 그 외/파싱 실패 시 null.
+ * 영상 URL을 썸네일/재생 주소로 파싱한다. 순수 함수 — 서버·클라이언트 어디서 불러도 동일.
+ * 업로드 영상 파일 · YouTube watch 링크 · Google Drive file 링크 세 형태를 다루며,
+ * 그 외/파싱 실패 시 null. poster 는 업로드 파일에서만 의미가 있다.
  */
-function parseVideo(url: string | undefined): ParsedVideo | null {
+function parseVideo(url: string | undefined, poster?: string): ParsedVideo | null {
   if (!url) return null;
+
+  // 업로드한 영상 파일이 먼저다 — 파일명에 v= 같은 문자열이 섞여도 링크로 오인하지 않는다
+  if (isVideoFileUrl(url)) {
+    return { source: 'file', thumbnail: poster || undefined, embed: url };
+  }
 
   // YouTube: watch?v=<ID> — 임베드는 autoplay/rel=0 로 관련영상 노출을 줄인다
   const yt = url.match(/[?&]v=([\w-]+)/);
@@ -241,7 +249,7 @@ function LabVideoCard({
   onPlay: (a: ActiveVideo) => void;
 }) {
   const ko = locale === 'ko';
-  const parsed = parseVideo(lab.video);
+  const parsed = parseVideo(lab.video, lab.videoPoster);
   // 썸네일 로드 실패 시 lab.image로, 그것도 없으면 그라디언트 배경으로 폴백
   const [thumbFailed, setThumbFailed] = useState(false);
 
@@ -249,8 +257,16 @@ function LabVideoCard({
   const name = ko ? lab.nameKo || lab.nameEn : lab.nameEn || lab.nameKo;
   const professor = ko ? `${lab.professorKo} 교수` : lab.professorEn;
 
-  const sourceLabel = parsed?.source === 'youtube' ? 'YouTube' : 'Drive';
-  const thumbSrc = parsed && !thumbFailed ? parsed.thumbnail : lab.image;
+  const sourceLabel =
+    parsed?.source === 'youtube'
+      ? 'YouTube'
+      : parsed?.source === 'file'
+        ? ko
+          ? '영상'
+          : 'Video'
+        : 'Drive';
+  // 업로드 영상은 포스터가 없을 수 있다 — 그땐 대표 이미지가 파사드를 맡는다
+  const thumbSrc = parsed?.thumbnail && !thumbFailed ? parsed.thumbnail : lab.image;
 
   return (
     // 진입 애니메이션(fill: forwards)이 transform을 점유해 hover 리프트를 막지 않도록
@@ -410,13 +426,29 @@ function VideoLightbox({
         className="w-full max-w-[min(76rem,calc((100svh_-_9rem)*16/9))]"
         onClick={(e) => e.stopPropagation()}
       >
-        <iframe
-          title={name}
-          src={parsed.embed}
-          allow="autoplay; fullscreen"
-          allowFullScreen
-          className="aspect-video w-full bg-black shadow-2xl"
-        />
+        {parsed.source === 'file' ? (
+          // 업로드 파일은 임베드가 아니라 브라우저 기본 플레이어로 바로 재생한다.
+          // preload="metadata" 라 라이트박스를 열기 전까지는 본문을 내려받지 않는다.
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video
+            src={parsed.embed}
+            poster={parsed.thumbnail}
+            controls
+            autoPlay
+            playsInline
+            preload="metadata"
+            aria-label={name}
+            className="aspect-video w-full bg-black shadow-2xl"
+          />
+        ) : (
+          <iframe
+            title={name}
+            src={parsed.embed}
+            allow="autoplay; fullscreen"
+            allowFullScreen
+            className="aspect-video w-full bg-black shadow-2xl"
+          />
+        )}
         {/* 한 줄 캡션 — 연구실명 · 교수, 우측에 홈페이지 링크 */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <p className="text-sm text-white/85 sm:text-base">

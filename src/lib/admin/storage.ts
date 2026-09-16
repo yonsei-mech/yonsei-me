@@ -5,6 +5,8 @@
 //  차단이라 탈락, R2 는 무료 10GB + 전송 영구 무료.)
 //
 // 경로 선택:
+//    본문은 **원시 바이너리 PUT**이다: 예전의 base64+JSON 은 200MB 영상에서
+//    btoa 로 메모리를 3배 쓰고 진행률도 못 보여 줬다.
 //  - dev(NODE_ENV≠production): /api/dev-content 로 public/uploads/ 에 기록 —
 //    실제 스토리지 없이 동일한 흐름을 검증한다(.gitignore, 커밋되지 않음).
 //  - 작은 파일(≤4MB, 대부분의 이미지·문서): 같은 출처 /api/upload-file 서버 경유 —
@@ -14,7 +16,7 @@
 //    받아 R2 로 직접 업로드. ⚠ 교차 출처라 일부 사내망에서 막힐 수 있다(에러에 안내).
 
 import type { RepoConfig } from './content-api';
-import { MAX_UPLOAD_BYTES, SERVER_RELAY_MAX } from './upload-validate';
+import { MAX_UPLOAD_BYTES, maxUploadBytesFor, SERVER_RELAY_MAX } from './upload-validate';
 
 export { MAX_UPLOAD_BYTES };
 
@@ -24,16 +26,6 @@ export { MAX_UPLOAD_BYTES };
  *  서버 라우트들의 devBypass 와 같은 기준(NODE_ENV, 빌드 시점 인라인)을 쓴다. */
 function isLocalBackend(): boolean {
   return process.env.NODE_ENV !== 'production';
-}
-
-/** 원시 바이트를 base64 로 (dev 로컬 백엔드가 JSON 본문에 바이너리를 실을 때) */
-function base64FromBytes(bytes: Uint8Array): string {
-  let binary = '';
-  const chunk = 0x8000; // 큰 파일에서 스택 초과 방지용 청크
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
 }
 
 /** 업로드 진행 단계 — 폼이 사용자에게 "지금 무엇을 하는 중인지" 표시하는 데 쓴다. */
@@ -53,8 +45,10 @@ export class UploadCancelledError extends Error {
   }
 }
 
-/** 업로드 총 제한 시간 (서버 경유·직접 공통) */
-const UPLOAD_TIMEOUT_MS = 60_000;
+/** 전송 정체 감시 시간 — **총 제한 시간이 아니다.**
+ *  이 시간 동안 진행률 이벤트가 한 번도 없으면 끊는다. 예전의 절대 60초 타임아웃은
+ *  200MB 영상처럼 정상적으로 오래 걸리는 업로드를 한창 진행 중에 잘라 버렸다. */
+const UPLOAD_STALL_MS = 60_000;
 
 /** 압축 대상 이미지 타입 (gif 는 애니메이션 보존을 위해 제외) */
 const COMPRESSIBLE = ['image/jpeg', 'image/png', 'image/webp'];
@@ -104,20 +98,41 @@ async function compressImage(file: File, maxDim: number = MAX_DIMENSION): Promis
 /**
  * XHR 전송 공통기 — fetch 로는 업로드 진행률을 얻을 수 없어 XHR 을 쓴다.
  * 본문을 통째로(Content-Length) 보내는 버퍼 전송이라 프록시·HTTP/1.1 도 통과한다.
- * 취소(signal)·타임아웃·HTTP 오류를 각각 구분해 거부한다.
+ * 취소(signal)·정체(스톨)·HTTP 오류를 각각 구분해 거부한다.
+ *
+ * 시간 제한은 **진행 이벤트 기준의 감시견**이다(xhr.timeout=0 으로 절대 제한은 끈다):
+ * 진행률이 올라오는 동안은 얼마가 걸려도 두고, UPLOAD_STALL_MS 동안 한 톨도 못
+ * 나아가면 그때 끊는다. 200MB 영상을 60초 절대 제한으로 자르지 않기 위한 것이다.
  */
 function xhrSend(opts: {
   method: 'POST' | 'PUT';
   url: string;
-  file: File;
+  file: Blob;
   headers: Record<string, string>;
   onProgress?: UploadProgressHandler;
   signal?: AbortSignal;
 }): Promise<string> {
+    // 감시견이 끊은 abort 와 사용자가 누른 취소를 구분하는 표식
+    let stalled = false;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearStall = () => {
+      if (stallTimer !== null) clearTimeout(stallTimer);
+      stallTimer = null;
+    };
+    const armStall = () => {
+      clearStall();
+      stallTimer = setTimeout(() => {
+        stalled = true;
+        xhr.abort();
+      }, UPLOAD_STALL_MS);
+    };
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const onExternalAbort = () => xhr.abort();
-    const cleanup = () => opts.signal?.removeEventListener('abort', onExternalAbort);
+    const cleanup = () => {
+      clearStall();
+      opts.signal?.removeEventListener('abort', onExternalAbort);
+    };
 
     if (opts.signal?.aborted) {
       reject(new UploadCancelledError());
@@ -125,8 +140,9 @@ function xhrSend(opts: {
     }
 
     xhr.open(opts.method, opts.url, true);
-    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    xhr.timeout = 0; // 절대 제한 없음 — 위 감시견이 대신한다
     for (const [k, v] of Object.entries(opts.headers)) xhr.setRequestHeader(k, v);
+      armStall(); // 조금이라도 나아갔으면 감시견을 처음부터 다시 센다
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -153,15 +169,21 @@ function xhrSend(opts: {
     xhr.onerror = () => {
       cleanup();
       reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
+      const byWatchdog = stalled;
     };
-    xhr.ontimeout = () => {
-      cleanup();
-      reject(new Error(`${Math.round(UPLOAD_TIMEOUT_MS / 1000)}초 안에 업로드를 끝내지 못했습니다.`));
-    };
+      if (byWatchdog) {
+        reject(
+          new Error(
+            `${Math.round(UPLOAD_STALL_MS / 1000)}초 동안 전송 진행이 없어 업로드를 중단했습니다.`,
+          ),
+        );
+        return;
+      }
     xhr.onabort = () => {
       cleanup();
       reject(opts.signal?.aborted ? new UploadCancelledError() : new Error('업로드가 중단되었습니다.'));
     };
+    armStall(); // 첫 바이트가 나가기 전에 굳는 경우도 감시 대상
 
     opts.signal?.addEventListener('abort', onExternalAbort, { once: true });
     xhr.send(opts.file);
@@ -184,8 +206,10 @@ export async function uploadAttachment(
   // 기본 1600 으로 눌리면 서빙 상한(2048w)보다 작아져 눈에 띄게 물러진다.
   opts?: { maxDim?: number },
 ): Promise<{ url: string }> {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error('20MB 이하 파일만 올릴 수 있습니다.');
+  // 상한은 종류별로 갈린다(영상 200MB · 그 외 20MB) — 서버(upload-url)와 같은 규칙
+  const limit = maxUploadBytesFor(file.type, file.name);
+  if (file.size > limit) {
+    throw new Error(`${Math.round(limit / 1048576)}MB 이하 파일만 올릴 수 있습니다.`);
   }
 
   onProgress?.({ phase: 'preparing' });
@@ -195,25 +219,29 @@ export async function uploadAttachment(
   const pathname = `uploads/${boardKey}/${name}`;
   const contentType = prepared.type || 'application/octet-stream';
 
-  // dev 로컬 백엔드: 스토리지 키 없이 public/uploads/ 에 기록 → dev 서버가 즉시 서빙
+  // dev 로컬 백엔드: 스토리지 키 없이 public/uploads/ 에 기록 → dev 서버가 즉시 서빙.
+  // 본문은 원시 바이너리 PUT — base64+JSON 이면 200MB 영상이 문자열로 1.33배 부풀고
+  // btoa 동안 탭이 멎으며 진행률도 못 준다. 프로덕션 경로와 같은 xhrSend 를 써서
+  // dev 에서도 실제 퍼센트·취소가 그대로 동작한다.
   if (isLocalBackend()) {
     onProgress?.({ phase: 'uploading', percent: 0 });
-    const base64 = base64FromBytes(new Uint8Array(await prepared.arrayBuffer()));
-    let res: Response;
     try {
-      res = await fetch('/api/dev-content', {
+      await xhrSend({
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: `public/${pathname}`, content: base64, encoding: 'base64' }),
+        url: '/api/dev-content',
+        file: prepared,
+        headers: {
+          'content-type': 'application/octet-stream',
+          // HTTP 헤더는 Latin-1 만 허용 — 한글 파일명이 섞이므로 퍼센트 인코딩
+          'x-upload-pathname': encodeURIComponent(`public/${pathname}`),
+        },
+        onProgress,
         signal,
       });
     } catch (err) {
-      if (signal?.aborted) throw new UploadCancelledError();
-      throw err;
-    }
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(body?.error ?? '로컬 업로드에 실패했습니다.');
+      if (err instanceof UploadCancelledError) throw err;
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new Error(`로컬 업로드에 실패했습니다 — ${reason}`);
     }
     onProgress?.({ phase: 'done', percent: 100 });
     return { url: `/${pathname}` };

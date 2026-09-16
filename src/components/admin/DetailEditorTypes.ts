@@ -8,6 +8,7 @@
 // 하고, 도메인 레코드 직렬화는 resources.ts 의 fromForm 한 곳이 책임진다.
 
 import type { FieldDef, FormRecord } from '@/lib/admin/resources';
+import type { UploadProgressHandler } from '@/lib/admin/storage';
 import type { LinkedSummaryField } from './RecordForm';
 
 export interface DetailEditorProps {
@@ -26,4 +27,10 @@ export interface DetailEditorProps {
   onDirty?: () => void;
   /** 이미지 업로드 — 저장할 공개 URL 을 돌려준다 (RecordForm 과 같은 통로) */
   onUploadImage?: (file: File, opts?: { maxDim?: number; folder?: string }) => Promise<string>;
+  /** 영상 등 대용량 파일 통로 — 진행률·취소를 지원하고 이미지 압축을 거치지 않는다.
+   *  (onUploadImage 는 압축기를 통과시키고 진행률·취소가 없어 수십 MB 파일에 부적합) */
+  onUploadFile?: (
+    file: File,
+    opts: { folder: string; onProgress?: UploadProgressHandler; signal?: AbortSignal },
+  ) => Promise<string>;
 }

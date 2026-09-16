@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { cellText, type FieldDef } from '@/lib/admin/resources';
 import { formInlineValue } from '@/lib/admin/inline';
+import { isVideoFileUrl } from '@/lib/video-url';
 import {
   CardFootBar,
   DirtyBar,
@@ -152,7 +153,8 @@ export function LabCardsEditor({
                   )}
                   {video && (
                     <span className="absolute right-2 top-2 bg-yonsei-navy px-1.5 py-0.5 text-[10px] font-extrabold text-white">
-                      소개 영상 있음
+                      {/* 링크(YouTube·Drive)인지 직접 올린 파일인지 카드에서 구분된다 */}
+                      {isVideoFileUrl(video) ? '소개 영상 · 파일' : '소개 영상 · 링크'}
                     </span>
                   )}
                 </div>

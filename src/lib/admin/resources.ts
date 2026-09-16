@@ -13,6 +13,7 @@ import {
   popupDesktopWidth,
   popupImageAspect,
 } from '@/lib/popup-positions';
+import { isVideoFileUrl } from '@/lib/video-url';
 
 // ---- 폼 값 모델 ----
 // RecordForm 이 다루는 평면 값: 필드 kind 에 따라 문자열 / 한·영 쌍 / 문자열 배열.
@@ -777,7 +778,11 @@ const LABS_FIELDS: FieldDef[] = [
   { kind: 'image', key: 'image', label: '대표 이미지 경로', emptyAs: 'omit', placeholder: '/img/labs/lab-name.jpg', hint: '비우면 기본 이미지를 순환 사용합니다' },
   {
     kind: 'text', key: 'video', label: '소개 영상 URL', emptyAs: 'omit',
-    hint: 'YouTube watch 또는 Google Drive file 링크. 대학원 > 연구실 소개 영상 갤러리에 노출됩니다',
+    hint: "YouTube watch·Google Drive 링크를 넣거나 '자세히'에서 영상 파일(MP4)을 올립니다. 대학원 > 연구실 소개 영상 갤러리에 노출됩니다",
+  },
+  {
+    kind: 'text', key: 'videoPoster', label: '소개 영상 포스터', emptyAs: 'omit',
+    hint: '영상 파일을 올리면 자동으로 채워지는 정지 화면(썸네일) URL 입니다',
   },
   { kind: 'select', key: 'field', label: '연구 분야', required: true, width: 'third', options: FIELD_OPTIONS },
   {
@@ -794,7 +799,7 @@ const labs: ResourceDef = {
   key: 'labs',
   label: '연구실 · 소개 영상',
   description:
-    '연구 메뉴의 연구실 목록과 대학원 > 연구실 탭의 소개 영상 갤러리에 반영됩니다. 소개 영상 URL을 채우면 영상 갤러리에 노출됩니다. "학부 인턴 모집 중"을 체크하면 연구실 목록에 배지가 표시됩니다. 연구실 목록의 "AI 연구요약" 패널 문안도 각 연구실의 "자세히" 폼 아래쪽에서 함께 편집합니다.',
+    '연구 메뉴의 연구실 목록과 대학원 > 연구실 탭의 소개 영상 갤러리에 반영됩니다. 소개 영상은 YouTube·Drive 링크를 넣거나 "자세히"에서 영상 파일(MP4)을 직접 올리면 영상 갤러리에 노출됩니다. "학부 인턴 모집 중"을 체크하면 연구실 목록에 배지가 표시됩니다. 연구실 목록의 "AI 연구요약" 패널 문안도 각 연구실의 "자세히" 폼 아래쪽에서 함께 편집합니다.',
   file: MANAGED_FILES.labs,
   format: 'array',
   listColumns: [
@@ -837,6 +842,9 @@ const labs: ResourceDef = {
     else delete out.internCount;
     // 모집 중이 아니면 플래그 자체를 생략(JSON 최소화 — 기본값 false)
     if (out.internRecruiting !== true) delete out.internRecruiting;
+    // 포스터는 파일 영상에만 의미가 있다 — 영상을 YouTube·Drive 링크로 바꾸면
+    // 옛 포스터 URL 이 고아로 남아 갤러리가 엉뚱한 썸네일을 깐다.
+    if (!isVideoFileUrl(String(out.video ?? ''))) delete out.videoPoster;
     return out;
   },
   summarize: (f) => cellText(f, 'nameKo'),

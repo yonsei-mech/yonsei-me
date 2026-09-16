@@ -7,6 +7,10 @@
 // 안전장치:
 //  - 프로덕션(NODE_ENV==='production')에서는 항상 404 → 배포본에 절대 노출 안 됨.
 //  - content/ 와 public/img/ 하위 경로만 허용하고 상위 경로(..)·절대 경로를 차단한다.
+//
+// PUT 본문은 두 갈래다: 텍스트 콘텐츠는 JSON({path, content, encoding}), **업로드
+// 파일은 원시 바이너리**(경로는 x-upload-pathname 헤더). 200MB 영상을 base64+JSON
+// 으로 받으면 브라우저·서버 양쪽에서 문자열로 부풀고 진행률도 못 준다.
 
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
@@ -71,6 +75,34 @@ export async function GET(req: Request): Promise<Response> {
 export async function PUT(req: Request): Promise<Response> {
   const blocked = blockInProd();
   if (blocked) return blocked;
+
+  // ── 원시 바이너리 업로드(이미지·영상 등) ──
+  // JSON 이 아니면 업로드로 본다. 경로는 헤더로 오며, 텍스트 콘텐츠를 바이너리로
+  // 덮어쓰지 못하도록 public/uploads/ 하위로만 한정한다(content/ 는 JSON 경로 전용).
+  const reqType = (req.headers.get('content-type') ?? '').toLowerCase();
+  if (!reqType.includes('application/json')) {
+    let rel: string;
+    try {
+      rel = decodeURIComponent(req.headers.get('x-upload-pathname') ?? '');
+    } catch {
+      return Response.json({ error: '업로드 경로를 해석할 수 없습니다.' }, { status: 400 });
+    }
+    const uploadAbs = safeAbsPath(rel);
+    if (!uploadAbs || !rel.replace(/\\/g, '/').startsWith('public/uploads/')) {
+      return Response.json({ error: '허용되지 않은 업로드 경로입니다.' }, { status: 400 });
+    }
+    const buf = Buffer.from(await req.arrayBuffer());
+    if (buf.length === 0) {
+      return Response.json({ error: '빈 파일은 올릴 수 없습니다.' }, { status: 400 });
+    }
+    try {
+      await mkdir(dirname(uploadAbs), { recursive: true });
+      await writeFile(uploadAbs, buf);
+      return Response.json({ path: rel });
+    } catch {
+      return Response.json({ error: '파일 쓰기에 실패했습니다.' }, { status: 500 });
+    }
+  }
 
   let body: { path?: string; content?: string; encoding?: 'base64'; replaceSiblings?: boolean };
   try {

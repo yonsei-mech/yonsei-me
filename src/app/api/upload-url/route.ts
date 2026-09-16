@@ -11,7 +11,7 @@
 
 import { auth } from '@/auth';
 import { r2PresignPut, r2PublicUrl, withRandomSuffix } from '@/lib/admin/r2';
-import { MAX_UPLOAD_BYTES, validateUpload } from '@/lib/admin/upload-validate';
+import { maxUploadBytesFor, validateUpload } from '@/lib/admin/upload-validate';
 
 export const runtime = 'nodejs';
 
@@ -37,8 +37,14 @@ export async function POST(request: Request): Promise<Response> {
     if (!check.ok) {
       return Response.json({ error: check.error }, { status: check.status });
     }
-    if (!Number.isFinite(size) || size <= 0 || size > MAX_UPLOAD_BYTES) {
-      return Response.json({ error: '20MB 이하 파일만 올릴 수 있습니다.' }, { status: 413 });
+    // 용량 상한은 파일 종류로 갈린다 — 영상 200MB, 그 외 20MB
+    // (검증이 확정한 contentType 을 쓴다: 브라우저가 빈 타입을 보내도 확장자로 구제된다)
+    const limit = maxUploadBytesFor(check.contentType, pathname);
+    if (!Number.isFinite(size) || size <= 0 || size > limit) {
+      return Response.json(
+        { error: '영상은 200MB, 그 외 파일은 20MB 이하만 올릴 수 있습니다.' },
+        { status: 413 },
+      );
     }
 
     const key = withRandomSuffix(pathname);

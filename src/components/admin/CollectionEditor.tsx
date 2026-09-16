@@ -171,6 +171,23 @@ export function CollectionEditor({ config, resource, onDirtyChange }: Props) {
     [config],
   );
 
+  /**
+   * 영상 등 대용량 파일 업로드 통로(자세히 편집기 전용).
+   * uploadImage 와 같은 uploadAttachment 를 쓰지만 압축 상한을 넘기지 않고
+   * (영상은 compressImage 가 건너뛴다) 진행률·취소 신호를 그대로 전달한다 —
+   * 200MB 영상은 몇 분씩 걸려 "지금 어디쯤인지"와 "중단" 없이는 쓸 수 없다.
+   */
+  const uploadFile = useCallback(
+    async (
+      file: File,
+      opts: { folder: string; onProgress?: UploadProgressHandler; signal?: AbortSignal },
+    ): Promise<string> => {
+      const { url } = await uploadAttachment(config, opts.folder, file, opts.onProgress, opts.signal);
+      return url;
+    },
+    [config],
+  );
+
   // 원본 배열과 sha 를 그대로 보관 (표시용 FormRecord 는 파생)
   const [raw, setRaw] = useState<RawItem[]>([]);
   const [sha, setSha] = useState('');
@@ -1001,6 +1018,7 @@ export function CollectionEditor({ config, resource, onDirtyChange }: Props) {
       busy: saving,
       onSubmit: handleSubmit,
       onUploadImage: uploadImage,
+      onUploadFile: uploadFile,
       onDirty: () => onDirtyChange?.(true),
       onCancel: () => {
         setEditing(null);
