@@ -9,7 +9,7 @@
 // 사이트 헤더·히어로·푸터는 그대로 둔다 — 콘솔은 별도 앱이 아니라 관리자용
 // 세부 페이지라는 원칙은 여기서도 유지된다.
 //
-// 게시판 종류에 따라 추가 필드(세미나 주최, 행사 기간, 인스타그램 URL,
+// 게시판 종류에 따라 추가 필드(세미나 주최, 행사 기간,
 // 뉴스 분류/요약/대표 이미지)를 조건부로 노출한다 — 판정은 전부 BoardMeta 플래그다.
 // (한국어 UI 문자열은 내부 운영 도구라 컴포넌트에 직접 둔다.)
 
@@ -494,21 +494,6 @@ export function PostForm({
       setError('종료일은 시작일보다 빠를 수 없습니다.');
       return;
     }
-    if (meta.hasLink) {
-      const u = (rec.linkUrl ?? '').trim();
-      if (u === '') {
-        setError('게시물 링크(URL)를 입력하세요.');
-        return;
-      }
-      if (!/^https?:\/\//i.test(u)) {
-        setError('게시물 링크는 http(s):// 로 시작해야 합니다.');
-        return;
-      }
-      if ((rec.image ?? '').trim() === '') {
-        setError('대표 이미지를 업로드하세요 — 홈 그리드의 타일 사진으로 쓰입니다.');
-        return;
-      }
-    }
     // 넣으려고 올려 놓고 잊은 사진은 저장 전에 한 번 되묻는다 — 막지는 않는다
     // (첨부로만 남기려는 경우도 있어서). 확인하면 confirmUnused 경유로 다시 들어온다.
     const unused = unusedImages();
@@ -633,7 +618,7 @@ export function PostForm({
         {/* ── 언어 탭 — 디자인 개편(2026-08-19, claude.ai/design 시안 '게시물 글쓰기
                (언어탭)'): ko/en 본문을 세로로 쌓지 않고 탭으로 전환한다. 두 에디터는
                항상 마운트(숨김만) — 인스턴스·undo 히스토리·editorsRef 계약이 유지되고,
-               '본문 삽입'은 열려 있는 탭의 에디터로 들어간다. noBody(일정·인스타그램)는
+               '본문 삽입'은 열려 있는 탭의 에디터로 들어간다. noBody(일정)는
                본문이 없어 탭도 없다 — 영문 제목은 아래 공통 메타에 남는다. */}
         {!meta.noBody && !preview && (
           <div role="tablist" aria-label="언어" className="inline-flex border border-surface-border bg-surface">
@@ -889,8 +874,8 @@ export function PostForm({
             </MetaField>
           )}
 
-          {/* 목록 고정 — 글 목록을 가진 게시판에만. 일정·인스타그램(noBody)은 목록이
-              달력·그리드라 "맨 위"라는 개념이 성립하지 않는다. */}
+          {/* 목록 고정 — 글 목록을 가진 게시판에만. 일정(noBody)은 목록이
+              달력이라 "맨 위"라는 개념이 성립하지 않는다. */}
           {!meta.noBody && (
             <MetaField label="목록 고정" full>
               <label className="flex items-start gap-2.5 text-[13px] text-content">
@@ -1032,25 +1017,6 @@ export function PostForm({
                   </option>
                 ))}
               </select>
-            </MetaField>
-          )}
-
-          {/* 인스타그램 — 홈 그리드 타일이 이동할 실제 게시물 URL */}
-          {meta.hasLink && (
-            <MetaField
-              label="게시물 URL"
-              htmlFor="pf-link"
-              full
-              hint="홈 인스타그램 그리드의 타일이 됩니다 — 제목은 캡션으로, 아래 ‘대표 이미지’는 타일 사진으로, 클릭 시 이 링크(새 창)로 이동합니다."
-            >
-              <input
-                id="pf-link"
-                type="url"
-                value={rec.linkUrl ?? ''}
-                onChange={(e) => set('linkUrl', e.target.value)}
-                placeholder="https://www.instagram.com/p/…"
-                className={fieldClass}
-              />
             </MetaField>
           )}
 
@@ -1207,7 +1173,7 @@ export function PostForm({
                       {/* '사진 첨부'는 모든 게시판에 둔다. 툴바 사진 버튼과 하는 일이 다르다 —
                           툴바는 업로드하고 커서 위치에 바로 넣고(uploadImageIntoBody), 이 버튼은
                           카드 그리드에만 담아 두었다가 '본문 삽입'으로 원하는 때에 넣는다.
-                          noBody(일정·인스타그램)는 넣을 에디터가 없어 이 버튼이 유일한 통로다. */}
+                          noBody(일정)는 넣을 에디터가 없어 이 버튼이 유일한 통로다. */}
                       {onUploadFile && (
                         <button
                           type="button"
@@ -1288,7 +1254,7 @@ export function PostForm({
                   </div>
                 </div>
 
-                {/* ── 파일(문서) — noBody(인스타·일정)는 첨부 개념이 없어 사진만 받는다 ── */}
+                {/* ── 파일(문서) — noBody(일정)는 첨부 개념이 없어 사진만 받는다 ── */}
                 {!meta.noBody && (
                   <>
                     <div className="my-3.5 h-px bg-surface-border" aria-hidden="true" />

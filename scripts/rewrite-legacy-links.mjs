@@ -93,7 +93,7 @@ function extractMatches(text) {
 //    아래 두 표를 손으로 복제했다. board-links.ts / src/lib/posts.ts 가 바뀌면 여기도 고칠 것.
 //
 // (1) DB posts.board → BoardPost.boardKey  — 출처: src/lib/posts.ts 의 BOARD_POST_META
-//     (통합 게시판 6종. news/alumniEvents/calendar/instagram 은 이 표에 없고
+//     (통합 게시판 6종. news/alumniEvents/calendar 는 이 표에 없고
 //      자기 전용 라우트를 쓴다 — 아래 (2) 에서 따로 처리한다.)
 const BOARD_KEY_BY_DB_BOARD = {
   noticesUndergrad: 'notices',
@@ -118,7 +118,7 @@ function postHrefNoLocale(row) {
   if (key) return `/news/${key}/${row.id}`;
   if (row.board === 'news') return `/news/press/${row.slug ?? String(row.id)}`;
   if (row.board === 'alumniEvents') return `/alumni/network/${row.id}`;
-  return null; // calendar·instagram 등 상세 라우트가 없는 게시판
+  return null; // calendar 등 상세 라우트가 없는 게시판
 }
 
 /** 링크가 있던 컬럼명 → 로케일 접두사 */

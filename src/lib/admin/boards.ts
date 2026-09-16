@@ -35,8 +35,7 @@ export type BoardKey =
   | 'thesis'
   | 'career'
   | 'resources'
-  | 'alumniEvents'
-  | 'instagram';
+  | 'alumniEvents';
 
 /** 편집 폼이 다루는 통합 레코드. 게시판에 따라 일부 필드만 사용된다. */
 export interface EditRecord {
@@ -57,11 +56,11 @@ export interface EditRecord {
   dateLabelEn?: string;
   // 기간 게시판(행사·세미나·동문행사) 전용 — 종료일(YYYY-MM-DD). 빈 문자열이면 하루 일정
   endDate?: string;
-  // 인스타그램 전용 — 실제 게시물 URL(타일 클릭 시 새 창 이동)
+  // 캘린더 전용 — 선택 링크(일정 항목이 가리킬 URL)
   linkUrl?: string;
   // 동문 소식·네트워크 전용 — 특정 날짜가 정해진 행사인지(체크 시 캘린더 '동문'에 표시)
   isEvent?: boolean;
-  // 목록 최상단 고정 — 글 목록이 아닌 게시판(noBody: 일정·인스타그램)은 대상이 아니다
+  // 목록 최상단 고정 — 글 목록이 아닌 게시판(noBody: 일정)은 대상이 아니다
   pinned?: boolean;
   // 뉴스 전용 + 일정(캘린더) 전용.
   // ⚠️ 타입을 string 으로 넓힌 이유: 뉴스는 general|achievement 를, 캘린더는
@@ -96,9 +95,7 @@ export interface BoardMeta {
   hasDateLabel: boolean;
   /** true면 종료일(end_date) 피커를 노출한다(비우면 하루). 기간 라벨은 저장 시 서버가 자동 생성 */
   hasDateRange?: boolean;
-  /** true면 게시물 링크(URL) 필드를 노출한다 — 인스타그램(타일 클릭 목적지) */
-  hasLink?: boolean;
-  /** true면 본문·첨부·이미지 풀 섹션을 숨긴다 — 링크형 게시판(인스타그램)은 캡션·이미지·URL만 */
+  /** true면 본문·첨부·이미지 풀 섹션을 숨긴다 — 일정(캘린더)은 제목·날짜·선택 링크만 */
   noBody?: boolean;
   isNews: boolean;
   /** true면 '날짜' 필드를 "행사 일정"으로 안내한다(그 날짜로 금주 캘린더에 표시됨) */
@@ -147,11 +144,7 @@ export const BOARDS: BoardMeta[] = [
   // 일정(캘린더)은 사이드바 최상단 그룹이라 여기서도 맨 앞에 둔다 — 목록 어순이
   // 화면 어순과 어긋나면 "이동할 게시판" 셀렉트 같은 곳에서 순서가 따로 논다.
   //
-  // ⚠️ hasLink 를 켜지 않는다. 인스타그램의 hasLink 는 PostForm.handleSubmit 에서
-  // "URL 필수 + 대표 이미지 필수" 검증을 유발한다(그 게시판은 링크가 목적지 자체다).
-  // 캘린더의 링크는 선택이고 전용 편집 패널에서 다루므로, 그 검증을 물려받으면
-  // 링크 없는 학사일정을 저장할 수 없게 된다. 패널이 EditRecord.linkUrl 을 직접
-  // 채우고 toPayload 가 그대로 보낸다.
+  // 링크는 선택이며 전용 편집 패널이 EditRecord.linkUrl 을 직접 채운다.
   { key: 'calendar', label: '일정 (캘린더)', file: 'board.json', idPrefix: 'cal-', hasHost: false, hasDateLabel: false, hasDateRange: true, noBody: true, isNews: false, dateIsEvent: true, calendarGrid: true, categories: CALENDAR_CATEGORIES },
   { key: 'noticesUndergrad', label: '학부 공지', file: 'board.json', idPrefix: 'nu-', hasHost: false, hasDateLabel: false, isNews: false },
   { key: 'noticesGraduate', label: '대학원 공지', file: 'board.json', idPrefix: 'ng-', hasHost: false, hasDateLabel: false, isNews: false },
@@ -166,8 +159,6 @@ export const BOARDS: BoardMeta[] = [
   { key: 'resources', label: '자료실', file: 'board.json', idPrefix: 'res-', hasHost: false, hasDateLabel: false, isNews: false, categories: RESOURCE_CATEGORIES, hasExcerpt: true },
   { key: 'career', label: '취업 정보', file: 'board.json', idPrefix: 'cr-', hasHost: false, hasDateLabel: false, isNews: false },
   { key: 'alumniEvents', label: '동문 소식·네트워크', file: 'board.json', idPrefix: 'ae-', hasHost: true, hasDateLabel: false, hasDateRange: true, isNews: false, hasEventFlag: true },
-  // 인스타그램 — 홈 하단 그리드에 노출. 캡션(제목)·대표 이미지·게시물 URL만 받는 링크형 게시판.
-  { key: 'instagram', label: '인스타그램', file: 'board.json', idPrefix: 'ig-', hasHost: false, hasDateLabel: false, isNews: false, hasLink: true, noBody: true },
 ];
 
 export function getBoard(key: BoardKey): BoardMeta {
@@ -256,14 +247,14 @@ export function toEditRecord(meta: BoardMeta, raw: unknown): EditRecord {
     // 종료일 — git JSON 구 데이터엔 없어 항상 ''(하루)로 시작한다
     base.endDate = String(r.endDate ?? '');
   }
-  if (meta.hasLink) {
+  if (meta.calendarGrid) {
     base.linkUrl = String(r.linkUrl ?? '');
   }
   if (meta.hasEventFlag) {
     base.isEvent = r.isEvent === true;
   }
   if (!meta.noBody) {
-    // 글 목록이 있는 게시판만 고정을 다룬다(일정·인스타그램은 목록 개념 자체가 다르다)
+    // 글 목록이 있는 게시판만 고정을 다룬다(일정은 목록 개념 자체가 다르다)
     base.pinned = r.pinned === true;
   }
   if (meta.isNews) {

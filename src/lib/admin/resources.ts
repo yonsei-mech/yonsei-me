@@ -1125,7 +1125,6 @@ export const MENU_GROUPS: MenuGroup[] = [
       { type: 'board', boardKey: 'thesis' },
       { type: 'board', boardKey: 'resources' },
       { type: 'board', boardKey: 'career' },
-      { type: 'board', boardKey: 'instagram' },
     ],
   },
   {

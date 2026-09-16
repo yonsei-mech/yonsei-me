@@ -18,7 +18,6 @@ import {
   fetchNews,
   fetchNewsBySlug,
   fetchBoardData,
-  fetchInstagramPosts,
   fetchCalendarPosts,
 } from '@/lib/posts';
 import instagramData from '@content/instagram.json';
@@ -96,13 +95,6 @@ export default async function HomePage({ params }: { params: { locale: string } 
   const board = await fetchBoardData();
   // 캘린더 전용 일정 — 아래 calRaw 는 배열 리터럴이라 spread 안에서 await 할 수 없다.
   const calendarPosts = await fetchCalendarPosts();
-  // 인스타그램 그리드 — CMS '인스타그램' 게시판(최신 8개). 캡션은 로케일 해석(빈 en 은 ko 폴백).
-  const instagramItems = (await fetchInstagramPosts()).slice(0, 8).map((p) => ({
-    href: p.url,
-    image: p.image,
-    caption: pick(p.caption, locale).trim() || p.caption.ko,
-  }));
-
   // 학과 목표(content/editorial-tabs.json 의 undergraduate-goals.items 재사용 —
   // 학부 페이지와 단일 출처 공유). 대형 타이포는 영문 제목, 부제는 ko 로케일만.
   type RawGoal = { title: { ko: string; en: string }; body: { ko: string; en: string } };
@@ -478,18 +470,15 @@ export default async function HomePage({ params }: { params: { locale: string } 
           <LabsSection labs={labs} locale={locale} />
         </div>
 
-        {/* 5. 인스타그램 (맨 아래) — 밴드 + 실제 게시물 그리드. 게시물은 CMS
-            '인스타그램' 게시판(Supabase)에서 즉시 반영, 대표 핸들·URL 과 보조 계정
-            (accounts)은 content/instagram.json 에서 관리. 게시물이 없으면 밴드만 렌더. */}
+        {/* 5. 인스타그램 (맨 아래) — 밴드만(게시물 그리드는 폐지). 대표 핸들·URL 과
+            보조 계정(accounts)은 content/instagram.json 에서 관리. */}
         <InstagramSection
           handle={instagramData.handle}
           url={instagramData.url}
           tagline={t('instagram.tagline')}
           followLabel={t('instagram.follow')}
           externalLabel={t('instagram.external')}
-          openLabel={t('instagram.open')}
           accounts={instagramData.accounts}
-          items={instagramItems}
         />
       </div>
     </>

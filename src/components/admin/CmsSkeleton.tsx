@@ -24,8 +24,7 @@ export type SkeletonShape =
   | 'timeline'   // 연월 타임라인 — 항목 5개
   | 'calendar'   // 월 그리드 — 요일 머리 7칸 + 날짜 칸 35개
   | 'expandRows' // 행 펼침 — 요약 행 8줄
-  | 'rows'       // 게시판 행 목록 — 8줄
-  | 'tiles';     // 게시판 타일 목록 — 8장
+  | 'rows';      // 게시판 행 목록 — 8줄
 
 /** 회색 블록 한 조각. 폭·높이·지연은 쓰는 쪽에서 준다. */
 function Bar({ className }: { className?: string }) {
@@ -65,8 +64,6 @@ function renderShape(shape: SkeletonShape): React.ReactElement {
       return <ExpandRowsSkeleton />;
     case 'rows':
       return <RowsSkeleton />;
-    case 'tiles':
-      return <TilesSkeleton />;
   }
 }
 
@@ -221,29 +218,6 @@ function RowsSkeleton() {
             <Bar className="h-[14px] w-[14px] shrink-0" />
             <Bar className={cn('h-[13px]', TITLE_W[i], DELAY[i % DELAY.length])} />
             <Bar className="ml-auto h-[11px] w-[72px] shrink-0" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** 게시판 타일 목록 — 제목 + 메타 두 줄짜리 낮은 카드 */
-function TilesSkeleton() {
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <Bar className="h-[34px] w-[250px] max-w-[60%]" />
-        <Bar className="h-[34px] w-[96px] shrink-0" />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {range(8).map((i) => (
-          <div
-            key={i}
-            className="flex h-[92px] flex-col justify-center gap-2.5 border border-surface-border bg-[#fcfdfe] px-4"
-          >
-            <Bar className={cn('h-[14px]', TITLE_W[i], DELAY[i % DELAY.length])} />
-            <Bar className={cn('h-[11px]', SUB_W[i])} />
           </div>
         ))}
       </div>

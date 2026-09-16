@@ -141,7 +141,7 @@ const DETAIL_COLUMNS = '*, attachments(*)';
 //    세미나 행에서 created_at 을 아예 빼서 보낸다), event_date 를 여전히 채우므로
 //    면제 조건 자체는 그대로 성립한다.
 //    바꿔 말해 예약 게시가 걸리는 곳은 event_date 를 쓰지 않는 게시판 —
-//    공지 4종·뉴스·동문 뉴스·학위논문·자료실·취업·인턴·인스타그램·비행사 동문글이다.
+//    공지 4종·뉴스·동문 뉴스·학위논문·자료실·취업·인턴·비행사 동문글이다.
 //
 // ⚠️ 의미 변화: 이 게이트가 붙기 전에는 "게시일을 미래 날짜로 적어 둔" 글도 즉시 보였다.
 //    이제 그런 글은 그 날짜 00:00(KST)까지 숨는다. 예약 기능의 정의상 올바른 방향이라
@@ -385,7 +385,7 @@ function toAlumniEvent(r: DbPost): AlumniEvent {
 // ── 통합 게시판 글(BoardPost) 라벨 — 단일 출처 ─────────────────────────
 // 목록(fetchAllBoardPosts)과 상세(fetchBoardPost)가 서로 다른 경로로 같은 글을 만들므로
 // boardKey·meta 표를 양쪽에 복사해 두면 언젠가 어긋난다. 여기 한 곳만 본다.
-// 표에 없는 게시판(news/alumniEvents/instagram/calendar)은 통합 목록의
+// 표에 없는 게시판(news/alumniEvents/calendar)은 통합 목록의
 // 대상이 아니다 — 자기 전용 라우트를 쓴다.
 const BOARD_POST_META: Record<string, { boardKey: BoardPost['boardKey']; meta?: Localized }> = {
   noticesUndergrad: { boardKey: 'notices', meta: { ko: '학부 공지', en: 'Undergraduate' } },
@@ -499,31 +499,6 @@ export async function fetchNewsSlugById(id: string): Promise<string | undefined>
   const r = await rowById(Number(id));
   if (!r || r.board !== 'news') return undefined;
   return r.slug ?? String(r.id);
-}
-
-/** 홈 인스타그램 그리드용 게시물 — CMS '인스타그램' 게시판(DB 전용, git 폴백은 빈 목록).
- *  제목 = 캡션, thumbnail = 타일 사진, link_url = 실제 게시물(새 창). URL 없는 행은 제외. */
-export interface InstagramPost {
-  id: string;
-  date: string;
-  caption: Localized;
-  image?: string;
-  url: string;
-}
-
-export async function fetchInstagramPosts(): Promise<InstagramPost[]> {
-  if (postsSource() === 'git') return [];
-  return byDateDesc(
-    (await rowsOf('instagram'))
-      .filter((r) => (r.link_url ?? '').trim() !== '')
-      .map((r) => ({
-        id: String(r.id),
-        date: dateOf(r),
-        caption: loc(r.title_ko, r.title_en),
-        ...(thumbOf(r) ? { image: thumbOf(r) } : {}),
-        url: (r.link_url as string).trim(),
-      })),
-  );
 }
 
 /** 홈 캘린더용 '캘린더 전용 일정' — CMS '일정 (캘린더)' 게시판(DB 전용, git 폴백은 빈 목록).

@@ -5,11 +5,10 @@
 // 흐름: 목록 로드(GET) → 편집 → 저장(POST/PUT)/삭제(DELETE)/일괄(POST bulk).
 // 쓰기 성공 시 서버가 revalidateTag('posts') 를 호출해 사이트가 재배포 없이 갱신된다.
 //
-// 4단계(리디자인): 한 가지 표로 14개 게시판을 다 보여주던 목록을 셋으로 나눴다.
+// 4단계(리디자인): 한 가지 표로 여러 게시판을 다 보여주던 목록을 둘로 나눴다.
 // 게시판마다 "무엇을 보고 고르는지"가 다르기 때문이다 —
 //   · 공지형(rows)  : 날짜와 제목만 보면 된다 → 촘촘한 행 목록
 //   · 뉴스형(cards) : 대표 이미지·요약이 판단 근거다 → 카드 그리드
-//   · 인스타(tiles) : 사진 자체가 콘텐츠다 → 정사각 타일
 // 판정은 BoardMeta 플래그로만 한다(게시판 키를 하드코딩하지 않는다).
 // 저장·삭제·이동의 API 흐름은 그대로 두고 배치와 스타일만 바꿨다.
 //
@@ -64,7 +63,7 @@ interface ListItem {
 }
 
 /** 목록 모양 — BoardMeta 플래그로만 결정한다 */
-type ListVariant = 'rows' | 'cards' | 'tiles' | 'calendar';
+type ListVariant = 'rows' | 'cards' | 'calendar';
 
 /**
  * 게시판이 사이트 어디에 노출되는지 한 줄 설명.
@@ -84,7 +83,6 @@ const BOARD_NOTES: Record<BoardKey, string> = {
   resources: '자료실 목록에 노출됩니다. 첨부파일이 본체인 게시판입니다.',
   career: '취업 정보 목록에 노출됩니다.',
   alumniEvents: '동문 소식·네트워크 목록에 노출되고, ‘행사’로 체크한 글만 캘린더에 표시됩니다.',
-  instagram: '홈 하단 인스타그램 그리드의 타일이 됩니다. 본문 없이 사진·캡션·게시물 URL만 씁니다.',
 };
 
 /** 뉴스형 카드의 분류 배지 문구. 구 분류(notice/seminar)로 남은 글은 아래 폴백으로 '일반'이 된다 */
@@ -127,7 +125,6 @@ function blankRecord(key: BoardKey, suggestedId: string): PostEditRecord {
     ...(meta.hasHost ? { hostKo: '', hostEn: '' } : {}),
     ...(meta.hasDateLabel ? { dateLabelKo: '', dateLabelEn: '' } : {}),
     ...(meta.hasDateRange ? { endDate: '' } : {}),
-    ...(meta.hasLink ? { linkUrl: '' } : {}),
     ...(meta.hasEventFlag ? { isEvent: false } : {}),
     // 고정 대상 게시판(글 목록이 있는 곳)만 필드를 갖는다 — 새 글은 언제나 고정 해제로 시작
     ...(meta.noBody ? {} : { pinned: false }),
@@ -176,9 +173,7 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     ? 'calendar'
     : meta.isNews
       ? 'cards'
-      : meta.hasLink && meta.noBody
-        ? 'tiles'
-        : 'rows';
+      : 'rows';
 
   const [records, setRecords] = useState<ApiRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -821,17 +816,6 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
               onDelete={handleDelete}
               onTogglePin={(id, pin) => void togglePin(id, pin)}
             />
-          ) : variant === 'tiles' ? (
-            <InstaTiles
-              items={listItems}
-              selected={selected}
-              busy={busy}
-              saving={saving}
-              pinnable={false}
-              onToggle={toggleSelect}
-              onEdit={startEdit}
-              onDelete={handleDelete}
-            />
           ) : (
             <NoticeRows
               items={listItems}
@@ -1127,90 +1111,6 @@ function NewsCards({
                   삭제
                 </button>
               </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** 인스타그램 — 사진 자체가 콘텐츠라 정사각 타일로 본다(홈 그리드와 같은 순서) */
-function InstaTiles({ items, selected, busy, saving, onToggle, onEdit, onDelete }: ListProps) {
-  return (
-    <div className="anim-panel mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-      {items.map((item, i) => {
-        const { rec } = item;
-        const image = (rec.image ?? '').trim();
-        return (
-          <div
-            key={item.id}
-            className={cn(
-              'border bg-surface transition-colors duration-200 ease-out-expo',
-              selected.has(item.id) ? 'border-yonsei-blue' : 'border-surface-border hover:border-yonsei-blue',
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => onEdit(item.id)}
-              disabled={saving}
-              className="relative block aspect-square w-full overflow-hidden bg-[#eef1f5]"
-              aria-label={`${item.titleKo} 편집`}
-            >
-              {image !== '' ? (
-                /* 정사각 타일 — 위 뉴스 카드와 같은 이유로 절대배치로 틀을 채운다. */
-                /* eslint-disable-next-line @next/next/no-img-element -- 관리자 목록 썸네일(임의 외부 URL) */
-                <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-xs text-[#a8b0ba]">
-                  게시물 이미지 없음
-                </span>
-              )}
-              {/* 순서 배지 — 홈 그리드에 놓이는 차례 */}
-              <span className="absolute left-2 top-2 bg-yonsei-navy/85 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
-                {i + 1}
-              </span>
-              {/* 예약 — 아직 홈 그리드에 나오지 않는 타일임을 그 자리에서 알린다 */}
-              {item.scheduled && (
-                <span className="absolute right-0 top-0 bg-yonsei-navy px-1.5 py-0.5 text-[10px] font-extrabold text-white">
-                  예약
-                </span>
-              )}
-            </button>
-
-            <div className="px-3 pb-2.5 pt-2.5">
-              <p className="truncate text-[13px] font-semibold text-content">{item.titleKo}</p>
-              <p className="mt-0.5 truncate text-[11px] text-content-faint">
-                {(rec.linkUrl ?? '').trim() || '게시물 URL 없음'}
-              </p>
-              <div className="mt-2 flex items-center justify-between gap-2 border-t border-[#f1f4f8] pt-2">
-                <input
-                  type="checkbox"
-                  checked={selected.has(item.id)}
-                  onChange={() => onToggle(item.id)}
-                  disabled={busy}
-                  aria-label={`${item.titleKo} 선택`}
-                  className="h-4 w-4 shrink-0 accent-yonsei-navy"
-                />
-                <span className="flex shrink-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(item.id)}
-                    disabled={saving}
-                    className="text-xs font-bold text-yonsei-blue transition-colors hover:text-yonsei-navy disabled:opacity-40"
-                  >
-                    수정
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(item.id)}
-                    disabled={saving}
-                    className="text-xs font-semibold text-[#b42318] transition-colors hover:underline disabled:opacity-40"
-                  >
-                    삭제
-                  </button>
-                </span>
-              </div>
             </div>
           </div>
         );

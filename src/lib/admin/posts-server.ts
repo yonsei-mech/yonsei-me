@@ -84,7 +84,7 @@ export interface AdminPostPayload {
   hostEn?: string;
   /** 종료일(YYYY-MM-DD) — 행사·세미나·동문행사 전용. 없으면 하루(기간 라벨은 서버가 자동 생성) */
   endDate?: string | null;
-  /** 게시물 링크(URL) — 인스타그램 전용(타일 클릭 목적지) */
+  /** 게시물 링크(URL) — 캘린더 전용(선택) */
   linkUrl?: string;
   isEvent?: boolean;
   /** 목록 최상단 고정 — 글 목록이 아닌 게시판(noBody)은 보내지 않는다 */
@@ -101,7 +101,6 @@ const BOARDS = new Set([
   'noticesUndergrad', 'noticesGraduate', 'noticesExternal', 'noticesScholarship',
   'news', 'seminars', 'events',
   'thesis', 'resources', 'career', 'alumniEvents',
-  'instagram',
 ]);
 
 export function isValidBoard(board: string): boolean {
@@ -199,9 +198,8 @@ export function payloadToRow(p: AdminPostPayload) {
     is_event: p.board === 'alumniEvents' ? p.isEvent === true : false,
     event_date: isEvent && p.date ? p.date : null,
     end_date: endDate,
-    // 링크 — 같은 칼럼이지만 성격이 다르다. 인스타그램은 타일이 반드시 가야 할
-    // 필수 목적지고, 캘린더는 있으면 좋은 선택 링크(비면 홈에서 링크 없는 카드).
-    link_url: p.board === 'instagram' || p.board === 'calendar' ? nn(p.linkUrl) : null,
+    // 링크 — 캘린더 전용이며 있으면 좋은 선택 링크다(비면 홈에서 링크 없는 카드).
+    link_url: p.board === 'calendar' ? nn(p.linkUrl) : null,
     // 고정 — 페이로드에 없으면(고정 대상이 아닌 게시판) 항상 false 로 눕힌다
     pinned: p.pinned === true,
     thumbnail_url: nn(p.image),

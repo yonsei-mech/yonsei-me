@@ -26,7 +26,7 @@ create table if not exists posts (
   is_event      boolean not null default false,
   event_date    date,                     -- 캘린더용 시작일(있으면)
   end_date      date,                     -- 행사·세미나·동문행사 종료일(null = 하루)
-  link_url      text,                     -- 링크형 게시판(인스타그램): 실제 게시물 URL
+  link_url      text,                     -- 일정(캘린더) 게시판: 선택 링크
   pinned        boolean not null default false, -- 목록 최상단 고정(공지형 게시판의 '중요' 글)
   thumbnail_url text,
   published     boolean not null default true,

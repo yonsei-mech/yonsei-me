@@ -581,7 +581,7 @@ export function CalendarEditor({ meta, items, busy, onSave, onDelete }: Props) {
               </span>
             </div>
 
-            {/* 링크는 **선택**이다 — 인스타그램처럼 "반드시 가야 할 목적지"가 아니라
+            {/* 링크는 **선택**이다 — "반드시 가야 할 목적지"가 아니라
                 더 볼 것이 있을 때만 붙이는 보조 정보다. 그래서 필수 검증을 두지 않는다. */}
             <label className="mt-4 block border-t border-surface-border pt-4">
               <span className="mb-1.5 block text-[11px] font-bold text-content-faint">
