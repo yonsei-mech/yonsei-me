@@ -40,7 +40,22 @@ export const MANAGED_FILES = {
   // { desktop: { image, width, height } } — width·height 는 그 캡처가 나타내는 실제
   // 뷰포트(CSS px)다. 캡처의 픽셀 크기(Retina 2배 등)와 무관하게 팝업 px 를 실제 px 로 유지한다.
   popupPreview: 'content/popup-preview.json',
+  // BK21 FOUR 교육연구단 › 참여인력 — 신진연구인력 인원 표와 학기별 대학원생 표.
+  // 두 표를 한 파일에 담지 않는 이유: 열도 행 의미도 달라(구분/인원 ↔ 학기×6개 인원)
+  // 한 목록 화면에서 함께 고칠 수 없다.
+  bk21EarlyCareer: 'content/bk21-early-career.json',
+  bk21Students: 'content/bk21-students.json',
+  // BK21 FOUR › 사업계획서·보고서는 콘텐츠 파일이 아니라 **게시판**(posts.board=
+  // 'bk21Reports')이다 — PDF 첨부가 본체라 CMS 의 게시물 편집기로 올리고 고친다.
 } as const;
+
+/** CMS 가 편집하는 단일 마크다운 페이지 — resources.ts 의 MARKDOWN_PAGES 와 같은 집합.
+ *  여기 따로 두는 이유는 순환 import 다: resources.ts 가 이 모듈을 참조하므로
+ *  isManagedPath 가 거꾸로 resources.ts 를 읽을 수 없다. 한 쪽에만 적으면 CMS 화면에는
+ *  보이는데 저장은 거부되는(또는 그 반대) 상태가 되므로 **두 목록은 함께 고친다**. */
+export const MANAGED_MARKDOWN_PAGES: readonly string[] = [
+  'content/pages/bk21-vision.md', // BK21 FOUR › 비전 및 목표 (이미지 2장)
+];
 
 /** 동아리 소개 카드뉴스 본문 — clubs.json 의 slug 마다 한 파일(content/pages/club-<slug>.md).
  *  slug 는 소문자·숫자·하이픈만 허용(resources.ts 의 slug 필드 안내와 동일 규약). */
@@ -64,6 +79,7 @@ export function isFacultyProfilePath(path: string): boolean {
 export function isManagedPath(path: string): boolean {
   return (
     (Object.values(MANAGED_FILES) as readonly string[]).includes(path) ||
+    MANAGED_MARKDOWN_PAGES.includes(path) ||
     isClubMarkdownPath(path) ||
     isFacultyProfilePath(path)
   );

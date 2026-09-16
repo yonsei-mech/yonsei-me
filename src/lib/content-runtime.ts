@@ -61,6 +61,9 @@ import heroSlidesJson from '@content/hero-slides.json';
 import scholarshipsJson from '@content/scholarships.json';
 // 팝업 공지 — 평소에는 빈 배열이다(폴백 스냅샷).
 import popupsJson from '@content/popups.json';
+// BK21 FOUR 참여인력 표 2종 — 2026-09 구 사이트 이미지에서 구조화(폴백 스냅샷).
+import bk21EarlyCareerJson from '@content/bk21-early-career.json';
+import bk21StudentsJson from '@content/bk21-students.json';
 
 // ── 소스 판별 ──────────────────────────────────────────────────────────
 export type ContentSource = 'db' | 'git';
@@ -276,6 +279,47 @@ export interface ScholarshipRecord {
 export async function getScholarshipsRuntime(): Promise<ScholarshipRecord[]> {
   const raw = await getManagedJson<ScholarshipRecord[]>(MANAGED_FILES.scholarships);
   return raw ?? scholarshipsJson;
+}
+
+/** content/bk21-early-career.json 한 줄 — BK21 신진연구인력 구분별 인원.
+ *  CMS 'BK21 신진연구인력' 표(resources.ts 의 bk21EarlyCareer)와 1:1 이다. */
+export interface Bk21EarlyCareerRecord {
+  /** 구분(박사후연구원·계약교수 …) */
+  kind: { ko: string; en: string };
+  count: number;
+}
+
+/** BK21 신진연구인력 — 배열 순서가 표의 행 순서다(정렬 없음) */
+export async function getBk21EarlyCareerRuntime(): Promise<Bk21EarlyCareerRecord[]> {
+  const raw = await getManagedJson<Bk21EarlyCareerRecord[]>(MANAGED_FILES.bk21EarlyCareer);
+  const list = raw ?? (bk21EarlyCareerJson as Bk21EarlyCareerRecord[]);
+  return Array.isArray(list) ? list : [];
+}
+
+/** content/bk21-students.json 한 줄 — BK21 학기별 참여·지원 대학원생 인원.
+ *  **합계는 저장하지 않는다** — 표를 그릴 때 더한다(저장한 합계는 반드시 어긋난다).
+ *  CMS 'BK21 참여대학원생' 표(resources.ts 의 bk21Students)와 1:1 이다. */
+export interface Bk21StudentRecord {
+  /** 사업연도(1~6) — 표에는 "N차년도"로 표시된다 */
+  phase: number;
+  year: number;
+  /** 1 | 2 학기 */
+  term: number;
+  /** 참여대학원생 — 석사 / 박사 / 통합 */
+  pMs: number;
+  pPhd: number;
+  pInt: number;
+  /** 지원대학원생 — 석사 / 박사 / 통합 */
+  sMs: number;
+  sPhd: number;
+  sInt: number;
+}
+
+/** BK21 참여대학원생 — 배열 순서가 표의 행 순서다(정렬 없음) */
+export async function getBk21StudentsRuntime(): Promise<Bk21StudentRecord[]> {
+  const raw = await getManagedJson<Bk21StudentRecord[]>(MANAGED_FILES.bk21Students);
+  const list = raw ?? (bk21StudentsJson as Bk21StudentRecord[]);
+  return Array.isArray(list) ? list : [];
 }
 
 /** content/popups.json 한 줄 — 게재 기간 안에만 뜨는 사진 팝업.

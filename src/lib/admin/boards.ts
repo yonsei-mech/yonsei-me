@@ -19,6 +19,10 @@ export interface BoardFile {
   thesis: Notice[];
   career: Notice[];
   resources: Notice[];
+  /** BK21 자료실 — 2026-09 신설. git 폴백 스냅샷에는 아직 키가 없다(content.ts 와 같은 이유) */
+  bk21Resources?: Notice[];
+  /** BK21 사업계획서·보고서 — 2026-09 신설(PDF 첨부가 본체). 위와 같은 사정 */
+  bk21Reports?: Notice[];
   alumniEvents: Seminar[];
 }
 
@@ -35,6 +39,8 @@ export type BoardKey =
   | 'thesis'
   | 'career'
   | 'resources'
+  | 'bk21Resources'
+  | 'bk21Reports'
   | 'alumniEvents';
 
 /** 편집 폼이 다루는 통합 레코드. 게시판에 따라 일부 필드만 사용된다. */
@@ -164,6 +170,26 @@ export const RESOURCE_CATEGORIES: { value: string; label: string }[] = [
   { value: 'rule', label: '규정·내규' },
 ];
 
+/** BK21 자료실 분류 — posts.category 에 저장. 목록 상단 탭(전체·사업성과·규정·지침·서식·자료)의
+ *  근거이며, 값은 프런트(/bk21/resources 페이지가 넘기는 categories)와 공유하므로 바꾸면
+ *  기존 글의 분류가 풀린다. 소식 자료실(form/rule)과 같은 칼럼을 쓰지만 board 로 스코프가
+ *  갈리므로 충돌하지 않는다 — 'rule'·'form' 은 값이 겹쳐도 라벨만 게시판별로 다르다. */
+export const BK21_RESOURCE_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'result', label: '사업성과' },
+  { value: 'rule', label: '규정·지침' },
+  { value: 'form', label: '서식·자료' },
+];
+
+/** BK21 사업계획서·보고서 분류 — posts.category 에 저장. 목록 카드의 배지이자
+ *  구 사이트의 문서 3종(사업계획서 / 자체평가보고서 / 성과평가보고서) 구분이다.
+ *  값은 프런트(/bk21/reports 페이지가 라벨을 잇는다)와 공유하므로 바꾸면 기존 글의
+ *  분류가 풀린다 — 자료실과 같은 칼럼이지만 board 로 스코프가 갈린다. */
+export const BK21_REPORT_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'plan', label: '사업계획서' },
+  { value: 'self', label: '자체평가보고서' },
+  { value: 'performance', label: '성과평가보고서' },
+];
+
 /** 뉴스 분류 — posts.category 에 저장. 뉴스 목록 상단 탭(전체·일반·성과)을 가르는 값이며,
  *  값은 프런트(content.ts NewsCategory)와 공유하므로 바꾸면 기존 글의 분류가 풀린다.
  *  content.ts 에서 값을 import 하지 않는 이유는 RESOURCE_CATEGORIES 와 같다 — 이 파일은
@@ -200,6 +226,12 @@ export const BOARDS: BoardMeta[] = [
   { key: 'thesis', label: '학위논문심사', file: 'board.json', idPrefix: 'th-', hasHost: false, hasDateLabel: false, isNews: false },
   { key: 'resources', label: '자료실', file: 'board.json', idPrefix: 'res-', hasHost: false, hasDateLabel: false, isNews: false, categories: RESOURCE_CATEGORIES, hasExcerpt: true },
   { key: 'career', label: '취업 정보', file: 'board.json', idPrefix: 'cr-', hasHost: false, hasDateLabel: false, isNews: false },
+  // BK21 자료실 — 소식 자료실과 같은 형태(첨부가 본체 + 요약 한 줄)지만 분류 집합과
+  // 노출 위치(/bk21/resources)가 다르다. 사이드바에서도 'BK21 FOUR' 묶음에 산다.
+  { key: 'bk21Resources', label: 'BK21 자료실', file: 'board.json', idPrefix: 'bk21res-', hasHost: false, hasDateLabel: false, isNews: false, categories: BK21_RESOURCE_CATEGORIES, hasExcerpt: true },
+  // BK21 사업계획서·보고서 — 첨부 PDF 한 건이 본체다. 본문은 선택이고, 상세 화면은
+  // 글이 아니라 좌/우 펼침 PDF 리더(/bk21/reports/<id>)다. 요약은 결락 안내 한 줄로 쓴다.
+  { key: 'bk21Reports', label: 'BK21 사업계획서·보고서', file: 'board.json', idPrefix: 'bk21rep-', hasHost: false, hasDateLabel: false, isNews: false, categories: BK21_REPORT_CATEGORIES, hasExcerpt: true },
   // 동문 소식·네트워크 = 동문 인터뷰(2026-09 개편). 주최·기간·행사 체크는 인터뷰에
   // 쓸 자리가 없어 껐다 — 플래그만 끈 것이고 host/is_event 저장 경로는 다른 게시판이
   // 그대로 쓰므로 코드는 남는다(이 게시판 값은 저장 시 null 로 눕는다).

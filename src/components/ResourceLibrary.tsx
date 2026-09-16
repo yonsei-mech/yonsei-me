@@ -19,6 +19,8 @@ import type { Locale } from '@/i18n/routing';
  *  - 헤더는 다른 게시판과 같은 문법이다: 위 줄에 공용 분류 탭(BoardCategoryTabs —
  *    전체·행정 서식·규정·내규, 옆에 건수), 아래 줄에 공용 검색 바(BoardFilterBar).
  *    분류가 지정된 글이 하나도 없으면 0건 탭만 두 개 뜨므로 탭 그룹 자체를 렌더하지 않는다.
+ *    분류 집합은 게시판마다 다르므로(소식 자료실 2종, BK21 자료실 3종) 서버가 `categories`
+ *    prop 으로 넘긴다 — 라벨이 messages 에 있어 클라이언트에서 게시판을 분기할 수 없다.
  *  - 검색은 제출형(범위 select + 검색 버튼)이고 매칭도 공용 matchesFilter 를 그대로 쓴다.
  *    다만 '내용' 범위에 서버가 만들어 준 contentText(발췌+본문 평문+첨부 파일명)를 물려서
  *    다른 게시판이 발췌만 훑는 자리에서 자료실은 "파일명으로 찾기"까지 그대로 동작한다.
@@ -38,8 +40,10 @@ export interface ResourceItem {
   title: string;
   /** 발췌 — 없으면 생략 */
   desc?: string;
-  /** 게시판 분류. 'form'(행정 서식) | 'rule'(규정·내규) | 미분류(undefined) */
-  category?: 'form' | 'rule';
+  /** 게시판 분류값. 소식 자료실은 'form'(행정 서식)·'rule'(규정·내규), BK21 자료실은
+   *  'result'·'rule'·'form' — 라벨과 배지 모양은 ResourceLibrary 의 categories prop 이
+   *  정한다(서버가 messages 에서 뽑아 넘긴다). 미분류면 undefined. */
+  category?: string;
   /** 상세 경로 (`/news/post/{id}`) */
   href: string;
   /** 목록 최상단 고정 글 — 핀 배지를 붙인다(정렬은 상류 fetchBoardData 가 이미 마쳤다) */
@@ -59,16 +63,37 @@ export interface ResourceAttachment {
   format: string | null;
 }
 
+/** 분류 탭 한 칸 — id 는 ResourceItem.category 값, label 은 이미 번역된 문자열이다.
+ *  badge: 'solid' 는 남색 채움, 'outline' 은 남색 테두리(기본). 행의 배지도 이 표를 따른다. */
+export interface ResourceCategory {
+  id: string;
+  label: string;
+  badge?: 'solid' | 'outline';
+}
+
 export function ResourceLibrary({
   items,
   locale,
+  categories,
 }: {
   items: ResourceItem[];
   locale: Locale;
+  /** 분류 탭·배지 정의. 생략하면 소식 자료실의 기본값(행정 서식 solid / 규정·내규 outline). */
+  categories?: ResourceCategory[];
 }) {
   const t = useTranslations('news');
 
-  const [cat, setCat] = useState<'all' | 'form' | 'rule'>('all');
+  // 기본값은 소식 자료실 — 이 컴포넌트를 쓰던 유일한 화면이라 prop 없이도 전과 같아야 한다.
+  const cats: ResourceCategory[] = useMemo(
+    () =>
+      categories ?? [
+        { id: 'form', label: t('library.catForm'), badge: 'solid' },
+        { id: 'rule', label: t('library.catRule'), badge: 'outline' },
+      ],
+    [categories, t],
+  );
+
+  const [cat, setCat] = useState<string>('all');
   const [filter, setFilter] = useState(emptyFilter);
   /** 진행 중인 ZIP 요청의 행 id (행별 전체 다운로드) */
   const [zipBusy, setZipBusy] = useState<string | null>(null);
@@ -99,11 +124,13 @@ export function ResourceLibrary({
   // 탭 건수는 검색과 무관하게 전체(items) 기준 — FilterableBoardList 와 같은 규칙이다.
   // 검색할 때마다 탭 숫자가 흔들리면 분류의 규모를 가늠하는 지표로 쓸 수 없다.
   const counts = useMemo(
-    () => ({
-      form: items.filter((it) => it.category === 'form').length,
-      rule: items.filter((it) => it.category === 'rule').length,
-    }),
-    [items],
+    () =>
+      cats.map((c) => ({
+        id: c.id,
+        label: c.label,
+        count: items.filter((it) => it.category === c.id).length,
+      })),
+    [items, cats],
   );
 
   const visible = useMemo(
@@ -146,12 +173,9 @@ export function ResourceLibrary({
       {hasCategories && (
         <BoardCategoryTabs
           active={cat}
-          onChange={(id) => setCat(id as 'all' | 'form' | 'rule')}
+          onChange={setCat}
           ariaLabel={t('library.categoryLabel')}
-          categories={[
-            { id: 'form', label: t('library.catForm'), count: counts.form },
-            { id: 'rule', label: t('library.catRule'), count: counts.rule },
-          ]}
+          categories={counts}
         />
       )}
 
@@ -179,6 +203,7 @@ export function ResourceLibrary({
               key={item.id}
               item={item}
               locale={locale}
+              category={cats.find((c) => c.id === item.category)}
               isNew={today !== null && isNewPost(item.date, today)}
               busy={zipBusy === item.id}
               failed={zipError === item.id}
@@ -195,6 +220,7 @@ export function ResourceLibrary({
 function ResourceRow({
   item,
   locale,
+  category,
   isNew,
   busy,
   failed,
@@ -202,6 +228,8 @@ function ResourceRow({
 }: {
   item: ResourceItem;
   locale: Locale;
+  /** item.category 에 해당하는 분류 정의(라벨·배지 모양). 미분류·모르는 값이면 undefined */
+  category?: ResourceCategory;
   isNew: boolean;
   busy: boolean;
   failed: boolean;
@@ -219,7 +247,7 @@ function ResourceRow({
         <div className="flex min-w-0 flex-col items-start">
           {/* 배지 줄 — 고정 핀이 먼저, 그 뒤에 분류(서식/규정). BoardList 와 같은 문법이되
               자료실 행은 메타가 촘촘해 한 치수 작게 쓴다. */}
-          {(item.pinned || item.category) && (
+          {(item.pinned || category) && (
             <span className="flex flex-wrap items-center gap-2">
               {item.pinned && (
                 <span className="inline-flex items-center gap-1 border border-yonsei-navy bg-surface px-2 py-[0.125rem] text-[0.6875rem] font-bold text-yonsei-navy">
@@ -229,16 +257,16 @@ function ResourceRow({
                   {tBoard('pinned')}
                 </span>
               )}
-              {item.category && (
+              {category && (
                 <span
                   className={cn(
                     'inline-block text-xs font-bold',
-                    item.category === 'form'
+                    category.badge === 'solid'
                       ? 'bg-yonsei-navy px-2.5 py-1 text-white'
                       : 'border border-yonsei-navy px-[0.5625rem] py-[0.1875rem] text-yonsei-navy',
                   )}
                 >
-                  {t(item.category === 'form' ? 'library.catForm' : 'library.catRule')}
+                  {category.label}
                 </span>
               )}
             </span>
@@ -246,7 +274,7 @@ function ResourceRow({
           <h3
             className={cn(
               'flex flex-wrap items-center gap-2 text-lg font-bold leading-snug text-content tab:text-[1.1875rem]',
-              (item.pinned || item.category) && 'mt-2.5',
+              (item.pinned || category) && 'mt-2.5',
             )}
           >
             <Link href={item.href} className="transition-colors hover:text-yonsei-blue">

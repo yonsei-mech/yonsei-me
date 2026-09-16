@@ -10,6 +10,10 @@
  *                             /news/news/ 중첩을 피한다. 라벨·boardKey 는 그대로)
  *   /graduate/thesis          학위논문심사 목록 (2026-09 소식 → 대학원 섹션으로 이관)
  *   /graduate/thesis/<id>     학위논문심사 글 상세 (대학원 메뉴 소속 게시판)
+ *   /bk21/resources           BK21 자료실 목록 (BK21 섹션 소속 게시판 — 2026-09 신설)
+ *   /bk21/resources/<id>      BK21 자료실 글 상세
+ *   /bk21/reports             BK21 사업계획서·보고서 목록 (PDF 게시판 — 2026-09 신설)
+ *   /bk21/reports/<id>        BK21 사업계획서·보고서 PDF 뷰어(좌/우 펼침 리더)
  *   /alumni/network           동문 게시판 목록 (/alumni 자체는 동문회 소개)
  *
  * ⚠️ 게시물 링크를 손으로 조립하지 마라 — boardPostHref/newsArticleHref 를 쓴다.
@@ -49,12 +53,18 @@ export function newsArticleHref(slug: string): string {
 
 /**
  * 게시판 글 상세 — boardKey 로 소속 섹션까지 결정한다.
- * thesis 는 대학원 메뉴 소속이라 /graduate 아래로 간다(상세 셸도 대학원 컨텍스트).
+ * thesis 는 대학원 메뉴 소속이라 /graduate 아래로, bk21Resources 는 BK21 섹션 소속이라
+ * /bk21 아래로 간다(상세 셸도 각 섹션 컨텍스트).
  * 세그먼트를 손으로 적지 않고 sectionTabHref 를 거치는 이유: 목록 경로와 상세 경로가
  * 한 값에서 나와야 탭이 또 옮겨 갈 때 둘이 갈리지 않는다.
+ * ⚠️ boardKey 와 URL 세그먼트가 다른 게시판이 있다 — bk21Resources 의 탭 키는
+ *    'resources', bk21Reports 는 'reports' 다(BK21 섹션 안에서는 그냥 '자료실'·
+ *    '사업계획서·보고서'이고, 소식 자료실과는 board 값만 갈린다).
  */
 export function boardPostHref(post: Pick<BoardPost, 'id' | 'boardKey'>): string {
   if (post.boardKey === 'thesis') return `${sectionTabHref('graduate', 'thesis')}/${post.id}`;
+  if (post.boardKey === 'bk21Resources') return `${sectionTabHref('bk21', 'resources')}/${post.id}`;
+  if (post.boardKey === 'bk21Reports') return `${sectionTabHref('bk21', 'reports')}/${post.id}`;
   return `/news/${post.boardKey}/${post.id}`;
 }
 
@@ -109,10 +119,19 @@ export const CONTENT_SECTIONS = {
     'scholarship',
   ],
   // 'thesis'(학위논문심사)는 2026-09 에 소식 섹션에서 이관 — 졸업 요건 바로 뒤에 둔다
-  graduate: ['requirements', 'thesis', 'courses', 'labs', 'bk21'],
+  // 'bk21'(BK21 FOUR 교육연구단)은 2026-09 에 자기 섹션(/bk21/*)으로 독립했다 — 구 사이트의
+  // 11개 페이지(비전·참여인력·현황·자료실·보고서)를 한 탭에 담을 수 없었기 때문이다.
+  graduate: ['requirements', 'thesis', 'courses', 'labs'],
   // 'recruit'(교수 초빙)는 2026-09 에 소식 섹션(/news/recruit)으로 옮겼다 — NEWS_TABS 참고
   // '연구 역량'은 2026-09 에 'vision'('연구 비전 및 역량') 한 장으로 합쳐졌다
   research: ['vision', 'labs', 'social'],
+  // BK21 FOUR 교육연구단 — 대학원 한 탭에서 독립한 섹션(2026-09). 메가메뉴 위치는
+  // 대학원 아래 그대로이고 URL 만 최상위다(크럼이 대학원 → BK21 → 탭 3단인 이유).
+  // 'resources'(자료실)는 BK21 소속 게시판이다 — 구 사이트의 자료실(files.do)과
+  // 사업성과(progress.do)를 한 게시판(DB board='bk21Resources')으로 합쳤다.
+  // 'reports'(사업계획서·보고서)도 BK21 소속 게시판이다(DB board='bk21Reports') —
+  // PDF 첨부가 본체라 상세가 글이 아니라 좌/우 펼침 리더(/bk21/reports/<id>)다.
+  bk21: ['vision', 'people', 'organization', 'resources', 'reports'],
 } as const;
 
 export type ContentSection = keyof typeof CONTENT_SECTIONS;
@@ -137,6 +156,9 @@ const LEGACY_SECTION_HASH_EXTRA: Partial<Record<ContentSection, Record<string, s
   research: {
     recruit: newsTabHref('recruit'), // 2026-09 소식 섹션으로 이관
     capacity: sectionTabHref('research', 'vision'), // 2026-09 연구 비전과 한 탭으로 통합
+  },
+  graduate: {
+    bk21: sectionDefaultHref('bk21'), // 2026-09 자기 섹션(/bk21)으로 독립
   },
 };
 

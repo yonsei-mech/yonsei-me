@@ -34,6 +34,9 @@ export interface FacultyRecord {
    *  이 체크를 켜 사이트에도 함께 싣는다(2026-08 학부 방침). AI 연구요약은 이 값과
    *  무관하게 항상 보인다. */
   showActivities?: boolean;
+  /** BK21 FOUR 교육연구단 참여교수 — /bk21/people 의 참여교수 명단이 이 값으로 걸러진다.
+   *  참여교수가 아니면 키 자체가 없다(없으면 false 취급 — showActivities 와 같은 규약). */
+  bk21?: boolean;
   moreInfoUrl: string | null;
   photoAlt: string;
   lab: FacultyLab | null;

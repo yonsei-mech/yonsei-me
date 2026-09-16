@@ -1,0 +1,16 @@
+[
+  {
+    "kind": {
+      "ko": "박사후연구원",
+      "en": "Postdoctoral researchers"
+    },
+    "count": 7
+  },
+  {
+    "kind": {
+      "ko": "계약교수",
+      "en": "Contract faculty"
+    },
+    "count": 4
+  }
+]

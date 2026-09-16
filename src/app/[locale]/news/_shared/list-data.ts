@@ -15,6 +15,9 @@ import type { BoardCategory } from '@/components/FilterableBoardList';
 import type { ResourceItem } from '@/components/ResourceLibrary';
 // 분류 상수는 클라이언트 컴포넌트가 아니라 순수 모듈에서 가져온다 — 이유는 그 파일 주석 참조.
 import { CALENDAR_KIND, type CalendarEntry } from '@/lib/calendar-kinds';
+// 분류 **값 집합**의 단일 출처 — CMS 저장(BoardMeta.categories)과 같은 표를 본다.
+// (라벨은 여기서 쓰지 않는다: 관리자 UI 용 한국어 문자열이고, 화면 라벨은 messages 가 준다.)
+import { getBoard } from '@/lib/admin/boards';
 import { pick, type BoardPost } from '@/lib/content';
 import { fileFormat } from '@/lib/files';
 import { parseDateLabelRange } from '@/lib/calendar';
@@ -24,7 +27,13 @@ import {
   newsTabHref,
   sectionTabHref,
 } from '@/lib/board-links';
-import { fetchNews, fetchBoardData, fetchCalendarPosts, fetchResourceBodies } from '@/lib/posts';
+import {
+  fetchNews,
+  fetchBoardData,
+  fetchCalendarPosts,
+  fetchResourceBodies,
+  type ResourceBoard,
+} from '@/lib/posts';
 import type { Locale } from '@/i18n/routing';
 
 /**
@@ -230,8 +239,18 @@ export async function buildCalendarEntries(locale: Locale): Promise<CalendarEntr
   ];
 }
 
-/** 자료실 — 전용 목록(ResourceLibrary) + 서버 생성 검색 인덱스 */
-export async function buildResourceItems(locale: Locale): Promise<ResourceItem[]> {
+/**
+ * 자료실 — 전용 목록(ResourceLibrary) + 서버 생성 검색 인덱스.
+ *
+ * 자료실형 게시판이 둘이라(소식 자료실 · BK21 자료실) 게시판 키를 인자로 받는다.
+ * 행 매핑 규칙은 완전히 같고 **분류 집합만** 다르므로, 분류는 하드코딩하지 않고
+ * CMS 표(BoardMeta.categories)에서 꺼내 쓴다 — 둘이 갈리면 CMS 에서 고른 분류가
+ * 화면에서 미분류로 떨어진다. 기본값은 기존 호출부 호환용(`/news/resources`).
+ */
+export async function buildResourceItems(
+  locale: Locale,
+  boardKey: ResourceBoard = 'resources',
+): Promise<ResourceItem[]> {
   const board = await fetchBoardData();
   // 자료실: 다른 게시판과 달리 "받아 가는 파일"이라 전용 목록(ResourceLibrary)을 쓴다.
   // 검색 인덱스(contentText)는 여기 서버에서 만든다 — 본문 HTML 을 클라이언트로 통째로
@@ -241,8 +260,10 @@ export async function buildResourceItems(locale: Locale): Promise<ResourceItem[]
   // 범위(제목/내용/제목+내용)를 가르려면 제목과 내용 인덱스가 분리돼 있어야 한다.
   // 본문은 게시판 목록이 아니라 자료실 전용 조회로 따로 받는다 — 목록 조회는 Vercel
   // Data Cache 2MB 한도 때문에 본문 컬럼을 싣지 않는다(lib/posts.ts 의 LIST_COLUMNS).
-  const resourceBodies = await fetchResourceBodies();
-  return board.resources.map((r) => {
+  const resourceBodies = await fetchResourceBodies(boardKey);
+  // 이 게시판이 허용하는 분류값 — 모르는 값(다른 게시판 값·구 데이터)은 미분류로 떨군다
+  const allowed = new Set((getBoard(boardKey).categories ?? []).map((c) => c.value));
+  return (board[boardKey] ?? []).map((r) => {
     const title = pick(r.title, locale);
     const desc = r.excerpt ? pick(r.excerpt, locale) : undefined;
     const attachments = (r.attachments ?? []).map((a) => {
@@ -256,8 +277,8 @@ export async function buildResourceItems(locale: Locale): Promise<ResourceItem[]
       date: r.date,
       title,
       desc,
-      category: r.category === 'form' || r.category === 'rule' ? r.category : undefined,
-      href: boardPostHref({ id: r.id, boardKey: 'resources' }),
+      category: r.category && allowed.has(r.category) ? r.category : undefined,
+      href: boardPostHref({ id: r.id, boardKey }),
       pinned: r.pinned,
       attachments,
       contentText: [desc ?? '', plainBody, ...attachments.map((a) => a.label)]
@@ -349,6 +370,38 @@ export async function buildBoardContext(
         })),
         boardName: tMenu('news.items.resources'),
         listHref: newsTabHref('resources'),
+      };
+    }
+    case 'bk21Resources': {
+      // BK21 자료실 — 소식 자료실과 같은 전용 목록이되 BK21 섹션 소속이라 목록이
+      // /bk21/resources 에 있다(탭 키는 'resources', boardKey 만 다르다).
+      const items = await buildResourceItems(locale, 'bk21Resources');
+      return {
+        rows: items.map((r) => ({
+          id: r.id,
+          date: r.date,
+          title: r.title,
+          href: r.href,
+          pinned: r.pinned,
+        })),
+        boardName: tMenu('bk21.items.resources'),
+        listHref: sectionTabHref('bk21', 'resources'),
+      };
+    }
+    case 'bk21Reports': {
+      // 사업계획서·보고서 — 상세가 전용 PDF 리더라 이 컨텍스트를 쓰지 않지만, 게시판
+      // 하나가 표에서 빠져 있으면 나중에 상세 문법이 바뀔 때 조용히 구멍이 된다.
+      const board = await fetchBoardData();
+      return {
+        rows: board.bk21Reports.map((r) => ({
+          id: r.id,
+          date: r.date,
+          title: pick(r.title, locale),
+          href: boardPostHref({ id: r.id, boardKey: 'bk21Reports' }),
+          pinned: r.pinned,
+        })),
+        boardName: tMenu('bk21.items.reports'),
+        listHref: sectionTabHref('bk21', 'reports'),
       };
     }
     default:

@@ -172,7 +172,7 @@ export interface AlumniEvent extends Seminar {
   interview?: AlumniInterview;
 }
 
-export const board = boardData as {
+const boardRaw = boardData as {
   seminars: Seminar[];
   events: EventItem[];
   noticesUndergrad: Notice[];
@@ -183,6 +183,19 @@ export const board = boardData as {
   career: Notice[];
   resources: Notice[];
   alumniEvents: AlumniEvent[];
+  /** BK21 자료실 — 2026-09 신설 게시판. 원본은 DB(posts.board='bk21Resources')이고
+   *  이 파일은 빌드 시점 폴백 스냅샷이라 **키가 아직 없을 수 있다**(선택 필드인 이유). */
+  bk21Resources?: Notice[];
+  /** BK21 사업계획서·보고서 — 2026-09 신설 게시판(PDF 첨부가 본체). 위와 같은 사정으로 선택 필드. */
+  bk21Reports?: Notice[];
+};
+
+/** 키가 없는 스냅샷도 배열로 보이게 한 뒤 내보낸다 — 소비자가 매번 `?? []` 하지 않아도
+ *  되고, `typeof board`(= fetchBoardData 의 반환 타입)에서도 선택 필드가 사라진다. */
+export const board = {
+  ...boardRaw,
+  bk21Resources: boardRaw.bk21Resources ?? [],
+  bk21Reports: boardRaw.bk21Reports ?? [],
 };
 
 /** 게시판 글(공지/세미나/행사/학위논문/취업)을 상세 페이지에서 단일 형태로 다루기 위한 통합 타입 */
@@ -191,8 +204,17 @@ export interface BoardPost {
   date: string;
   title: Localized;
   body: Localized;
-  /** 소속 게시판 (뉴스 탭 key와 동일. thesis 만 대학원 메뉴 소속이다 — board-links 참고) */
-  boardKey: 'notices' | 'seminars' | 'events' | 'thesis' | 'career' | 'resources';
+  /** 소속 게시판 (뉴스 탭 key와 동일. thesis 는 대학원, bk21Resources 는 BK21 메뉴
+   *  소속이라 URL 이 /news 밖에 있다 — board-links 의 boardPostHref 참고) */
+  boardKey:
+    | 'notices'
+    | 'seminars'
+    | 'events'
+    | 'thesis'
+    | 'career'
+    | 'resources'
+    | 'bk21Resources'
+    | 'bk21Reports';
   /** 부가 정보 한 줄 — 세미나 연사, 행사 기간, 공지 구분(학부/대학원) 등 */
   meta?: Localized;
   /** 편집자가 쓴 요약 — 상세 페이지의 meta description·og:description 이 우선 쓴다.
@@ -249,6 +271,8 @@ export function getAllBoardPosts(): BoardPost[] {
     ...board.thesis.map((t): BoardPost => ({ ...t, boardKey: 'thesis' })),
     ...board.career.map((c): BoardPost => ({ ...c, boardKey: 'career' })),
     ...board.resources.map((r): BoardPost => ({ ...r, boardKey: 'resources' })),
+    ...board.bk21Resources.map((r): BoardPost => ({ ...r, boardKey: 'bk21Resources' })),
+    ...board.bk21Reports.map((r): BoardPost => ({ ...r, boardKey: 'bk21Reports' })),
   ];
 }
 

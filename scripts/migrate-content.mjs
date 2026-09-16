@@ -63,7 +63,17 @@ const MANAGED_JSON = [
   'content/scholarships.json',
   // 팝업 공지 — 행이 없어도 CMS 가 빈 목록에서 시작한다(resources 의 emptyIfMissing).
   'content/popups.json',
+  // BK21 FOUR 참여인력 표 2종 — 2026-09 섹션 신설. 사이트는 행이 없으면 빌드 스냅샷으로
+  // 폴백하지만 CMS 편집 화면은 GET 404 를 오류로 띄운다 — 배포 전 시딩할 것.
+  'content/bk21-early-career.json',
+  'content/bk21-students.json',
+  // BK21 FOUR › 사업계획서·보고서는 콘텐츠 파일이 아니라 게시판(posts)이다 — 여기 없다.
 ];
+// 고정 경로 마크다운(동아리 본문처럼 slug 에서 파생되지 않는 것).
+// managed-content.ts 의 MANAGED_MARKDOWN_PAGES 와 같은 목록 — 함께 갱신한다.
+// ⚠️ 구 경로 content/pages/graduate-bk21.md 의 DB 행은 남아 있지만 allowlist 에서
+//    빠져 더는 읽히지도 쓰이지도 않는다(구 장학금 md 와 같은 사정).
+const MANAGED_MD = ['content/pages/bk21-vision.md'];
 const CLUBS_JSON = 'content/clubs.json';
 const FACULTY_JSON = 'content/faculty-directory.json';
 
@@ -166,6 +176,7 @@ if (facultyProfiles.length === 0) {
 }
 const targets = [
   ...MANAGED_JSON,
+  ...MANAGED_MD,
   ...clubSlugs.map((s) => `content/pages/club-${s}.md`),
   ...facultyProfiles,
 ];

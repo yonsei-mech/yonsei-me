@@ -51,6 +51,12 @@ const SPEC: Record<
     crumb: 'simple' | 'linked';
     /** simple 크럼의 라벨 출처(생략 시 메뉴 라벨) — about 만 nav 라벨을 쓴다 */
     crumbLabel?: Msg;
+    /**
+     * 크럼 맨 앞에 한 단계 더 붙일 상위 그룹 — URL 은 최상위지만 메뉴상으로는 다른
+     * 섹션 아래 사는 경우(BK21 은 /bk21/* 이지만 메가메뉴는 대학원 아래)를 위한 자리.
+     * linked 크럼에만 의미가 있고, 없으면 종전과 완전히 같은 2단 크럼이다.
+     */
+    crumbParent?: { label: Msg; section: ContentSection };
   }
 > = {
   about: {
@@ -71,6 +77,14 @@ const SPEC: Record<
   research: {
     heroTitle: ['menu', 'research.label'],
     crumb: 'linked',
+  },
+  // BK21 은 URL 이 최상위(/bk21/*)지만 메가메뉴에서는 대학원 아래 산다 — 크럼에
+  // 대학원을 한 단계 더 붙여 "어디서 들어온 화면인지"가 길과 일치하게 한다.
+  bk21: {
+    heroTitle: ['menu', 'bk21.label'],
+    heroSubtitle: ['pages', 'bk21.subtitle'],
+    crumb: 'linked',
+    crumbParent: { label: ['menu', 'graduate.label'], section: 'graduate' },
   },
 };
 
@@ -157,6 +171,8 @@ export async function SectionTabPage<S extends ContentSection>({
   section,
   tab,
   markdown,
+  title: titleOverride,
+  crumbLeaf: crumbLeafOverride,
   children,
 }: {
   locale: string;
@@ -164,6 +180,15 @@ export async function SectionTabPage<S extends ContentSection>({
   tab: SectionTabKey<S>;
   /** 마크다운 본문 탭용 (커스텀 컴포넌트를 쓰는 탭은 children) */
   markdown?: string | null;
+  /**
+   * 탭 라벨 대신 본문 큰 제목(h1)으로 쓸 문자열 — 탭 아래 개별 문서(BK21 보고서 뷰어 등)용.
+   * 지정하면 탭 라벨 자체는 브레드크럼의 링크 있는 한 단계로 내려간다(그 문서가 진짜
+   * 리프가 되므로). 생략 시(기존 24개 탭) 전과 완전히 같은 동작 — 탭 라벨이 곧 제목.
+   */
+  title?: string;
+  /** title 과 함께 쓴다 — 히어로 JSON-LD 브레드크럼의 마지막(리프) 항목(보통 title 과 동일).
+   *  title 이 없으면 무시된다. */
+  crumbLeaf?: string;
   children?: ReactNode;
 }) {
   const l = locale as Locale;
@@ -178,9 +203,23 @@ export async function SectionTabPage<S extends ContentSection>({
   // simple 크럼은 그룹 하나가 마지막 항목이라 히어로가 링크로 그리지 않는다(시각 변화 없음).
   // href 를 붙이는 이유는 구조화 데이터뿐 — BreadcrumbList 의 각 항목은 URL 이 있어야
   // 검색결과 경로 표기로 쓰인다. 현재 탭은 crumbLeaf 로 JSON-LD 에만 덧붙인다.
+  // crumbParent 가 있으면 그 상위 그룹(BK21 → 대학원)이 맨 앞에 한 단계 더 붙는다.
+  const parent = spec.crumbParent
+    ? [
+        {
+          label: await msg(l, spec.crumbParent.label),
+          href: sectionDefaultHref(spec.crumbParent.section),
+        },
+      ]
+    : [];
+  // title 이 있으면 이 탭 아래 개별 문서(예: BK21 보고서 뷰어)를 그리는 것이므로, 탭
+  // 라벨은 더 이상 리프가 아니다 — 링크를 붙여 한 단계 더 내려가고, 문서 제목이 그 자리를
+  // 대신한다(보이는 크럼에는 안 넣는다 — h1 이 이미 문서 제목을 보여 준다).
   const breadcrumb =
     spec.crumb === 'linked'
-      ? [{ label: menuLabel, href: sectionDefaultHref(section) }, { label }]
+      ? titleOverride !== undefined
+        ? [...parent, { label: menuLabel, href: sectionDefaultHref(section) }, { label, href: sectionTabHref(section, tab) }]
+        : [...parent, { label: menuLabel, href: sectionDefaultHref(section) }, { label }]
       : [{ label: await sectionLabel(l, section), href: sectionDefaultHref(section) }];
   const tabs = await sectionTabs(l, section);
 
@@ -193,14 +232,14 @@ export async function SectionTabPage<S extends ContentSection>({
         title={heroTitle}
         subtitle={heroSubtitle}
         breadcrumb={breadcrumb}
-        crumbLeaf={spec.crumb === 'linked' ? undefined : label}
+        crumbLeaf={titleOverride !== undefined ? crumbLeafOverride : spec.crumb === 'linked' ? undefined : label}
         titleTag="p"
       />
       <TabPageShell
         navTitle={menuLabel}
         tabs={tabs}
         activeKey={tab}
-        title={label}
+        title={titleOverride ?? label}
         titleTag="h1"
         markdown={markdown}
         emptyLabel={tStub('body')}

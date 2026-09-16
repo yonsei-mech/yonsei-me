@@ -77,19 +77,26 @@ export function FacultyCardsEditor({
     return [...set].sort();
   }, [rows, key]);
   const [titleFilter, setTitleFilter] = useState('');
+  // BK21 참여교수만 보기 — 직급 칩과 **함께** 걸린다(직급은 한 값 고르기, 이쪽은 on/off).
+  // 명단 확인이 "29명이 맞나"를 세는 일이라 칩 하나로 모아 보는 값이 크다.
+  const [bk21Only, setBk21Only] = useState(false);
+  const bk21Count = useMemo(() => rows.filter((r) => r.form.bk21 === true).length, [rows]);
   // 학술활동은 교수마다 별도 파일(content/faculty-profiles/<이름>.json)이라 카드 트레이가
   // 아니라 자기 파일을 직접 읽고 쓰는 다이얼로그가 맡는다
   const [activitiesFor, setActivitiesFor] = useState<string | null>(null);
 
-  /** 0건 안내의 "초기화" — 검색어와 직급 칩을 함께 비운다. 하나만 지우면 여전히 0건이다 */
+  /** 0건 안내의 "초기화" — 검색어와 칩을 함께 비운다. 하나만 지우면 여전히 0건이다 */
   function resetQuery() {
     onSearch('');
     setTitleFilter('');
+    setBk21Only(false);
   }
 
-  const visible = titleFilter
-    ? rows.filter((r) => cellText(r.form, key).trim() === titleFilter)
-    : rows;
+  const visible = rows.filter(
+    (r) =>
+      (!titleFilter || cellText(r.form, key).trim() === titleFilter) &&
+      (!bk21Only || r.form.bk21 === true),
+  );
 
   return (
     <div>
@@ -117,6 +124,15 @@ export function FacultyCardsEditor({
               </FilterChip>
             ))}
           </>
+        )}
+        {bk21Count > 0 && (
+          <FilterChip
+            active={bk21Only}
+            count={bk21Count}
+            onClick={() => setBk21Only((p) => !p)}
+          >
+            BK21
+          </FilterChip>
         )}
       </InlineToolbar>
 

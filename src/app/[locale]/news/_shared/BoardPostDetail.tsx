@@ -50,15 +50,40 @@ export interface BoardPostRouteParams {
 }
 
 /**
- * 게시판 라벨 — 학위논문심사만 대학원 메뉴 소속이라 다른 키를 쓴다.
+ * 게시판 라벨 — 소식 밖에 사는 게시판(학위논문심사·BK21 자료실)은 제 섹션의 메뉴 키를 쓴다.
  * 메타(제목 꼬리)와 화면(크럼·본문)이 같은 문자열을 써야 검색결과와 페이지가 일치한다.
  */
 async function boardNameOf(locale: Locale, boardKey: BoardKey): Promise<string> {
   const tMenu = await getTranslations({ locale, namespace: 'menu' });
-  return boardKey === 'thesis'
-    ? tMenu('graduate.items.thesis')
-    : tMenu(`news.items.${boardKey}`);
+  if (boardKey === 'thesis') return tMenu('graduate.items.thesis');
+  if (boardKey === 'bk21Resources') return tMenu('bk21.items.resources');
+  if (boardKey === 'bk21Reports') return tMenu('bk21.items.reports');
+  return tMenu(`news.items.${boardKey}`);
 }
+
+/**
+ * 게시판 분류값 → 라벨 메시지 키. 자료실형 게시판만 '분류' 메타 줄을 한 줄 더 세운다.
+ * 게시판마다 값 집합이 다르므로(소식 자료실 form|rule · BK21 result|rule|form) 여기 한 표가
+ * 단일 출처다 — 목록 탭의 분류 집합(page.tsx)과 같은 값을 써야 상세와 목록이 갈리지 않는다.
+ */
+const LIBRARY_CATEGORY_LABELS: Partial<Record<BoardKey, Record<string, [ns: string, key: string]>>> = {
+  resources: {
+    form: ['news', 'library.catForm'],
+    rule: ['news', 'library.catRule'],
+  },
+  bk21Resources: {
+    result: ['bk21', 'library.catResult'],
+    rule: ['bk21', 'library.catRule'],
+    form: ['bk21', 'library.catForm'],
+  },
+  // 사업계획서·보고서는 상세가 전용 PDF 리더라 이 표를 쓰지 않지만(리더가 자기
+  // 배지를 그린다), 게시판 하나만 빠져 있으면 나중에 공용 상세로 돌아올 때 구멍이 된다.
+  bk21Reports: {
+    plan: ['bk21', 'reports.categories.plan'],
+    self: ['bk21', 'reports.categories.self'],
+    performance: ['bk21', 'reports.categories.performance'],
+  },
+};
 
 /** 상세 화면이 어느 메뉴 안에 있는가 — 히어로·크럼·탭 줄·목록 링크가 이 한 벌을 쓴다 */
 interface SectionContext {
@@ -69,15 +94,18 @@ interface SectionContext {
   heroTitle: string;
   heroSubtitle: string;
   tabs: { key: string; label: string; href: string }[];
+  /** 탭 줄에서 강조할 탭 key. ⚠️ boardKey 와 같지 않을 수 있다 — 탭 key 는 URL 세그먼트라
+   *  BK21 자료실은 'bk21Resources'(boardKey)가 아니라 'resources'(탭)로 강조해야 한다. */
+  activeTab: string;
   /** '목록으로' 가 돌아갈 그 게시판의 목록 경로 */
   backHref: string;
 }
 
 /**
  * boardKey → 소속 섹션 컨텍스트.
- * 학위논문심사만 대학원 메뉴 소속이고(2026-09 이관), 나머지 게시판은 소식 섹션에 있다.
- * 대학원 쪽 문구·탭은 콘텐츠 탭 페이지(SectionTabPage)와 같은 출처를 쓴다 — 같은 섹션인데
- * 게시판 상세만 다른 제목·다른 탭 줄을 그리면 같은 자리로 읽히지 않는다.
+ * 학위논문심사는 대학원(2026-09 이관), BK21 자료실은 BK21 섹션 소속이고, 나머지 게시판은
+ * 소식 섹션에 있다. 각 섹션의 문구·탭은 콘텐츠 탭 페이지(SectionTabPage)와 같은 출처를
+ * 쓴다 — 같은 섹션인데 게시판 상세만 다른 제목·다른 탭 줄을 그리면 같은 자리로 읽히지 않는다.
  */
 async function sectionContextOf(locale: Locale, boardKey: BoardKey): Promise<SectionContext> {
   const tMenu = await getTranslations({ locale, namespace: 'menu' });
@@ -90,7 +118,23 @@ async function sectionContextOf(locale: Locale, boardKey: BoardKey): Promise<Sec
       heroTitle: label,
       heroSubtitle: tPages('graduate.subtitle'),
       tabs: await sectionTabs(locale, 'graduate'),
+      activeTab: 'thesis',
       backHref: sectionTabHref('graduate', 'thesis'),
+    };
+  }
+  if (boardKey === 'bk21Resources' || boardKey === 'bk21Reports') {
+    const tPages = await getTranslations({ locale, namespace: 'pages' });
+    const label = tMenu('bk21.label');
+    // 탭 key 는 URL 세그먼트 — board 값('bk21Resources'·'bk21Reports')이 아니다
+    const tab = boardKey === 'bk21Resources' ? 'resources' : 'reports';
+    return {
+      sectionLabel: label,
+      sectionHref: sectionDefaultHref('bk21'),
+      heroTitle: label,
+      heroSubtitle: tPages('bk21.subtitle'),
+      tabs: await sectionTabs(locale, 'bk21'),
+      activeTab: tab,
+      backHref: sectionTabHref('bk21', tab),
     };
   }
   const tNews = await getTranslations({ locale, namespace: 'news' });
@@ -100,8 +144,9 @@ async function sectionContextOf(locale: Locale, boardKey: BoardKey): Promise<Sec
     heroTitle: tNews('hero.title'),
     heroSubtitle: tNews('hero.subtitle'),
     tabs: await getNewsTabs(locale),
-    // 위에서 thesis 를 먼저 걸러 냈으므로 남은 boardKey 는 전부 뉴스 탭 세그먼트다
+    // 위에서 소식 밖 게시판을 먼저 걸러 냈으므로 남은 boardKey 는 전부 뉴스 탭 세그먼트다
     // (boolean 플래그를 거치면 타입이 좁혀지지 않아 newsTabHref 가 컴파일되지 않는다).
+    activeTab: boardKey,
     backHref: newsTabHref(boardKey),
   };
 }
@@ -149,18 +194,21 @@ export async function BoardPostDetail({ locale, id, board }: BoardPostRouteParam
   // 같은 글이 여러 게시판 URL 로 열리는 중복 차단 — 정본 주소로 영구 이동.
   if (post.boardKey !== board) permanentRedirect(`/${locale}${boardPostHref(post)}`);
 
-  // 소속 메뉴(소식/대학원)에 따라 히어로·크럼·탭 줄·목록 링크가 통째로 갈린다 — 한 곳에서 결정.
-  const { sectionLabel, sectionHref, heroTitle, heroSubtitle, tabs, backHref } =
+  // 소속 메뉴(소식/대학원/BK21)에 따라 히어로·크럼·탭 줄·목록 링크가 통째로 갈린다 — 한 곳에서 결정.
+  const { sectionLabel, sectionHref, heroTitle, heroSubtitle, tabs, activeTab, backHref } =
     await sectionContextOf(l, post.boardKey);
   const boardName = await boardNameOf(l, post.boardKey);
   const author = post.meta ? pick(post.meta, l) : t('detail.defaultAuthor');
 
-  // 자료실만 '분류' 메타 행을 한 줄 더 세운다. 공지의 학부/대학원 구분은 이미 위
+  // 자료실형 게시판만 '분류' 메타 행을 한 줄 더 세운다. 공지의 학부/대학원 구분은 이미 위
   // author(post.meta) 칸에 실려 있어 여기 또 쓰면 같은 말이 두 번 나온다.
-  const libraryCategory =
-    post.boardKey === 'resources' && (post.category === 'form' || post.category === 'rule')
-      ? t(post.category === 'form' ? 'library.catForm' : 'library.catRule')
-      : undefined;
+  // 값 집합이 게시판마다 다르므로 표(LIBRARY_CATEGORY_LABELS)를 거친다 — 모르는 값이면 생략.
+  const categoryMsg = post.category
+    ? LIBRARY_CATEGORY_LABELS[post.boardKey]?.[post.category]
+    : undefined;
+  const libraryCategory = categoryMsg
+    ? (await getTranslations({ locale: l, namespace: categoryMsg[0] }))(categoryMsg[1])
+    : undefined;
 
   // 본문 아래 이전/다음 글 — 이 글이 실제로 속한 (하위)게시판 기준의 앞뒤 글.
   // 모르는 게시판이면 context 가 null 이라 아무것도 그리지 않는다.
@@ -186,7 +234,7 @@ export async function BoardPostDetail({ locale, id, board }: BoardPostRouteParam
         crumbLeaf={pick(post.title, l)}
         titleTag="p"
       />
-      <BoardShell tabs={tabs} activeKey={post.boardKey} navTitle={sectionLabel}>
+      <BoardShell tabs={tabs} activeKey={activeTab} navTitle={sectionLabel}>
         <PostArticle
           boardName={boardName}
           title={pick(post.title, l)}

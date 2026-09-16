@@ -1,0 +1,123 @@
+[
+  {
+    "phase": 1,
+    "year": 2020,
+    "term": 2,
+    "pMs": 70,
+    "pPhd": 19,
+    "pInt": 106,
+    "sMs": 31,
+    "sPhd": 8,
+    "sInt": 53
+  },
+  {
+    "phase": 2,
+    "year": 2021,
+    "term": 1,
+    "pMs": 67,
+    "pPhd": 20,
+    "pInt": 115,
+    "sMs": 34,
+    "sPhd": 9,
+    "sInt": 50
+  },
+  {
+    "phase": 2,
+    "year": 2021,
+    "term": 2,
+    "pMs": 60,
+    "pPhd": 18,
+    "pInt": 114,
+    "sMs": 32,
+    "sPhd": 8,
+    "sInt": 54
+  },
+  {
+    "phase": 3,
+    "year": 2022,
+    "term": 1,
+    "pMs": 61,
+    "pPhd": 24,
+    "pInt": 115,
+    "sMs": 28,
+    "sPhd": 10,
+    "sInt": 51
+  },
+  {
+    "phase": 3,
+    "year": 2022,
+    "term": 2,
+    "pMs": 68,
+    "pPhd": 21,
+    "pInt": 110,
+    "sMs": 32,
+    "sPhd": 8,
+    "sInt": 52
+  },
+  {
+    "phase": 4,
+    "year": 2023,
+    "term": 1,
+    "pMs": 69,
+    "pPhd": 25,
+    "pInt": 115,
+    "sMs": 30,
+    "sPhd": 13,
+    "sInt": 47
+  },
+  {
+    "phase": 4,
+    "year": 2023,
+    "term": 2,
+    "pMs": 56,
+    "pPhd": 24,
+    "pInt": 125,
+    "sMs": 25,
+    "sPhd": 14,
+    "sInt": 50
+  },
+  {
+    "phase": 5,
+    "year": 2024,
+    "term": 1,
+    "pMs": 63,
+    "pPhd": 25,
+    "pInt": 141,
+    "sMs": 24,
+    "sPhd": 8,
+    "sInt": 61
+  },
+  {
+    "phase": 5,
+    "year": 2024,
+    "term": 2,
+    "pMs": 54,
+    "pPhd": 20,
+    "pInt": 142,
+    "sMs": 21,
+    "sPhd": 6,
+    "sInt": 61
+  },
+  {
+    "phase": 6,
+    "year": 2025,
+    "term": 1,
+    "pMs": 58,
+    "pPhd": 21,
+    "pInt": 141,
+    "sMs": 22,
+    "sPhd": 8,
+    "sInt": 57
+  },
+  {
+    "phase": 6,
+    "year": 2025,
+    "term": 2,
+    "pMs": 71,
+    "pPhd": 20,
+    "pInt": 139,
+    "sMs": 23,
+    "sPhd": 6,
+    "sInt": 60
+  }
+]

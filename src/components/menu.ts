@@ -7,7 +7,7 @@
  *     (소개·학부·대학원·연구)도 게시판처럼 탭마다 진짜 경로를 갖는다.
  *     경로 문법의 단일 출처는 @/lib/board-links — 여기서 문자열을 조립하지 말 것.
  *     key 는 라벨 조회 키라 URL 세그먼트와 다를 수 있다(뉴스: key 'news' ↔ /news/press). */
-import { newsTabHref, sectionTabHref } from '@/lib/board-links';
+import { newsTabHref, sectionDefaultHref, sectionTabHref } from '@/lib/board-links';
 
 export interface MenuSubItem {
   key: string;
@@ -56,7 +56,9 @@ export const menu: MenuGroup[] = [
       { key: 'thesis', href: sectionTabHref('graduate', 'thesis') },
       { key: 'courses', href: sectionTabHref('graduate', 'courses') },
       { key: 'labs', href: sectionTabHref('graduate', 'labs') },
-      { key: 'bk21', href: sectionTabHref('graduate', 'bk21') },
+      // BK21 은 2026-09 에 자기 섹션(/bk21/*)으로 독립했지만 메뉴 자리는 대학원 아래다 —
+      // 라벨 키(menu.graduate.items.bk21)는 그대로 쓰고 목적지만 새 섹션 기본 탭이다.
+      { key: 'bk21', href: sectionDefaultHref('bk21') },
     ],
   },
   {

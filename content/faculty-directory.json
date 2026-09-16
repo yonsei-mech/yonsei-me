@@ -29,6 +29,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "강건욱",
     "lab": {
@@ -67,6 +68,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "강신일",
     "lab": {
@@ -144,6 +146,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "김대은",
     "lab": {
@@ -182,6 +185,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": "https://sites.google.com/view/seoklab",
     "photoAlt": "김석",
     "lab": {
@@ -220,6 +224,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "김영주",
     "lab": {
@@ -258,6 +263,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "김용준",
     "lab": {
@@ -296,6 +302,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "김우철",
     "lab": {
@@ -335,6 +342,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": "https://ssfl.yonsei.ac.kr/",
     "photoAlt": "김원정",
     "lab": {
@@ -374,6 +382,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "김종백",
     "lab": {
@@ -412,6 +421,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "김해진",
     "lab": {
@@ -451,6 +461,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "류원형",
     "lab": {
@@ -490,6 +501,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": "https://csailabyonsei.quv.kr/",
     "photoAlt": "민경민",
     "lab": {
@@ -529,6 +541,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "민병권",
     "lab": {
@@ -568,6 +581,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "박노철",
     "lab": {
@@ -607,6 +621,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "송순호",
     "lab": {
@@ -646,6 +661,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": "http://hcr.yonsei.ac.kr/",
     "photoAlt": "신동준",
     "lab": {
@@ -688,6 +704,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "유정훈",
     "lab": {
@@ -709,6 +726,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "윤준영",
     "lab": {
@@ -730,6 +748,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "이남규",
     "lab": {
@@ -751,6 +770,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "이종수",
     "lab": {
@@ -772,6 +792,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "이준상",
     "lab": {
@@ -793,6 +814,7 @@
     "specialty": "ASTC 611a, Engineering I 590",
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "이창훈",
     "lab": {
@@ -814,6 +836,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "이형석",
     "lab": {
@@ -835,6 +858,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "장용훈",
     "lab": {
@@ -898,6 +922,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "정효일",
     "lab": {
@@ -919,6 +944,7 @@
     "specialty": "Engineering Building C 328",
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "주철민",
     "lab": {
@@ -940,6 +966,7 @@
     "specialty": "Eng Blg III C319",
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "최종은",
     "lab": {
@@ -961,6 +988,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "현재상",
     "lab": {
@@ -982,6 +1010,7 @@
     "specialty": null,
     "specialtyEn": null,
     "yearRange": null,
+    "bk21": true,
     "moreInfoUrl": null,
     "photoAlt": "홍종섭",
     "lab": {

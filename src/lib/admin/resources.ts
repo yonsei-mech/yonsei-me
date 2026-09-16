@@ -222,6 +222,8 @@ export type ResourceKey =
   | 'scholarships'
   | 'clubs'
   | 'labs'
+  | 'bk21EarlyCareer'
+  | 'bk21Students'
   | 'popups';
 
 // ---- 변환 헬퍼 ----
@@ -381,6 +383,7 @@ const FACULTY_BASE_FIELDS: FieldDef[] = [
   // 분류되므로(사이트의 isEmeritus 가 둘을 OR 로 본다) 이 체크는 "기간 미상" 보완용이다.
   { kind: 'checkbox', key: 'emeritus', label: '명예·퇴임 교원', width: 'half', hint: '재직 기간을 모를 때 직접 체크하세요. 기간을 적었다면 체크하지 않아도 됩니다.' },
   { kind: 'checkbox', key: 'showActivities', label: '학술활동 사이트에 공개', width: 'half', hint: '기본은 비공개입니다 — 상세 페이지에는 교원정보시스템 링크만 표시됩니다. 체크하면 논문·연구과제·지적재산권·수상·학술활동 표가 이 사이트에도 함께 실립니다.' },
+  { kind: 'checkbox', key: 'bk21', label: 'BK21 참여교수', width: 'half', hint: 'BK21 FOUR 교육연구단 > 참여인력 탭의 참여교수 명단에 이 교수를 싣습니다.' },
   { kind: 'text', key: 'moreInfoUrl', label: '교원정보시스템 URL', width: 'half', emptyAs: 'null', hint: '비우면 수집된 교원정보 페이지 주소를 자동으로 씁니다. 학교가 주소를 옮겼을 때만 직접 넣으세요.' },
   { kind: 'text', key: 'photoAlt', label: '사진 대체 텍스트', width: 'half', hint: '비우면 이름을 사용' },
   {
@@ -451,6 +454,8 @@ const facultyDirectory: ResourceDef = {
     out.lab = nameKo || nameEn || url ? { nameKo, nameEn, url } : null;
     // 공개하지 않으면 키 자체를 생략(JSON 최소화 — 기본값 false = 비공개)
     if (out.showActivities !== true) delete out.showActivities;
+    // BK21 참여교수도 같은 규약 — 참여교수가 아니면 키를 두지 않는다(50명 중 29명)
+    if (out.bk21 !== true) delete out.bk21;
     // 구 키 정리 — 반대 의미(숨기기)라 남겨 두면 다음 편집자가 오해한다.
     delete out.hideActivities;
     return out;
@@ -704,6 +709,91 @@ const scholarships: ResourceDef = {
     widths: { section: 112, name: 160, count: 104, amount: 168, timing: 104 },
   },
   summarize: (f) => cellText(f, 'name'),
+};
+
+// BK21 신진연구인력 — 구분(한·영) + 인원 두 칸짜리 표. 사이트의 2열 표가 그대로
+// 편집 표가 된다(장학금·교직원과 같은 인라인 방식).
+const BK21_EARLY_CAREER_FIELDS: FieldDef[] = [
+  { kind: 'localized', key: 'kind', label: '구분', required: true, hint: '예: 박사후연구원 / Postdoctoral researchers' },
+  { kind: 'number', key: 'count', label: '인원', width: 'third', min: 0, placeholder: '7' },
+];
+
+const bk21EarlyCareer: ResourceDef = {
+  key: 'bk21EarlyCareer',
+  label: 'BK21 신진연구인력',
+  description:
+    'BK21 FOUR 교육연구단 > 참여인력 탭의 "신진연구인력" 표에 반영됩니다. 행 순서가 표의 순서입니다.',
+  file: MANAGED_FILES.bk21EarlyCareer,
+  format: 'array',
+  listColumns: [
+    { key: 'kind', label: '구분' },
+    { key: 'count', label: '인원' },
+  ],
+  searchKeys: ['kind'],
+  fields: BK21_EARLY_CAREER_FIELDS,
+  orderable: true,
+  listView: { kind: 'table', inlineKeys: ['kind', 'count'], widths: { count: 96 } },
+  fromForm: (form) => {
+    const out = defaultFromForm(BK21_EARLY_CAREER_FIELDS, form);
+    // 인원은 숫자로 저장한다 — 사이트가 그대로 찍는 값이라 "7명" 같은 문자열이 섞이면 안 된다.
+    const n = parseInt(String(form.count ?? '').trim(), 10);
+    out.count = Number.isFinite(n) && n > 0 ? n : 0;
+    return out;
+  },
+  summarize: (f) => cellText(f, 'kind'),
+};
+
+// BK21 참여대학원생 — 학기마다 한 행. 참여/지원 × 석사·박사·통합 6칸이 값이고
+// **합계 열은 저장하지 않는다**(사이트가 렌더할 때 더한다 — 저장한 합계는 반드시 어긋난다).
+const BK21_STUDENT_FIELDS: FieldDef[] = [
+  { kind: 'number', key: 'phase', label: '사업연도', required: true, width: 'third', min: 1, placeholder: '6', hint: '숫자만. 표에는 "6차년도"로 표시됩니다' },
+  { kind: 'number', key: 'year', label: '연도', required: true, width: 'third', min: 2020, placeholder: '2025' },
+  { kind: 'number', key: 'term', label: '학기', required: true, width: 'third', min: 1, max: 2, placeholder: '1', hint: '1 또는 2' },
+  { kind: 'number', key: 'pMs', label: '참여 석사', width: 'third', min: 0 },
+  { kind: 'number', key: 'pPhd', label: '참여 박사', width: 'third', min: 0 },
+  { kind: 'number', key: 'pInt', label: '참여 통합', width: 'third', min: 0 },
+  { kind: 'number', key: 'sMs', label: '지원 석사', width: 'third', min: 0 },
+  { kind: 'number', key: 'sPhd', label: '지원 박사', width: 'third', min: 0 },
+  { kind: 'number', key: 'sInt', label: '지원 통합', width: 'third', min: 0 },
+];
+
+/** 숫자 칸 정리 — 빈 값·음수·문자는 0 으로 떨어뜨린다(표의 합계가 NaN 이 되지 않게) */
+function bk21Count(v: FormValue | undefined): number {
+  const n = parseInt(String(v ?? '').trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+const bk21Students: ResourceDef = {
+  key: 'bk21Students',
+  label: 'BK21 참여대학원생',
+  description:
+    'BK21 FOUR 교육연구단 > 참여인력 탭의 "참여대학원생" 표에 반영됩니다. 한 행이 한 학기이고, 합계 열은 사이트가 자동으로 더하므로 입력하지 않습니다.',
+  file: MANAGED_FILES.bk21Students,
+  format: 'array',
+  listColumns: [
+    { key: 'year', label: '연도' },
+    { key: 'term', label: '학기' },
+    { key: 'pMs', label: '참여 석사' },
+    { key: 'pPhd', label: '참여 박사' },
+    { key: 'pInt', label: '참여 통합' },
+  ],
+  searchKeys: ['year', 'phase'],
+  fields: BK21_STUDENT_FIELDS,
+  orderable: true,
+  // 사이트 표와 같은 순서로 그 자리에서 고친다. 열이 9개라 폭을 좁게 잡는다.
+  listView: {
+    kind: 'table',
+    inlineKeys: ['phase', 'year', 'term', 'pMs', 'pPhd', 'pInt', 'sMs', 'sPhd', 'sInt'],
+    widths: { phase: 88, year: 88, term: 72, pMs: 88, pPhd: 88, pInt: 88, sMs: 88, sPhd: 88, sInt: 88 },
+  },
+  fromForm: (form) => {
+    const out = defaultFromForm(BK21_STUDENT_FIELDS, form);
+    for (const k of BK21_STUDENT_FIELDS) out[k.key] = bk21Count(form[k.key]);
+    // 학기는 1·2 만 — 그 밖의 값이 들어오면 1 학기로 본다(표가 두 학기로만 짜여 있다)
+    if (out.term !== 1 && out.term !== 2) out.term = 1;
+    return out;
+  },
+  summarize: (f) => `${cellText(f, 'year')}-${cellText(f, 'term')}`,
 };
 
 // 동아리: 사진 짝 보존 fromForm 이 images 필드를 다시 만지므로 필드를 상수로 분리한다.
@@ -1038,6 +1128,8 @@ export const RESOURCES: Record<ResourceKey, ResourceDef> = {
   scholarships,
   clubs,
   labs,
+  bk21EarlyCareer,
+  bk21Students,
   popups,
 };
 
@@ -1054,9 +1146,18 @@ export interface MarkdownPageDef {
   description: string;
 }
 
-// 장학금(scholarship)은 2026-08 구조화 전환으로 collection 리소스가 됐다 —
-// 마크다운 단일 페이지가 다시 생기면(BK21 등) 여기에 등록한다.
-export const MARKDOWN_PAGES: MarkdownPageDef[] = [];
+// 장학금(scholarship)은 2026-08 구조화 전환으로 collection 리소스가 됐다.
+// ⚠️ 여기 등록한 파일 경로는 managed-content.ts 의 MANAGED_MARKDOWN_PAGES 에도 있어야
+//    쓰기 API 가 받아 준다(순환 import 때문에 목록이 둘이다 — 함께 고칠 것).
+export const MARKDOWN_PAGES: MarkdownPageDef[] = [
+  {
+    key: 'bk21Vision',
+    label: 'BK21 비전 및 목표',
+    file: 'content/pages/bk21-vision.md',
+    description:
+      'BK21 FOUR 교육연구단 > 비전 및 목표 탭 본문에 반영됩니다. 현재는 학부가 만든 비전·목표 이미지 2장이며, 이미지를 바꾸려면 <img> 의 src 를 새 주소로 고치세요.',
+  },
+];
 
 export function getMarkdownPage(key: string): MarkdownPageDef {
   const found = MARKDOWN_PAGES.find((p) => p.key === key);
@@ -1159,6 +1260,19 @@ export const MENU_GROUPS: MenuGroup[] = [
     entries: [
       { type: 'collection', resourceKey: 'clubs' },
       { type: 'collection', resourceKey: 'labs' },
+    ],
+  },
+  {
+    // BK21 FOUR 교육연구단 — 사이트에서 독립 섹션(/bk21/*)이라 콘솔에서도 제 묶음을 준다.
+    // 참여교수 명단은 여기 없다 — 교수진 리소스의 'BK21 참여교수' 체크가 원본이다
+    // (교수 한 명의 정보가 두 곳에 나뉘지 않게).
+    label: 'BK21 FOUR',
+    entries: [
+      { type: 'markdown', pageKey: 'bk21Vision' },
+      { type: 'collection', resourceKey: 'bk21EarlyCareer' },
+      { type: 'collection', resourceKey: 'bk21Students' },
+      { type: 'board', boardKey: 'bk21Resources' },
+      { type: 'board', boardKey: 'bk21Reports' },
     ],
   },
   {

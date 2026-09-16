@@ -19,7 +19,7 @@ import {
   type ContentSection,
 } from '@/lib/board-links';
 import { legacyNotFound, legacyRedirect } from '@/lib/legacy-resolver';
-import { boardKeyOf, fetchNewsSlugById } from '@/lib/posts';
+import { boardKeyOf, fetchNewsSlugById, fetchPostIdBySlug } from '@/lib/posts';
 
 /** 홈. `'/'` 를 쓰면 `/ko/` 가 되어 Next 의 슬래시 정규화 308 이 한 홉 더 붙는다. */
 const HOME = '';
@@ -47,6 +47,30 @@ function tab<S extends ContentSection>(
   return sectionTabHref(section, key);
 }
 
+/**
+ * BK21 사업계획서·연도별 보고서(구 정적 페이지) → 게시판 bk21Reports 의 글 **slug**.
+ * `posts.id` 는 자동증가라 시드(tools/bk21/seed-reports.mjs)가 고정할 수 있는 키는 slug 뿐이고,
+ * 상세 주소는 id 를 쓰므로 요청 시점에 slug → id 를 한 번 조회한다(뉴스의 id → slug 와 같은
+ * 이유로 DB 를 켜는 유일한 예외 둘). 시드 slug 를 바꾸면 여기도 바꿔야 한다.
+ * 글이 (아직) 없으면 목록(/bk21/reports)으로 — 지어낸 상세 주소로 404 를 만들지 않는다.
+ */
+const BK21_REPORT_SLUGS: Record<string, string> = {
+  'bk21/bk21_plan.do': 'bk21rep-plan',
+  'bk21/bk21_plan_2021.do': 'bk21rep-2021',
+  'bk21/bk21_plan_2022.do': 'bk21rep-2022',
+  'bk21/bk21_plan_2023.do': 'bk21rep-2023',
+  'bk21/bk21_plan_2024.do': 'bk21rep-2024',
+  // 구 사이트에 실재하지만 표에서 빠져 404 였다(2026-09 감사) — 위 연도들과 같은 페이지 계열.
+  'bk21/bk21_plan_2025.do': 'bk21rep-2025',
+};
+
+async function reportHref(tail: string): Promise<string | undefined> {
+  const slug = own(BK21_REPORT_SLUGS, tail);
+  if (!slug) return undefined;
+  const id = await fetchPostIdBySlug('bk21Reports', slug);
+  return id ? boardPostHref({ id: String(id), boardKey: 'bk21Reports' }) : tab('bk21', 'reports');
+}
+
 /** 공지 목록의 분류 탭 — FilterableBoardList 가 ?cat= 로 복원한다(list-data 의 categories 와 같은 값).
  *  기본 탭인 'undergrad' 는 싣지 않는다 — 목록이 하이드레이션 직후 주소에서 지우는 값이다. */
 function noticeList(cat?: 'graduate' | 'external' | 'scholarship'): string {
@@ -69,6 +93,10 @@ const BOARD_LISTS: Record<string, string> = {
   // 학위논문심사는 2026-09 에 대학원 섹션으로 옮겼다(목록이 /graduate/thesis)
   'community/degree_thesis_review.do': tab('graduate', 'thesis'),
   'community/information.do': newsTabHref('resources'),
+  // 구 BK21 자료실(files.do)과 사업성과(progress.do)는 한 게시판(bk21Resources)으로
+  // 합쳐 /bk21/resources 한 목록이 됐다 — 분류 탭(서식·자료 / 사업성과)으로만 갈린다.
+  'bk21/files.do': tab('bk21', 'resources'),
+  'bk21/progress.do': tab('bk21', 'resources'),
 };
 
 /**
@@ -117,18 +145,14 @@ const STATIC_PAGES: Record<string, string> = {
   'community/scholar_yonsei.do': tab('undergraduate', 'scholarship'),
   'community/faculty.do': tab('about', 'staff'), // 교직원
 
-  // BK21 — 구 사이트는 연도별 사업계획서까지 페이지를 나눴지만 새 사이트는 한 장이다
-  'bk21/bk21_plan.do': tab('graduate', 'bk21'),
-  'bk21/bk21_plan_2021.do': tab('graduate', 'bk21'),
-  'bk21/bk21_plan_2022.do': tab('graduate', 'bk21'),
-  'bk21/bk21_plan_2023.do': tab('graduate', 'bk21'),
-  'bk21/bk21_plan_2024.do': tab('graduate', 'bk21'),
-  'bk21/edu.do': tab('graduate', 'bk21'),
-  'bk21/people.do': tab('graduate', 'bk21'),
-  'bk21/progress.do': tab('graduate', 'bk21'),
-  'bk21/vision.do': tab('graduate', 'bk21'),
-  'bk21/vision_1.do': tab('graduate', 'bk21'),
-  'bk21/files.do': newsTabHref('resources'), // BK21 자료실
+  // BK21 — 2026-09 에 대학원 한 탭에서 자기 섹션(/bk21/*)으로 독립했다. 구 사이트의
+  // 11개 페이지가 새 탭 3개에 대응한다(비전·참여인력·교육연구단 현황).
+  'bk21/vision.do': tab('bk21', 'vision'),
+  'bk21/vision_1.do': tab('bk21', 'vision'),
+  'bk21/people.do': tab('bk21', 'people'),
+  'bk21/edu.do': tab('bk21', 'organization'),
+  // 사업계획서·연도별 보고서(bk21_plan*.do)는 BK21_REPORT_SLUGS 가 slug → id 조회로 처리한다.
+  // (자료실·사업성과는 BOARD_LISTS 로 옮겼다 — 2026-09 S2.)
 };
 
 /** 게시판 목록 조회 — 꼬리 전체가 먼저, 없으면 파일명. 구 사이트가 같은 게시판을
@@ -186,6 +210,10 @@ export async function resolveLegacyDo(
   // ③ 게시판 목록 (mode=list·mode 없음·모르는 mode 전부)
   const list = boardListOf(tail);
   if (list) return legacyRedirect(req, locale, list);
+
+  // ③-1 BK21 사업계획서·보고서 — 정적 페이지지만 목적지가 게시판 글(slug → id 조회)이다.
+  const report = await reportHref(tail);
+  if (report) return legacyRedirect(req, locale, report);
 
   // ④ 정적 페이지
   const page = own(STATIC_PAGES, tail);

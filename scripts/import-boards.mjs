@@ -96,15 +96,40 @@ if (LIMIT !== null && (!Number.isInteger(LIMIT) || LIMIT <= 0)) {
   process.exit(1);
 }
 
-// 게시판 키 — src/lib/admin/posts-server.ts 의 BOARDS 부분집합(크롤 대상만).
+// 크롤 스냅샷 키 — tools/board-source.mjs 의 BOARDS 표와 같은 집합이다.
+// ⚠ 대부분은 posts.board 값과 같지만 **전부 그런 것은 아니다**: bk21Files·bk21Results 는
+//   구 사이트의 두 게시판이고 새 사이트에서는 한 게시판(bk21Resources)이다 —
+//   저장 값 변환은 아래 BOARD_IMPORT_RULES 가 한다.
 const BOARD_KEYS = [
   'noticesUndergrad', 'noticesGraduate', 'noticesExternal', 'noticesScholarship',
   'news', 'thesis', 'resources', 'career', 'events', 'seminars',
+  'bk21Files', 'bk21Results',
 ];
-if (ONLY_BOARD && !BOARD_KEYS.includes(ONLY_BOARD)) {
-  console.error(`--board 값이 올바르지 않습니다: ${ONLY_BOARD}\n  가능한 값: ${BOARD_KEYS.join(', ')}`);
+// --board 는 쉼표로 여러 개를 줄 수 있다(크롤러 --board 와 같은 문법).
+const ONLY_BOARDS = ONLY_BOARD ? ONLY_BOARD.split(',').map((s) => s.trim()).filter(Boolean) : [];
+for (const b of ONLY_BOARDS) {
+  if (BOARD_KEYS.includes(b)) continue;
+  console.error(`--board 값이 올바르지 않습니다: ${b}\n  가능한 값: ${BOARD_KEYS.join(', ')}`);
   process.exit(1);
 }
+
+/**
+ * 구 사이트 게시판 키 → 새 사이트 저장 규칙. 여기 없는 게시판은 key 가 곧 posts.board 이고
+ * 분류는 기존 규칙(뉴스만 'general')을 따른다.
+ *
+ * ⚠ tools/board-source.mjs 의 BOARDS 표를 손으로 복제한 것이다 — 이 스크립트는 크롤러
+ *   모듈을 import 하지 않는다(머리말 참조). 저쪽 표를 고치면 여기도 고쳐야 한다.
+ */
+const BOARD_IMPORT_RULES = {
+  // BK21 자료실(files.do) — 규정·지침이 대부분, 서식 글 하나만 예외
+  bk21Files: {
+    dbBoard: 'bk21Resources',
+    defaultCategory: 'rule',
+    categoryByArticleNo: { '114095': 'form' },
+  },
+  // BK21 사업성과(progress.do) — 전부 '사업성과' 분류
+  bk21Results: { dbBoard: 'bk21Resources', defaultCategory: 'result' },
+};
 
 const SITE_ORIGIN = 'https://me.yonsei.ac.kr';
 // 제목에서 일정을 뽑는 게시판 — 그 외는 event_date/end_date/date_label 을 건드리지 않는다.
@@ -1184,7 +1209,7 @@ function loadSnapshots() {
       console.warn(`⚠ 알 수 없는 게시판 키라 건너뜀: ${board} (${file})`);
       continue;
     }
-    if (ONLY_BOARD && board !== ONLY_BOARD) continue;
+    if (ONLY_BOARDS.length > 0 && !ONLY_BOARDS.includes(board)) continue;
     snapshots.push({
       board,
       sourcePath: data?.sourcePath ?? '',
@@ -1281,8 +1306,12 @@ function toRow(post, snapshot, suspicious) {
   }
 
   const isNews = board === 'news';
+  // 저장 값 변환 — 구 사이트의 두 BK21 게시판이 새 사이트에서는 한 게시판의 두 분류다.
+  // 분류는 "기존 규칙(뉴스만 general) → 글별 예외표 → 게시판 기본값" 순으로 고른다.
+  const rule = BOARD_IMPORT_RULES[board];
+  const articleNo = String(post?.articleNo ?? '').trim();
   const row = {
-    board,
+    board: rule?.dbBoard ?? board,
     source_url: sourceUrl,
     slug: isNews ? `${date}-${String(post?.articleNo ?? '').trim()}` : null,
     title_ko: String(post?.title ?? '').trim(),
@@ -1295,7 +1324,11 @@ function toRow(post, snapshot, suspicious) {
     excerpt_ko: isNews ? nn(post?.excerpt) : null,
     excerpt_en: null,
     thumbnail_url: isNews ? nn(post?.thumbnail) : null,
-    category: isNews ? 'general' : null,
+    category:
+      (isNews ? 'general' : null) ??
+      rule?.categoryByArticleNo?.[articleNo] ??
+      rule?.defaultCategory ??
+      null,
     host_ko: null,
     host_en: null,
     date_label_ko: null,

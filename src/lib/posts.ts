@@ -285,6 +285,16 @@ async function rowBySlugOnly(board: string, slug: string): Promise<DbPost | null
   return row && isVisibleNow(row) ? row : null;
 }
 
+/** slug 로 글의 숫자 id 만 찾는다 — 구 URL 리졸버용. `posts.id` 는 자동증가라 시드가
+ *  고정할 수 있는 키는 slug 뿐인데(BK21 사업계획서·보고서 6건 `bk21rep-<키>`), 상세 주소는
+ *  id 를 쓰므로 여기서 한 번 바꿔 준다. 없거나 아직 안 보이는 글이면 null. */
+export async function fetchPostIdBySlug(board: string, slug: string): Promise<number | null> {
+  // git 소스에는 DB id 가 없다(fetchNewsSlugById 와 같은 규칙) — 호출부가 목록으로 폴백한다.
+  if (postsSource() === 'git') return null;
+  const row = await rowBySlugOnly(board, slug);
+  return row ? row.id : null;
+}
+
 /** 뉴스형 상세 1건 — slug 로 찾되, slug 가 비어 있는 글은 목록이 id 를 slug 로 쓰므로
  *  (toNews 의 `r.slug ?? String(r.id)`) 숫자 주소도 같은 규칙으로 받아 준다. */
 async function fetchRowBySlug(board: string, slug: string): Promise<DbPost | null> {
@@ -438,6 +448,10 @@ const BOARD_POST_META: Record<string, { boardKey: BoardPost['boardKey']; meta?: 
   thesis: { boardKey: 'thesis' },
   career: { boardKey: 'career' },
   resources: { boardKey: 'resources' },
+  // BK21 자료실 — 소식 자료실과 화면 문법은 같지만 소속 섹션(/bk21)과 분류 집합이 다르다
+  bk21Resources: { boardKey: 'bk21Resources' },
+  // BK21 사업계획서·보고서 — 첨부 PDF 가 본체라 상세가 글이 아니라 좌/우 펼침 리더다
+  bk21Reports: { boardKey: 'bk21Reports' },
 };
 
 /**
@@ -587,6 +601,8 @@ export async function fetchBoardData(): Promise<typeof gitBoard> {
       thesis: pinnedFirst(gitBoard.thesis),
       career: pinnedFirst(gitBoard.career),
       resources: pinnedFirst(gitBoard.resources),
+      bk21Resources: pinnedFirst(gitBoard.bk21Resources),
+      bk21Reports: pinnedFirst(gitBoard.bk21Reports),
       alumniEvents: pinnedFirst(gitBoard.alumniEvents),
     };
   }
@@ -594,13 +610,13 @@ export async function fetchBoardData(): Promise<typeof gitBoard> {
   // 대부분 히트고, 미스도 그 게시판 하나만 다시 조회한다.
   const [
     seminars, events, noticesUndergrad, noticesGraduate, noticesExternal,
-    noticesScholarship, thesis, career, resources, alumniEvents,
+    noticesScholarship, thesis, career, resources, bk21Resources, bk21Reports, alumniEvents,
   ] = await Promise.all([
     rowsOf('seminars'), rowsOf('events'),
     rowsOf('noticesUndergrad'), rowsOf('noticesGraduate'),
     rowsOf('noticesExternal'), rowsOf('noticesScholarship'),
     rowsOf('thesis'), rowsOf('career'),
-    rowsOf('resources'),
+    rowsOf('resources'), rowsOf('bk21Resources'), rowsOf('bk21Reports'),
     rowsOf('alumniEvents'),
   ]);
   return {
@@ -613,6 +629,8 @@ export async function fetchBoardData(): Promise<typeof gitBoard> {
     thesis: byPinnedDate(thesis.map(toNotice)),
     career: byPinnedDate(career.map(toNotice)),
     resources: byPinnedDate(resources.map(toNotice)),
+    bk21Resources: byPinnedDate(bk21Resources.map(toNotice)),
+    bk21Reports: byPinnedDate(bk21Reports.map(toNotice)),
     alumniEvents: byPinnedDate(alumniEvents.map(toAlumniEvent)),
   };
 }
@@ -633,6 +651,8 @@ export async function fetchAllBoardPosts(): Promise<BoardPost[]> {
     ...b.thesis.map((t) => noticeToBoardPost(t, 'thesis')),
     ...b.career.map((c) => noticeToBoardPost(c, 'career')),
     ...b.resources.map((r) => noticeToBoardPost(r, 'resources')),
+    ...b.bk21Resources.map((r) => noticeToBoardPost(r, 'bk21Resources')),
+    ...b.bk21Reports.map((r) => noticeToBoardPost(r, 'bk21Reports')),
   ];
 }
 
@@ -686,14 +706,19 @@ interface ResourceBodyRow {
   event_date: string | null;
 }
 
+/** 자료실형 게시판 — 목록이 본문까지 검색하는 게시판들. 둘 다 "받아 가는 파일" 목록이다. */
+export type ResourceBoard = 'resources' | 'bk21Resources';
+
+// board 를 인자로 받는다 — unstable_cache 는 인자를 캐시 키에 포함하므로 게시판마다
+// 항목이 따로 잡힌다(fetchBoardRows 와 같은 방식). 무효화는 전과 같이 'posts' 태그 하나.
 const fetchResourceBodiesDb = unstable_cache(
-  async (): Promise<ResourceBodyRow[]> => {
+  async (board: ResourceBoard): Promise<ResourceBodyRow[]> => {
     const { data, error } = await sb()
       .from('posts')
       .select('id, body_html_ko, body_html_en, created_at, event_date')
       .eq('published', true)
-      .eq('board', 'resources');
-    if (error) throw new Error(`자료실 본문 조회 실패: ${error.message}`);
+      .eq('board', board);
+    if (error) throw new Error(`자료실 본문 조회 실패(${board}): ${error.message}`);
     return (data ?? []) as unknown as ResourceBodyRow[];
   },
   ['posts-resource-bodies'],
@@ -703,12 +728,14 @@ const fetchResourceBodiesDb = unstable_cache(
 /** 자료실 글 id → 본문. 목록(fetchBoardData().resources)의 body 가 비어 있으므로
  *  검색 인덱스를 만드는 쪽이 이걸 따로 받아 간다(서버에서만 쓰고 클라이언트로는
  *  태그를 지운 검색 문자열만 나간다). */
-export async function fetchResourceBodies(): Promise<Record<string, Localized>> {
+export async function fetchResourceBodies(
+  board: ResourceBoard = 'resources',
+): Promise<Record<string, Localized>> {
   if (postsSource() === 'git') {
-    return Object.fromEntries(gitBoard.resources.map((r) => [r.id, r.body]));
+    return Object.fromEntries(gitBoard[board].map((r) => [r.id, r.body]));
   }
-  // 예약 게이트 — 목록(fetchBoardData().resources = rowsOf('resources'))과 같은 집합이어야
+  // 예약 게이트 — 목록(fetchBoardData()[board] = rowsOf(board))과 같은 집합이어야
   // 검색 인덱스에 유령 항목이 생기지 않는다(자료실은 event_date 를 쓰지 않아 실제로 걸린다).
-  const rows = (await fetchResourceBodiesDb()).filter((r) => isVisibleNow(r));
+  const rows = (await fetchResourceBodiesDb(board)).filter((r) => isVisibleNow(r));
   return Object.fromEntries(rows.map((r) => [String(r.id), loc(r.body_html_ko, r.body_html_en)]));
 }

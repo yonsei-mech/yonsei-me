@@ -65,3 +65,9 @@ next-env.d.ts
 # admission-watch 의 `--patch` 사본. 러너에서는 PR 커밋으로 바뀌어 사라지지만, 로컬 시험 실행에서는
 # 진짜 콘텐츠 바로 옆에 남는다 — 실수로 커밋되지 않게 막는다.
 /content/admission-guide.json.new
+
+# BK21 스캔 미러링 중간 산출물 — 원본 JPG 1,733장(825MB)과 파생 WebP(312MB), 묶은 PDF 6종.
+# 언제든 tools/bk21/mirror-scans.mjs fetch/derive · build-pdf.mjs 로 재생성된다(manifest·seed 만 추적).
+/tools/bk21/raw/
+/tools/bk21/derived/
+/tools/bk21/pdf/

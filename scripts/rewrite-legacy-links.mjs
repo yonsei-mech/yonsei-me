@@ -105,16 +105,24 @@ const BOARD_KEY_BY_DB_BOARD = {
   thesis: 'thesis',
   career: 'career',
   resources: 'resources',
+  // BK21 두 게시판만 boardKey 와 URL 세그먼트가 다르다 — 목록이 /bk21/resources ·
+  // /bk21/reports 라 postHrefNoLocale 이 thesis 처럼 따로 분기한다(아래).
+  bk21Resources: 'bk21Resources',
+  bk21Reports: 'bk21Reports',
 };
 
 // (2) 상세 경로 — 출처: src/lib/board-links.ts 의 boardPostHref / newsArticleHref /
 //     alumniEventHref. 로케일 접두사는 호출부에서 붙인다.
 //     · thesis 만 /graduate 아래 (대학원 메뉴 소속 — 2026-09 이관)
+//     · bk21Resources 는 /bk21/resources 아래 (BK21 섹션 소속 게시판 — 2026-09 신설)
+//     · bk21Reports 는 /bk21/reports 아래 (BK21 사업계획서·보고서 — PDF 리더가 상세)
 //     · 뉴스 기사 탭은 URL 세그먼트가 'press' (/news/news/ 중첩 회피)
 //     · 뉴스형 상세의 주소는 `slug ?? String(id)` — posts.ts 의 toNews 와 같은 규칙
 function postHrefNoLocale(row) {
   const key = BOARD_KEY_BY_DB_BOARD[row.board];
   if (key === 'thesis') return `/graduate/thesis/${row.id}`;
+  if (key === 'bk21Resources') return `/bk21/resources/${row.id}`;
+  if (key === 'bk21Reports') return `/bk21/reports/${row.id}`;
   if (key) return `/news/${key}/${row.id}`;
   if (row.board === 'news') return `/news/press/${row.slug ?? String(row.id)}`;
   if (row.board === 'alumniEvents') return `/alumni/network/${row.id}`;
@@ -124,11 +132,31 @@ function postHrefNoLocale(row) {
 /** 링크가 있던 컬럼명 → 로케일 접두사 */
 const localeOf = (col) => (col.endsWith('_en') ? '/en' : '/ko');
 
+// (3) BK21 사업계획서·연도별 보고서(정적 페이지 — articleNo 없음) — 출처:
+//     src/lib/legacy-me.ts 의 report() = boardPostHref({ id:'bk21rep-<키>', boardKey:
+//     'bk21Reports' }). 글 id 는 시드가 고정한 값이다. 단일 출처가 갈리면 이 표부터 볼 것.
+//     ⚠️ 아직 classify()/스캔에 연결하지 않았다 — 이 스크립트는 지금 articleNo 가 있는
+//     게시물 상호 링크(A)와 깨진 상대링크(B)만 분류한다. `.do` 정적 페이지(쿼리스트링
+//     없음)는 BOARD_LINK_RE 도 rel(/me/community/…) 도 매치하지 않아 현재는 "미분류"로
+//     떨어진다. 이 표는 그 다음 손볼 사람을 위해 목적지만 미리 적어 둔 것 — 실행에는
+//     아직 연결하지 않았다(실행 금지). 자료실 글 114095 본문의 devcms 링크
+//     (BK21_plan_2023.do 등)가 이 표의 첫 소비자가 될 자리다.
+const BK21_PLAN_STATIC_MAP = {
+  'bk21/bk21_plan.do': '/bk21/reports/bk21rep-plan',
+  'bk21/bk21_plan_2021.do': '/bk21/reports/bk21rep-2021',
+  'bk21/bk21_plan_2022.do': '/bk21/reports/bk21rep-2022',
+  'bk21/bk21_plan_2023.do': '/bk21/reports/bk21rep-2023',
+  'bk21/bk21_plan_2024.do': '/bk21/reports/bk21rep-2024',
+  'bk21/bk21_plan_2025.do': '/bk21/reports/bk21rep-2025',
+};
+void BK21_PLAN_STATIC_MAP; // 위 주석 참고 — 아직 아무 데서도 참조하지 않는다(미사용 변수 경고 방지)
+
 // ── 분류기 ──────────────────────────────────────────────────────
-// 구 CMS 의 게시판 상세/목록 주소: /me/community/<파일>.do?…
+// 구 CMS 의 게시판 상세/목록 주소: /me/community/<파일>.do?… — BK21 자료실·사업성과만
+// 게시판인데도 /me/bk21/ 아래(files.do·progress.do)에 있어 디렉터리를 둘로 열어 둔다.
 // 꼬리 첫 세그먼트가 정확히 `<이름>.do` 이고 바로 물음표가 오는 경우만 인정한다.
 // (`/me/community/doi.org/10.1016/…` 같은 깨진 상대링크가 여기 걸리면 안 된다.)
-const BOARD_LINK_RE = /^\/me\/community\/([A-Za-z0-9_]+\.do)\?(.*)$/;
+const BOARD_LINK_RE = /^\/me\/(?:community|bk21)\/([A-Za-z0-9_]+\.do)\?(.*)$/;
 
 // 깨진 상대링크(B) 화이트리스트 — 꼬리가 "명백히 호스트로 시작"할 때만 복원한다.
 const HOST_TLD_RE = /^[a-z0-9][a-z0-9.-]*\.(ac\.kr|or\.kr|go\.kr|com|org|net)$/;
@@ -196,9 +224,10 @@ for (const p of posts) {
   if (!byArticleNo.has(m[1])) byArticleNo.set(m[1], []);
   byArticleNo.get(m[1]).push(p);
 }
-/** source_url 의 레거시 파일명(notice.do 등) — 같은 articleNo 가 겹칠 때의 판별자 */
+/** source_url 의 레거시 파일명(notice.do 등) — 같은 articleNo 가 겹칠 때의 판별자.
+ *  BK21 자료실·사업성과만 /me/bk21/ 아래라 디렉터리를 둘 다 본다(BOARD_LINK_RE 와 같은 이유). */
 const legacyFileOf = (row) =>
-  String(row.source_url ?? '').match(/\/me\/community\/([A-Za-z0-9_]+\.do)/)?.[1] ?? null;
+  String(row.source_url ?? '').match(/\/me\/(?:community|bk21)\/([A-Za-z0-9_]+\.do)/)?.[1] ?? null;
 
 // 매치 문자열 → 발생 위치들
 /** @type {Map<string, {where:{id:number,col:string}[]}>} */

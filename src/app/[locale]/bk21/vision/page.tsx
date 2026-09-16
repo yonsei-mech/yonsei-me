@@ -11,13 +11,14 @@ export async function generateMetadata({
 }: {
   params: { locale: string };
 }): Promise<Metadata> {
-  return sectionTabMetadata(params.locale, 'graduate', 'bk21');
+  return sectionTabMetadata(params.locale, 'bk21', 'vision');
 }
 
-/** BK21 FOUR — content/pages/bk21-vision.md 를 Prose 로 렌더(셸이 처리) */
-export default async function GraduateBk21Page({ params }: { params: { locale: string } }) {
+/** BK21 비전 및 목표 — content/pages/bk21-vision.md 를 Prose 로 렌더(셸이 처리).
+ *  2026-09 섹션 독립 전에는 /graduate/bk21 한 장이 이 파일 하나였다. */
+export default async function Bk21VisionPage({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
   const markdown = await getPageMarkdownRuntime('bk21-vision');
 
-  return <SectionTabPage locale={params.locale} section="graduate" tab="bk21" markdown={markdown} />;
+  return <SectionTabPage locale={params.locale} section="bk21" tab="vision" markdown={markdown} />;
 }

@@ -32,9 +32,18 @@ export const DELAY_MS = 300;
 export const TIMEOUT_MS = 15000;
 
 /**
- * 게시판 열 개. key 는 다음 단계(DB 적재)가 그대로 쓰는 식별자라 바꾸면 안 된다.
+ * 게시판 표. key 는 다음 단계(DB 적재)가 그대로 쓰는 식별자라 바꾸면 안 된다.
  * label 은 진행 로그용 짧은 이름, origin 은 원본 사이트에 적힌 게시판 이름.
  * gallery=true 인 뉴스만 목록 마크업이 다르다.
+ *
+ * 선택 필드
+ *   base        구 사이트에서 이 게시판이 사는 디렉터리. 기본값은 `${ORIGIN}/me/community`
+ *               라 아래 열 개는 적지 않는다 — **적지 않은 게시판의 URL 은 한 글자도
+ *               바뀌면 안 된다**(source_url 이 DB 멱등 키다).
+ *   dbBoard     적재 시 posts.board 에 들어갈 값. 없으면 key 그대로. 구 사이트의 두
+ *               게시판을 새 사이트 한 게시판으로 합칠 때만 쓴다(BK21 자료실+사업성과).
+ *   defaultCategory / categoryByArticleNo
+ *               합친 게시판을 다시 가르는 분류값. 글별 예외가 뒤 표에서 이긴다.
  */
 export const BOARDS = [
   { key: 'noticesUndergrad', path: 'notice.do', label: '학부공지', origin: '학부 공지사항' },
@@ -47,7 +56,34 @@ export const BOARDS = [
   { key: 'career', path: 'job.do', label: '취업정보', origin: '취업 정보' },
   { key: 'events', path: 'seminar_graduate1.do', label: '행사', origin: '행사' },
   { key: 'seminars', path: 'seminar.do', label: '세미나', origin: '세미나' },
+  // BK21 자료실·사업성과 — 구 사이트에서는 /me/bk21/ 아래에 있고 새 사이트에서는 한
+  // 게시판(bk21Resources)의 분류 두 개다. files.do 는 규정·지침이 대부분이라 기본값을
+  // 'rule' 로 두고, 서식 글(114095 학생 신청 서식) 하나만 표로 예외 처리한다.
+  {
+    key: 'bk21Files',
+    base: `${ORIGIN}/me/bk21`,
+    path: 'files.do',
+    label: 'BK21 자료실',
+    origin: 'BK21 자료실',
+    dbBoard: 'bk21Resources',
+    defaultCategory: 'rule',
+    categoryByArticleNo: { '114095': 'form' },
+  },
+  {
+    key: 'bk21Results',
+    base: `${ORIGIN}/me/bk21`,
+    path: 'progress.do',
+    label: 'BK21 사업성과',
+    origin: 'BK21 사업성과',
+    dbBoard: 'bk21Resources',
+    defaultCategory: 'result',
+  },
 ];
+
+/** 이 게시판이 사는 디렉터리 — 표에 base 가 없으면 구 커뮤니티 게시판이다. */
+export function baseOf(board) {
+  return (typeof board === 'object' && board?.base) || BASE;
+}
 
 export const BOARD_BY_KEY = new Map(BOARDS.map((b) => [b.key, b]));
 
@@ -58,16 +94,21 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * 목록 URL. articleLimit 을 크게 주면 게시판 전체가 한 응답에 실려 온다(실측: 최대 936행이
  * 잘리지 않고 온다). 그래서 페이지네이션 루프가 아예 필요 없다.
  */
-export function listUrl(path, limit = 2000) {
-  return `${BASE}/${path}?mode=list&articleLimit=${limit}&article.offset=0`;
+export function listUrl(board, limit = 2000) {
+  const path = typeof board === 'string' ? board : board.path;
+  return `${baseOf(board)}/${path}?mode=list&articleLimit=${limit}&article.offset=0`;
 }
 
 /**
  * 상세 URL. **article.offset/articleLimit 을 붙이지 않은 이 짧은 형태가 정본**이다 —
  * 다음 단계에서 DB 유니크 키로 쓰이므로 문자 하나까지 안정적이어야 한다.
+ *
+ * 인자는 게시판 표의 항목(권장) 또는 path 문자열이다. 문자열이면 base 를 알 수 없으니
+ * 구 커뮤니티 디렉터리로 본다 — 기존 호출부 호환용.
  */
-export function viewUrl(path, articleNo) {
-  return `${BASE}/${path}?mode=view&articleNo=${articleNo}`;
+export function viewUrl(board, articleNo) {
+  const path = typeof board === 'string' ? board : board.path;
+  return `${baseOf(board)}/${path}?mode=view&articleNo=${articleNo}`;
 }
 
 /** 상대 링크를 절대 URL 로. `?mode=download…` 같은 쿼리-only 링크도 base 기준으로 붙는다. */
@@ -331,7 +372,9 @@ export function parseNewsList(html, base = `${BASE}/news.do`) {
 
 /** 게시판 하나의 목록 HTML → 항목 배열. 갤러리/표 분기는 여기서만 한다. */
 export function parseList(board, html) {
-  return board.gallery ? parseNewsList(html, `${BASE}/${board.path}`) : parseTableList(html);
+  return board.gallery
+    ? parseNewsList(html, `${baseOf(board)}/${board.path}`)
+    : parseTableList(html);
 }
 
 // ── 상세 파서 (열 개 게시판 공통) ───────────────────────────────

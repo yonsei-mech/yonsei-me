@@ -105,9 +105,19 @@ TTF가 놓이는 `tools/fonts/`는 `.gitignore`에 등재되어 있다.
 | 라이선스 | 패키지 |
 |---|---|
 | **MIT** | next 14.2.35, react 18.3.1, react-dom, next-intl, tailwindcss, postcss, autoprefixer, eslint, eslint-config-next, @supabase/supabase-js, @tiptap/* (11종), lenis, marked, sanitize-html, opentype.js, @types/* (4종) |
-| **Apache-2.0** | @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, tesseract.js, typescript |
+| **Apache-2.0** | @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, tesseract.js, typescript, pdfjs-dist |
 | **ISC** | next-auth (v5 beta) |
 | **GSAP 표준 라이선스** | gsap 3.15.0 |
+
+**pdf.js (pdfjs-dist).** BK21 사업계획서·보고서의 좌/우 펼침 리더가 쓰는 Mozilla 의 PDF
+렌더러다. Apache License 2.0 이라 상업적 사용·수정·재배포가 자유롭고 로열티 의무가 없다.
+배포본에는 패키지의 `build/pdf.min.mjs` 가 번들러를 거쳐 포함되고, 워커는 같은 패키지의
+`build/pdf.worker.min.mjs` 를 그대로 복사한 `public/pdf.worker.min.mjs`(1.3MB)가 저장소에
+커밋돼 있다. 파일 머리의 Apache-2.0 고지 주석은 지우지 않았다(제4조 저작권 고지 유지).
+
+**pdf-lib.** 저장소 **도구 전용**(`tools/`) 의존성이다 — 구 사이트의 스캔 이미지를 한 PDF
+로 묶는 빌드 스크립트에서만 쓰고, 사이트 번들에는 들어가지 않는다. MIT 라이선스이므로
+저작권 고지만으로 사용·배포가 가능하다.
 
 **GSAP.** 유일하게 MIT 계열이 아닌 의존성이다. 2025년 4월 30일 개정된
 [GSAP Standard "No Charge" License](https://gsap.com/standard-license/)에 따라 상업적

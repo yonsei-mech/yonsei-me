@@ -168,7 +168,8 @@ console.log(
 for (const board of targetBoards) {
   let listHtml;
   try {
-    listHtml = await get(listUrl(board.path));
+    // 게시판 항목을 통째로 넘긴다 — 디렉터리(base)가 게시판마다 다를 수 있다(BK21).
+    listHtml = await get(listUrl(board));
   } catch (e) {
     console.log(`${board.label} … 목록 요청 실패 — 건너뜀`);
     failures.push({ board: board.key, articleNo: '(목록)', reason: String(e.message || e) });
@@ -201,7 +202,7 @@ for (const board of targetBoards) {
   let done = 0;
   let sinceSave = 0;
   for (const item of pending) {
-    const url = viewUrl(board.path, item.articleNo);
+    const url = viewUrl(board, item.articleNo);
     try {
       const html = await get(url);
       const detail = parseDetail(html, { articleNo: item.articleNo, pageUrl: url });

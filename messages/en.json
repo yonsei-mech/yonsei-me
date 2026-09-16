@@ -58,6 +58,16 @@
         "bk21": "BK21 FOUR"
       }
     },
+    "bk21": {
+      "label": "BK21 FOUR",
+      "items": {
+        "vision": "Vision & Goals",
+        "people": "Participants",
+        "organization": "Organization",
+        "resources": "Resources",
+        "reports": "Plan & Reports"
+      }
+    },
     "research": {
       "label": "Research",
       "items": {
@@ -139,6 +149,9 @@
     },
     "graduate": {
       "subtitle": "MS/PhD admissions, courses, labs, and the BK21 FOUR program."
+    },
+    "bk21": {
+      "subtitle": "Education and Research Group for Global Leaders in Socially Oriented Mechanical Technology"
     }
   },
   "home": {
@@ -536,6 +549,75 @@
       }
     }
   },
+  "bk21": {
+    "people": {
+      "faculty": "Participating Faculty",
+      "earlyCareer": "Early-Career Researchers",
+      "students": "Participating Graduate Students",
+      "facultyTable": {
+        "caption": "BK21 FOUR participating faculty",
+        "no": "No.",
+        "name": "Name",
+        "title": "Title",
+        "lab": "Laboratory"
+      },
+      "earlyCareerTable": {
+        "caption": "Early-career researchers",
+        "kind": "Category",
+        "count": "Number",
+        "unit": ""
+      },
+      "studentTable": {
+        "caption": "Participating and supported graduate students by semester",
+        "phase": "Program year",
+        "year": "Year",
+        "term": "Semester",
+        "participating": "Participating students",
+        "supported": "Supported students",
+        "ms": "MS",
+        "phd": "PhD",
+        "integrated": "Integrated",
+        "total": "Total",
+        "phaseValue": "Year {n}",
+        "termValue": "Semester {n}"
+      }
+    },
+    "organization": {
+      "chart": "Organization Chart",
+      "staff": "Administrative Staff",
+      "chartAlt": "Organization chart: under the director sit the steering committee and the administrative office, an education committee (full-cycle education committee with departmental and welfare subcommittees), a research committee with five core research clusters (ICT-converged smart device technology, AI-based smart factory technology, renewable energy and climate response technology, bio-health and precision medicine technology, intelligent advanced defense technology), and a strategy and policy advisory board"
+    },
+    "library": {
+      "catResult": "Achievements",
+      "catRule": "Regulations",
+      "catForm": "Forms & Materials"
+    },
+    "reports": {
+      "intro": "Open the project plan and yearly self- and performance-evaluation reports right in the browser — no download required.",
+      "size": "PDF · {size}",
+      "categories": {
+        "plan": "Project plan",
+        "self": "Self-evaluation report",
+        "performance": "Performance evaluation report"
+      },
+      "reader": {
+        "back": "Back to list",
+        "prev": "Previous",
+        "next": "Next",
+        "spread": "{from}–{to} / {total}",
+        "single": "{n} / {total}",
+        "jump": "Go to page",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "zoomFit": "Fit",
+        "download": "Download PDF",
+        "pageAlt": "Page {n}",
+        "loading": "Loading document…",
+        "error": "This document could not be opened. Please download it below.",
+        "noPdf": "No PDF attached."
+      }
+    }
+  },
   "news": {
     "hero": {
       "title": "News",
@@ -705,8 +787,14 @@
       "requirements": "Graduate degree requirements in mechanical engineering: advisor assignment, minimum credits, required courses, qualifying and English exams, defense.",
       "thesis": "Thesis defense announcements for graduate students in mechanical engineering — schedules and candidates for master’s and doctoral examinations.",
       "courses": "Graduate course listing in mechanical engineering: 183 courses grouped by research field, searchable by course code, title, and credits.",
-      "labs": "Lab introductions for graduate study in mechanical engineering: intro videos, advisors, and websites for 33 labs across six research fields.",
-      "bk21": "The BK21 FOUR education and research group at Yonsei mechanical engineering — the vision and goals of the Phase 4 Brain Korea 21 program."
+      "labs": "Lab introductions for graduate study in mechanical engineering: intro videos, advisors, and websites for 33 labs across six research fields."
+    },
+    "bk21": {
+      "vision": "The BK21 FOUR education and research group at Yonsei mechanical engineering — the vision and goals of the Phase 4 Brain Korea 21 program.",
+      "people": "Participants in the BK21 FOUR education and research group: the participating faculty roster, postdoctoral and contract researchers, and graduate student headcounts by semester.",
+      "organization": "Organization of the BK21 FOUR education and research group: the committee structure with its five core research clusters, and administrative staff contacts.",
+      "resources": "The BK21 FOUR resource library: programme achievement reports, operating regulations and guidelines, and application forms, sorted by category for download.",
+      "reports": "The BK21 FOUR project plan and yearly self- and performance-evaluation reports — open and read them right in the browser, no download required."
     },
     "research": {
       "vision": "Research vision and capacity at Yonsei mechanical engineering — the department since 1960, the college’s vision and objectives, and the faculty, some 300 graduate researchers, BK21, and national labs behind them.",

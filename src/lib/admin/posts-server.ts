@@ -116,7 +116,7 @@ const BOARDS = new Set([
   'calendar',
   'noticesUndergrad', 'noticesGraduate', 'noticesExternal', 'noticesScholarship',
   'news', 'seminars', 'events',
-  'thesis', 'resources', 'career', 'alumniEvents',
+  'thesis', 'resources', 'bk21Resources', 'bk21Reports', 'career', 'alumniEvents',
 ]);
 
 export function isValidBoard(board: string): boolean {
@@ -242,8 +242,11 @@ export function payloadToRow(p: AdminPostPayload) {
   // 뉴스 분류는 일반/성과 2종 — 구 값(notice/seminar)이 들어와도 '일반'으로 눕힌다
   if (isNews) category = nn(p.category) === 'achievement' ? 'achievement' : 'general';
   else if (p.board === 'calendar') category = nn(p.category) ?? 'academic';
-  // 자료실은 미분류를 허용한다 — 분류 없는 글은 목록의 '전체' 탭에만 잡힌다
-  else if (p.board === 'resources') category = nn(p.category);
+  // 자료실(소식·BK21)은 미분류를 허용한다 — 분류 없는 글은 목록의 '전체' 탭에만 잡힌다.
+  // 값 집합은 게시판마다 다르지만(form|rule vs result|rule|form) board 로 스코프가 갈린다.
+  else if (p.board === 'resources' || p.board === 'bk21Resources') category = nn(p.category);
+  // BK21 사업계획서·보고서(plan|self|performance)도 미분류를 허용한다 — 같은 사정.
+  else if (p.board === 'bk21Reports') category = nn(p.category);
   // 본문 처리기 — 원문 모드만 갈린다. 정책 자체는 sanitize.ts 한 곳에 있다.
   const bodyRaw = p.bodyRaw === true;
   const toHtml = bodyRaw ? scrubRawHtml : sanitizeEditorHtml;
