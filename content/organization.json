@@ -1,0 +1,17 @@
+{
+  "address": {
+    "streetAddress": {
+      "ko": "연세로 50 연세대학교 공과대학 기계공학부",
+      "en": "50 Yonsei-ro, School of Mechanical Engineering, College of Engineering, Yonsei University"
+    },
+    "addressLocality": { "ko": "서대문구", "en": "Seodaemun-gu" },
+    "addressRegion": { "ko": "서울특별시", "en": "Seoul" },
+    "postalCode": "03722",
+    "addressCountry": "KR"
+  },
+  "telephone": "+82-2-2123-4426",
+  "contactPoints": [
+    { "telephone": "+82-2-2123-4426", "contactType": "undergraduate office" },
+    { "telephone": "+82-2-2123-2810", "contactType": "graduate office" }
+  ]
+}

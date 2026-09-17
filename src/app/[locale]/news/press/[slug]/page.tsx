@@ -10,6 +10,8 @@ import { fetchNewsBySlug, postsBodyFormat } from '@/lib/posts';
 import { locateInBoard } from '@/lib/board-paging';
 import { pageMetadata } from '@/lib/page-metadata';
 import { htmlToDescription } from '@/lib/excerpt';
+import { localeUrl } from '@/lib/seo';
+import { SITE_URL } from '@/lib/site';
 import { DEFAULT_NEWS_TAB, newsTabHref } from '@/lib/board-links';
 import { getNewsTabs } from '../../_shared/tabs';
 import { buildPressList } from '../../_shared/list-data';
@@ -62,12 +64,47 @@ export default async function NewsArticlePage({
   const item = await fetchNewsBySlug(params.slug);
   const t = await getTranslations({ locale, namespace: 'news' });
   const tMenu = await getTranslations({ locale, namespace: 'menu' });
+  const tMeta = await getTranslations({ locale, namespace: 'meta' });
 
   // 없는 글은 진짜 404 다. 예전에는 "찾을 수 없음" 문구를 200 으로 렌더해 GSC 가
   // Soft 404 로 적발했다 — notFound() 로 [locale]/not-found.tsx 를 띄운다.
   if (!item) notFound();
 
   const boardName = tMenu('news.items.news');
+
+  // 기사 구조화 데이터(NewsArticle) — 구글 뉴스·검색결과의 기사 인식 신호.
+  // description 은 generateMetadata 와 **같은 규칙**으로 만든다(요약 없으면 본문에서).
+  const articleDescription =
+    pick(item.excerpt, locale).trim() || htmlToDescription(pick(item.body, locale));
+  // NewsItem 에는 수정일 필드가 없다 — dateModified 를 datePublished 로 채우면 거짓
+  // 갱신 신호가 되므로 아예 넣지 않는다. 날짜가 깨진 글은 datePublished 도 생략한다.
+  const datePublished = item.date && !Number.isNaN(Date.parse(item.date)) ? item.date : '';
+  // 썸네일은 루트 상대 경로(/img/board/…)로 저장되기도 한다 — JSON-LD 에는 metadataBase
+  // 같은 기준점이 없으니 절대 URL 로 만들어 넣는다(R2 업로드분은 이미 절대 URL).
+  const articleImage = item.image
+    ? item.image.startsWith('/')
+      ? `${SITE_URL}${item.image}`
+      : item.image
+    : `${SITE_URL}/og/cover.jpg`;
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'NewsArticle',
+    // headline 은 NewsArticle 필수값이라 빈 문자열이면 구조화 데이터 자체가 무효다.
+    // DB 소스는 loc() 이 이미 한국어로 폴백하지만, git JSON 소스는 title.en 이 빈
+    // 문자열로 들어 있어 pick() 의 `??` 가 안 걸린다 — 여기서 한 번 더 받아 낸다.
+    headline: pick(item.title, locale).trim() || item.title.ko,
+    ...(articleDescription ? { description: articleDescription } : {}),
+    ...(datePublished ? { datePublished } : {}),
+    image: [articleImage],
+    inLanguage: locale === 'ko' ? 'ko-KR' : 'en-US',
+    mainEntityOfPage: localeUrl(locale, `news/press/${params.slug}`),
+    author: { '@type': 'Organization', name: tMeta('siteName') },
+    publisher: {
+      '@type': 'Organization',
+      name: tMeta('siteName'),
+      logo: { '@type': 'ImageObject', url: `${SITE_URL}/logo.svg` },
+    },
+  };
   const tabs = await getNewsTabs(locale);
 
   // 본문 아래 '같은 게시판 목록' — 뉴스 기사 목록은 게시판 하나뿐이라 분류(일반/성과)로
@@ -78,6 +115,12 @@ export default async function NewsArticlePage({
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        // 제목·본문이 CMS 콘텐츠라 `</script>` 가 섞여 들어올 수 있다 — '<' 를 유니코드
+        // 이스케이프해 스크립트 블록이 조기 종료(=XSS)되지 않게 한다.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd).replace(/</g, '\\u003c') }}
+      />
       {/* 히어로 제목은 섹션명('소식')이라 h1 은 본문의 기사 제목이 갖는다(시각 변화 없음).
           crumbLeaf 는 JSON-LD 에만 붙는 마지막 항목 — 화면 크럼은 게시판까지만 그린다. */}
       <Hero

@@ -5,7 +5,10 @@ import Script from 'next/script';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { routing } from '@/i18n/routing';
+import { routing, type Locale } from '@/i18n/routing';
+import { pick } from '@/lib/content';
+import organization from '@content/organization.json';
+import instagram from '@content/instagram.json';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { HeaderChrome } from '@/components/HeaderChrome';
@@ -126,6 +129,8 @@ export default async function LocaleLayout({
 
   // 조직 구조화 데이터(JSON-LD) — 검색엔진에 기관 정보를 명시(사이트링크·지식패널 신호).
   // 로케일별 이름을 넣고 반대 로케일 명칭은 alternateName 으로 제공한다.
+  // 주소·전화는 content/organization.json 이 단일 출처다(푸터 문구와 같은 사실이지만,
+  // 푸터는 한 줄 문장이라 구조화가 안 된다 — 여기선 PostalAddress 로 쪼개 넣는다).
   const orgJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollegeOrUniversity',
@@ -134,6 +139,23 @@ export default async function LocaleLayout({
       locale === 'ko' ? 'Yonsei University School of Mechanical Engineering' : '연세대학교 기계공학부',
     url: `${SITE_URL}/${locale}`,
     logo: `${SITE_URL}/logo.svg`,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: pick(organization.address.streetAddress, locale as Locale),
+      addressLocality: pick(organization.address.addressLocality, locale as Locale),
+      addressRegion: pick(organization.address.addressRegion, locale as Locale),
+      postalCode: organization.address.postalCode,
+      addressCountry: organization.address.addressCountry,
+    },
+    telephone: organization.telephone,
+    // contactType 은 자유 문자열이라 로케일에 관계없이 영문 한 벌만 쓴다(검색엔진용 라벨).
+    contactPoint: organization.contactPoints.map((c) => ({
+      '@type': 'ContactPoint',
+      telephone: c.telephone,
+      contactType: c.contactType,
+    })),
+    // 공식 SNS — 구글이 같은 기관임을 확인하는 신호(지식패널 병합)
+    sameAs: [instagram.url],
     parentOrganization: {
       '@type': 'CollegeOrUniversity',
       name: locale === 'ko' ? '연세대학교' : 'Yonsei University',
