@@ -1,6 +1,6 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
-import { NewBadge } from '@/components/NewBadge';
+import { BoardTitle } from '@/components/BoardTitle';
 import { isNewPost } from '@/lib/new-post';
 import { cn, formatDate } from '@/lib/utils';
 import type { Locale } from '@/i18n/routing';
@@ -30,7 +30,8 @@ export interface BoardRow {
  * 좌: 네이비 배지(tag) + 큰 볼드 제목 + 부제 1줄(subtitle) + 날짜,
  * 우: 16:10 썸네일(없으면 칸 자체를 생략 — 행 높이는 내용만큼). 행 사이는 헤어라인.
  * 고정 글(pinned)은 행 전체를 옅은 바탕 + 좌측 네이비 룰로 구분한다.
- * 최근 글은 제목 첫 줄 끝에 'N' 배지(홈 공지 섹션과 같은 규칙·같은 배지 — lib/new-post).
+ * 최근 글은 제목 텍스트 바로 뒤에 'N' 배지를 인라인으로 붙인다(말줄임에 가려지는 행만
+ * 첫 줄 오른쪽에 폴백 — BoardTitle). 판정 규칙·배지는 홈 공지 섹션과 같다(lib/new-post).
  * 공지/뉴스/세미나/행사/학위논문/자료실/취업 등 모든 게시판 탭 공용.
  */
 export function BoardList({
@@ -96,22 +97,8 @@ export function BoardList({
                   )}
                 </span>
               )}
-              {/* 제목 + N 배지. 글자 크기·행간을 h3 에서 감싸개로 올린 이유: 배지 칸이 제목과 같은
-                  행간을 물려받아 1lh 가 곧 제목 한 줄 높이가 되게 하려는 것 — h3 도 그대로 물려받아
-                  제목 모양은 예전과 같다. 배지를 h3 밖에 두어 line-clamp-2 의 말줄임이 배지를 먹지 않는다. */}
-              <div className="flex items-start gap-2 text-base leading-snug sm:text-lg">
-                <h3 className="line-clamp-2 min-w-0 font-bold tracking-tight text-content transition-colors group-hover:text-yonsei-blue">
-                  {item.title}
-                </h3>
-                {isNew && (
-                  // 배지 칸 높이를 제목 한 줄 높이(1lh)에 맞춰 첫 줄 가운데에 선다.
-                  // em 고정값(1.375em)을 쓰지 않는 이유: sm:text-lg 가 행간을 1.75rem 으로 덮어써
-                  // sm 이상에서는 한 줄이 1.375em 이 아니다(16px→22px, 18px→28px).
-                  <span className="flex h-[1lh] shrink-0 items-center">
-                    <NewBadge label={t('newBadge')} />
-                  </span>
-                )}
-              </div>
+              {/* 제목 + N 배지 (배치 규칙은 BoardTitle 주석 참고) */}
+              <BoardTitle title={item.title} newLabel={isNew ? t('newBadge') : undefined} />
               {item.subtitle && (
                 <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-content-soft">
                   {item.subtitle}

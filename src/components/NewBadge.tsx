@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -15,5 +16,50 @@ export function NewBadge({ label, className }: { label: string; className?: stri
     >
       N<span className="sr-only">{label}</span>
     </span>
+  );
+}
+
+/**
+ * 제목 + 'N' 배지 — 배지를 제목 텍스트 **바로 뒤**에 인라인으로 붙인다.
+ * 제목과 배지를 flex 형제로 두면 제목이 두 줄로 접힐 때 제목이 가용 폭을 다 먹어
+ * 배지가 행 오른쪽 끝까지(실측 244px) 밀려 제목과 한참 떨어져 보이기 때문.
+ * label 이 없으면(= 새 글이 아니면) 제목 문자열을 그대로 돌려준다 — 감싸개도 만들지 않는다.
+ *
+ * 접착 규칙: 마지막 어절이 짧으면(1~12자) 그 어절과 배지를 whitespace-nowrap 으로 묶어
+ * 배지 혼자 다음 줄에 떨어지는 꼴을 막는다. 어절이 그보다 길면(긴 영문 단어·URL) 묶지
+ * 않는다 — 묶으면 그 긴 덩어리가 통째로 다음 줄로 내려가 앞 줄이 크게 비어 버린다.
+ * 길이는 Array.from 으로 코드 포인트를 세어 한글·이모지가 섞여도 눈에 보이는 길이에 맞춘다.
+ */
+export function TitleWithNewBadge({
+  title,
+  label,
+}: {
+  title: string;
+  label?: string;
+}): ReactNode {
+  if (!label) return title;
+
+  const badge = <NewBadge label={label} className="ml-2 align-middle" />;
+  const cut = title.lastIndexOf(' ');
+  const tail = cut === -1 ? '' : title.slice(cut + 1);
+
+  if (tail && Array.from(tail).length <= 12) {
+    return (
+      <>
+        {/* 마지막 공백까지 앞쪽에 남겨 원문 공백을 그대로 보존한다 */}
+        {title.slice(0, cut + 1)}
+        <span className="whitespace-nowrap">
+          {tail}
+          {badge}
+        </span>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {title}
+      {badge}
+    </>
   );
 }

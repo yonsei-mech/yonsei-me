@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { BoardFilterBar, emptyFilter, isFilterActive, matchesFilter } from '@/components/BoardFilterBar';
 import { BoardCategoryTabs } from '@/components/BoardCategoryTabs';
-import { NewBadge } from '@/components/NewBadge';
+import { TitleWithNewBadge } from '@/components/NewBadge';
 import { isNewPost } from '@/lib/new-post';
 import { cn, formatDate } from '@/lib/utils';
 import { filenameFromDisposition, formatBytes } from '@/lib/files';
@@ -28,8 +28,8 @@ import type { Locale } from '@/i18n/routing';
  *    (본문은 zip 바이트, 실패 시 JSON {error}). 진행 중에는 해당 버튼만 잠근다.
  *
  * 주의: 제목은 버튼이 아니라 Link 다 — 상세는 별도 라우트(/news/post/{id})이고 접근성상
- * 새 탭·복사가 되어야 한다. 'N' 배지는 Date.now() 의존이라 SSR/CSR 이 갈리므로
- * 마운트 후에만 켠다(하이드레이션 불일치 방지).
+ * 새 탭·복사가 되어야 한다. 'N' 배지는 제목 텍스트 바로 뒤에 인라인으로(Link 안에) 붙고,
+ * Date.now() 의존이라 SSR/CSR 이 갈리므로 마운트 후에만 켠다(하이드레이션 불일치 방지).
  */
 
 /** 서버(news/page.tsx)에서 내려오는 자료 한 건 — 직렬화 가능한 평문 객체만 담는다 */
@@ -273,14 +273,15 @@ function ResourceRow({
           )}
           <h3
             className={cn(
-              'flex flex-wrap items-center gap-2 text-lg font-bold leading-snug text-content tab:text-[1.1875rem]',
+              'text-lg font-bold leading-snug text-content tab:text-[1.1875rem]',
               (item.pinned || category) && 'mt-2.5',
             )}
           >
+            {/* 배지를 Link 안에 둔다 — 제목 텍스트 바로 뒤에 붙이려면 같은 인라인 흐름이어야
+                하고, 클릭 영역·낭독 순서도 그편이 자연스럽다 */}
             <Link href={item.href} className="transition-colors hover:text-yonsei-blue">
-              {item.title}
+              <TitleWithNewBadge title={item.title} label={isNew ? tBoard('newBadge') : undefined} />
             </Link>
-            {isNew && <NewBadge label={tBoard('newBadge')} />}
           </h3>
           {item.desc && (
             <p className="mt-2 text-sm leading-relaxed text-content-faint">{item.desc}</p>
