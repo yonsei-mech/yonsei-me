@@ -187,9 +187,15 @@ export function PdfSpreadReader({
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
         const task = pdfjs.getDocument({
           url,
-          // 필요한 쪽만 Range 로 받는다 — 85MB 문서의 첫 펼침이 수 초 안에 떠야 한다
+          // 필요한 쪽만 Range 로 받는다 — 96MB 문서의 첫 펼침이 1초 안에 떠야 한다.
+          // disableStream 이 없으면 pdf.js 는 Range 지원을 확인하고도 최초의 전체 GET 스트림을
+          // 끝까지 계속 받는다(실측: 36MB 보고서를 열면 44MB 수신). 스트림을 끄면 Range 지원이
+          // 확인되는 즉시 전체 요청을 중단하고 1MB 조각만 받는다. ⚠️ Range 지원 판정은 R2 의
+          // CORS 규칙이 Accept-Ranges·Content-Length 를 ExposeHeaders 로 내보내야 성립한다 —
+          // 안 보이면 pdf.js 는 파일 전체를 받은 뒤에야 첫 쪽을 그린다(tools/r2/README.md).
           rangeChunkSize: 1 << 20,
           disableAutoFetch: true,
+          disableStream: true,
         });
         task.onProgress = ({ loaded, total: t }: { loaded: number; total: number }) => {
           if (alive && t > 0) setProgress(Math.min(1, loaded / t));
