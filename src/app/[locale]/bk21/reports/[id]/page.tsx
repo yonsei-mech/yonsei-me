@@ -62,7 +62,10 @@ export default async function Bk21ReportViewerPage({
   const title = pick(post.title, locale);
   const atts = post.attachments ?? [];
   const pdf = atts.find((a) => isPdf(a, locale));
-  const rest = atts.filter((a) => a !== pdf);
+  // ⚠️ 첫 PDF 만 빼는 게 아니라 **PDF 는 전부** 뺀다 — 이 게시판의 문서는 보안상 화면에서
+  // 읽기만 허용하므로(2026-09 학과 요청) 내려받기 링크가 남을 자리를 만들지 않는다.
+  // 서식·한글 파일 같은 비(非)PDF 첨부는 그대로 내려받을 수 있다.
+  const rest = atts.filter((a) => !isPdf(a, locale));
   const note = post.excerpt ? pick(post.excerpt, locale).trim() : '';
   const body = pick(post.body, locale);
   const backHref = sectionTabHref('bk21', 'reports');
@@ -94,7 +97,6 @@ export default async function Bk21ReportViewerPage({
             zoomIn: t('reports.reader.zoomIn'),
             zoomOut: t('reports.reader.zoomOut'),
             zoomFit: t('reports.reader.zoomFit'),
-            download: t('reports.reader.download'),
             loading: t('reports.reader.loading'),
             error: t('reports.reader.error'),
           }}

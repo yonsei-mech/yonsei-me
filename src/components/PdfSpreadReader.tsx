@@ -16,6 +16,9 @@
  *    번들에 새 메시지 네임스페이스를 싣지 않기 위해서다(`npm run check:i18n` 이 막는다).
  *  · **window·DPR·해시는 마운트 뒤에만** 읽는다 — 서버 렌더에는 툴바와 스켈레톤만 나온다.
  *
+ * ⚠️ **내려받기 버튼을 다시 넣지 마라** — 사업계획서·보고서는 보안상 화면에서 읽기만
+ *    허용한다(2026-09 학과 요청). 툴바와 오류 화면 양쪽에 있던 `<a download>` 를 뺐다.
+ *
  * ⚠️ pdfjs-dist 는 반드시 **클라이언트에서 동적 import** 한다. 정적 import 하면 서버
  *    번들에도 들어가 Node 전용 캔버스 백엔드를 끌어온다.
  */
@@ -36,7 +39,6 @@ export interface PdfReaderLabels {
   zoomIn: string;
   zoomOut: string;
   zoomFit: string;
-  download: string;
   /** "{n}쪽" */
   pageAlt: string;
   loading: string;
@@ -411,16 +413,6 @@ export function PdfSpreadReader({
             +
           </button>
         </div>
-
-        <a
-          href={url}
-          download
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-auto inline-flex h-8 items-center text-sm font-semibold text-yonsei-blue hover:underline"
-        >
-          {labels.download}
-        </a>
       </div>
 
       {note && <p className="pt-2 text-xs text-content-faint">{note}</p>}
@@ -439,16 +431,8 @@ export function PdfSpreadReader({
 
       {status === 'error' ? (
         <div className="mt-4 border border-surface-border bg-surface-soft p-6">
+          {/* 대체 경로로 내려받기를 제안하지 않는다 — 이 문서는 화면 읽기 전용이다 */}
           <p className="text-content-soft">{labels.error}</p>
-          <a
-            href={url}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-block text-sm font-semibold text-yonsei-blue hover:underline"
-          >
-            {labels.download}
-          </a>
         </div>
       ) : (
         <div

@@ -610,10 +610,9 @@
         "zoomIn": "Zoom in",
         "zoomOut": "Zoom out",
         "zoomFit": "Fit",
-        "download": "Download PDF",
         "pageAlt": "Page {n}",
         "loading": "Loading document…",
-        "error": "This document could not be opened. Please download it below.",
+        "error": "This document could not be opened. Please try again in a moment.",
         "noPdf": "No PDF attached."
       }
     }
