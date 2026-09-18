@@ -421,21 +421,38 @@ export function GraduationChecker({ data, locale }: { data: CheckerData; locale:
   return (
     <div ref={landingRef} className="space-y-16">
       <div className="space-y-6">
-        {/* 면책 — 상시 노출(수강신청 도우미와 같은 형태). 참고용 도구이며 공식 졸업사정이
-            아니라는 점을 결과를 보기 전에 먼저 알린다. */}
+        {/* 면책 — 상시 노출(맨 위). STEP 04 결과 직전 경고와 같은 형태(붉은 ⚠ 제목 + 항목)로
+            맞춰(사용자 지시), 참고용 도구이며 공식 졸업사정이 아니라는 점을 결과를 보기 전에
+            먼저 알린다. */}
         <div
           role="note"
-          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-l-2 border-yonsei-navy bg-surface-soft px-4 py-3"
+          className="border-l-2 border-[#b42318] bg-surface-soft px-5 py-4 text-[13px] leading-relaxed text-content"
         >
-          <span className="bg-yonsei-navy px-2 py-0.5 text-[11px] font-bold text-white">BETA</span>
-          <span className="text-[13px] font-semibold text-content">
-            {ko ? '참고용이며 공식 졸업사정이 아닙니다' : 'For reference only — not an official audit'}
-          </span>
-          <span className="text-[12px] text-content-faint">
-            {ko
-              ? '학생 제작 · 최종 확인은 연세포털·학과사무실에서'
-              : 'Student-built · verify on the Yonsei portal or with the department office'}
-          </span>
+          <p className="font-bold text-[#b42318]">
+            {ko ? '⚠ 참고용이며 공식 졸업사정이 아닙니다' : '⚠ For reference only — not an official audit'}
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-content-soft">
+            <li>
+              {ko
+                ? '학생이 만든 비공식 도구이며, 학과·대학이 검증하거나 보증하지 않습니다.'
+                : 'This is an unofficial, student-built tool. It is not verified or endorsed by the department or the university.'}
+            </li>
+            <li>
+              {ko
+                ? '시간표 인식 오류, 과목명 변경, 요건 개정으로 결과가 실제와 다를 수 있습니다.'
+                : 'OCR mistakes, renamed courses, and requirement revisions can make the result differ from reality.'}
+            </li>
+            <li>
+              {ko
+                ? '공식 졸업사정은 연세포털 「졸업사정 조회」와 학과사무실 확인만이 유효합니다.'
+                : 'Only the Yonsei portal graduation audit and the department office are authoritative.'}
+            </li>
+            <li>
+              {ko
+                ? '이 결과를 근거로 한 수강 계획·졸업 판단의 책임은 전적으로 본인에게 있습니다.'
+                : 'Any course plan or graduation decision based on this result is entirely your own responsibility.'}
+            </li>
+          </ul>
         </div>
 
         <p data-land="rise" data-land-order="0" className="max-w-2xl text-base leading-[1.8] text-content-soft">
