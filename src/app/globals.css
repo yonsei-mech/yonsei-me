@@ -750,6 +750,31 @@
     .cms-otp-caret { animation: none; }
   }
 
+  /* 학위논문심사 공고 등록 본인 확인(ThesisVerifyFlow) — "전송 중…" 버튼의 스피너 링과
+     확인 완료 상자의 2px 진행 막대(이동까지의 대기 1.2초를 채운다). 모션 최소화면
+     스피너는 멈춘 링(디자인 프레임 B2 의 정지 모양), 막대는 애니메이션 없이 꽉 찬 채로 둔다
+     — 이동 지연은 컴포넌트 타이머라 그대로다. */
+  @keyframes thesis-submit-spin {
+    from { transform: rotate(-45deg); }
+    to { transform: rotate(315deg); }
+  }
+  .thesis-submit-spin {
+    transform: rotate(-45deg);
+    animation: thesis-submit-spin 0.8s linear infinite;
+  }
+  @keyframes thesis-submit-progress {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  .thesis-submit-progress {
+    transform-origin: left center;
+    animation: thesis-submit-progress 1.2s linear forwards;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .thesis-submit-spin,
+    .thesis-submit-progress { animation: none; }
+  }
+
   /* 카카오맵 퍼가기 임베드(KakaoMap.tsx): 지도만 남기고 하단 카카오맵 바·주소
      패널을 숨긴다. 숨긴 높이만큼 지도 크기는 컴포넌트가 보정 재렌더한다. */
   .root_daum_roughmap .wrap_controllers,
