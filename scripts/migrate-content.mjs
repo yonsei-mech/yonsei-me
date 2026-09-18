@@ -61,6 +61,10 @@ const MANAGED_JSON = [
   // 장학금 — 2026-08 md(content/pages/undergraduate-scholarship.md)에서 구조화 전환.
   // 구 md 의 DB 행은 남아 있지만 allowlist 에서 빠져 더는 읽히지도 쓰이지도 않는다.
   'content/scholarships.json',
+  // 대학원 졸업요건 STEP — 2026-09 md(content/pages/graduate-requirements.md)에서 구조화
+  // 전환. 사이트는 행이 없으면 빌드 스냅샷으로 폴백하지만 CMS 편집 화면은 GET 404 를
+  // 오류로 띄운다(체계도와 같은 사정) — 배포 전 반드시 시딩할 것.
+  'content/graduate-requirements.json',
   // 팝업 공지 — 행이 없어도 CMS 가 빈 목록에서 시작한다(resources 의 emptyIfMissing).
   'content/popups.json',
   // BK21 FOUR 참여인력 표 2종 — 2026-09 섹션 신설. 사이트는 행이 없으면 빌드 스냅샷으로

@@ -4,6 +4,11 @@
 //
 // 새 리소스를 콘솔에 추가할 때는 여기에 경로를 먼저 더한 뒤 resources.ts 가 이 상수를
 // 참조하게 한다(쓰기 API 의 경로 allowlist 가 이 목록이 될 예정 — Stage C).
+//
+// ⚠️ 경로를 더했으면 **scripts/migrate-content.mjs 의 MANAGED_JSON 에도** 더해야 한다.
+// 노드 스크립트라 이 TS 모듈을 import 할 수 없어 목록이 중복돼 있다. 빠뜨리면 사이트는
+// 빌드 스냅샷으로 폴백해 멀쩡해 보이지만, 프로덕션 CMS 는 행이 없는 경로에 GET 404 를
+// 받아 편집 화면이 통째로 열리지 않는다.
 
 /** 리소스 키(resources.ts 의 ResourceKey) → 저장소 루트 기준 JSON 경로.
  *  ResourceKey 를 import 하지 않는다 — resources.ts 가 이 모듈을 참조하므로 순환이 된다. */
