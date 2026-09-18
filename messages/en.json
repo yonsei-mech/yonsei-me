@@ -856,6 +856,11 @@
   "thesisSubmit": {
     "title": "Post a Preliminary Defense Notice",
     "lead": "Ph.D. and integrated M.S.–Ph.D. students can post their preliminary thesis defense notice here. The department office will review it and post it on the Thesis Defense board.",
+    "entry": {
+      "button": "Post a preliminary defense notice",
+      "note": "Ph.D. and integrated M.S.–Ph.D. students can post their own preliminary defense notice. It goes live after the department office reviews it.",
+      "empty": "No thesis defense notices have been posted yet."
+    },
     "guide": {
       "eyebrow": "HOW IT WORKS",
       "title": "What to expect",

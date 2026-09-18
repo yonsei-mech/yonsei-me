@@ -13,6 +13,7 @@ import {
 } from '@/components/BoardFilterBar';
 import { BoardPagination } from '@/components/BoardPagination';
 import { BoardCategoryTabs } from '@/components/BoardCategoryTabs';
+import type { BoardAction } from '@/components/BoardActionLink';
 import { BOARD_PAGE_SIZE } from '@/lib/board-paging';
 import type { Locale } from '@/i18n/routing';
 
@@ -64,6 +65,7 @@ export function FilterableBoardList({
   categoryLabel,
   showAll = true,
   compactDate = false,
+  action,
 }: {
   items: BoardRow[];
   locale: Locale;
@@ -76,6 +78,12 @@ export function FilterableBoardList({
   showAll?: boolean;
   /** 발췌 없는 행의 제목–날짜 간격을 좁힌다(BoardList 로 전달, 공지사항 전용) */
   compactDate?: boolean;
+  /**
+   * 선택 진입 버튼 — 검색 줄 옆(lg 미만은 제목 아래)과 빈 목록 카드 안에 뜬다.
+   * 지금은 학위논문심사의 "예비심사 공고 등록"뿐이다. 넘기지 않은 게시판은 DOM 이 종전과 같다.
+   * 검색 결과 0건의 빈 상태에는 버튼·안내를 쓰지 않는다(공고가 없는 게 아니라 검색이 빗나간 것).
+   */
+  action?: BoardAction;
 }) {
   const t = useTranslations('news');
   // 기본 탭 — '전체'가 없으면 첫 분류. URL 에는 기본값이 아닐 때만 싣는다.
@@ -237,13 +245,15 @@ export function FilterableBoardList({
         value={filter}
         onChange={changeFilter}
         resultCount={showCount ? filtered.length : null}
+        action={action}
       />
       <BoardList
         items={paged}
         locale={locale}
-        emptyLabel={searchActive ? t('search.empty') : emptyLabel}
+        emptyLabel={searchActive ? t('search.empty') : (action?.emptyLabel ?? emptyLabel)}
         compactDate={compactDate}
         now={now}
+        emptyAction={searchActive ? undefined : action}
       />
       {/* 빈 목록에서는 페이지 컨트롤이 의미가 없다 — 빈 상태 안내만 남긴다 */}
       {filtered.length > 0 && (

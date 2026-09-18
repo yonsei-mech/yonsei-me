@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { FilterableBoardList } from '@/components/FilterableBoardList';
+import type { BoardAction } from '@/components/BoardActionLink';
 import { buildThesisRows } from '../../news/_shared/list-data';
 import { SectionTabPage, sectionTabMetadata } from '../../_shared/section-tabs';
+import { THESIS_SUBMIT_PATH, isThesisSubmitEnabled } from '@/lib/thesis-submit/config';
 import type { Locale } from '@/i18n/routing';
 
 // 학위논문심사 게시판이 DB(posts)를 읽으므로 페이지를 ISR — revalidateTag('posts')가 즉시 갱신
@@ -30,9 +32,30 @@ export default async function GraduateThesisPage({ params }: { params: { locale:
   // 목록이 비었을 때 문구 — 본문 없음 문구(stub.body)와 다른 값이다
   const tStub = await getTranslations({ locale: params.locale, namespace: 'stub' });
 
+  // 예비심사 공고 등록 진입 버튼(화면 A, spec §2) — 제출 흐름이 켜진 환경에서만.
+  // ⚠️ 이 페이지는 ISR 이라 플래그는 요청이 아니라 "렌더(빌드·재생성) 시점"에 평가된다.
+  //    env 만 바꾸고 재빌드하지 않으면 다음 재생성(revalidate 300 또는 revalidateTag('posts'))
+  //    전까지는 옛 HTML(버튼 유무)이 그대로 나간다.
+  // 문구는 서버에서 읽어 props 로 내린다 — thesisSubmit 을 클라이언트 메시지 화이트리스트에 넣지 않는다.
+  let action: BoardAction | undefined;
+  if (isThesisSubmitEnabled()) {
+    const tSubmit = await getTranslations({ locale: params.locale, namespace: 'thesisSubmit' });
+    action = {
+      href: THESIS_SUBMIT_PATH,
+      label: tSubmit('entry.button'),
+      note: tSubmit('entry.note'),
+      emptyLabel: tSubmit('entry.empty'),
+    };
+  }
+
   return (
     <SectionTabPage locale={params.locale} section="graduate" tab="thesis">
-      <FilterableBoardList items={items} locale={locale} emptyLabel={tStub('empty')} />
+      <FilterableBoardList
+        items={items}
+        locale={locale}
+        emptyLabel={tStub('empty')}
+        action={action}
+      />
     </SectionTabPage>
   );
 }

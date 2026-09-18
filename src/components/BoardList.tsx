@@ -1,5 +1,6 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
+import { BoardActionLink, type BoardAction } from '@/components/BoardActionLink';
 import { BoardTitle } from '@/components/BoardTitle';
 import { isNewPost } from '@/lib/new-post';
 import { cn, formatDate } from '@/lib/utils';
@@ -40,10 +41,14 @@ export function BoardList({
   emptyLabel,
   compactDate = false,
   now,
+  emptyAction,
 }: {
   items: BoardRow[];
   locale: Locale;
   emptyLabel: string;
+  /** 빈 목록 카드 안에 한 번 더 두는 진입 버튼(학위논문심사 공고 등록). 없으면 카드는 종전과 같다.
+   *  검색 결과 0건일 때는 부모가 넘기지 않는다. */
+  emptyAction?: BoardAction;
   /** 발췌 없는 행의 제목–날짜 간격을 30px → 20px 로 (공지사항 전용) */
   compactDate?: boolean;
   /** 'N' 배지 기준 시각(ms) — 부모가 마운트 후에 채워 넘긴다. null/undefined 면 배지를
@@ -59,6 +64,7 @@ export function BoardList({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/img/eagle_empty.png" alt="" aria-hidden="true" className="h-20 w-auto opacity-70" />
         <p className="max-w-sm text-content-soft">{emptyLabel}</p>
+        {emptyAction && <BoardActionLink action={emptyAction} variant="empty" />}
       </div>
     );
   }
