@@ -636,6 +636,7 @@ export function PostForm({
                 학생이 제출한 공고입니다
                 {rec.submission && (
                   <span className="font-normal text-content">
+                    {rec.submission.program && ` · ${rec.submission.program}`}
                     {' · '}
                     {rec.submission.email}
                     {rec.submission.submittedAt && ` · ${kstStamp(rec.submission.submittedAt)} 제출`}

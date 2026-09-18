@@ -86,7 +86,7 @@ export interface EditRecord {
    *  안 보이는 글(학생 제출 공고의 '검토 대기'). 새 글(blankRecord)에는 키가 없다 = DB 기본값 true. */
   published?: boolean;
   /** 학생 제출 공고의 제출 기록(읽기 전용 정보 — 저장 페이로드에 싣지 않는다). null = 일반 글 */
-  submission?: { email: string; submittedAt: string } | null;
+  submission?: { email: string; submittedAt: string; program?: string } | null;
   attachments: EditAttachment[];
 }
 

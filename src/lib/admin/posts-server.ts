@@ -355,7 +355,7 @@ export interface DbPostRow {
   /** 공개 여부 — false = 학과 확인 대기(학생 제출 공고) 등 사이트에 안 보이는 글 */
   published?: boolean | null;
   /** 학생 제출 기록(jsonb) — 컬럼 추가(2026-09-thesis-submit-otp.sql) 전 DB 는 undefined */
-  thesis_submission?: { email?: unknown; submittedAt?: unknown } | null;
+  thesis_submission?: { email?: unknown; submittedAt?: unknown; notice?: { program?: unknown } } | null;
   attachments?: {
     label_ko: string | null;
     label_en: string | null;
@@ -451,6 +451,8 @@ export function rowToEditRecord(r: DbPostRow) {
       ? {
           email: String(r.thesis_submission.email ?? ''),
           submittedAt: String(r.thesis_submission.submittedAt ?? ''),
+          // 과정(박사과정·통합과정) — 칸이 생기기 전 제출분은 빈 값
+          program: String(r.thesis_submission.notice?.program ?? ''),
         }
       : null,
     attachments: (r.attachments ?? [])

@@ -930,6 +930,10 @@
       "scope": "Only <b>preliminary thesis defense</b> notices for Ph.D. and integrated M.S.–Ph.D. students can be posted here. For other defenses, please contact the Graduate Office.",
       "verifiedAs": "Verified email: {email}",
       "sectionPresenter": "Presenter and thesis",
+      "programLabel": "Program",
+      "programPhd": "Ph.D.",
+      "programIntegrated": "Integrated M.S.–Ph.D.",
+      "welcomeLabel": "Add “(관심있는 연구자 누구나 환영)” — all interested researchers welcome — to the poster heading",
       "presenterLabel": "Presenter’s name",
       "titleLabel": "Thesis title",
       "titleHint": "Appears on the poster exactly as entered.",
@@ -963,6 +967,7 @@
       "submitting": "Submitting…",
       "submitNote": "The department office will review your notice before posting it.",
       "errors": {
+        "programRequired": "Select your program.",
         "presenterRequired": "Enter the presenter’s name.",
         "titleRequired": "Enter the thesis title.",
         "chairRequired": "Enter the committee chair’s name.",

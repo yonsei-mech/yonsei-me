@@ -55,6 +55,7 @@ export function thesisNoticeMailHtml(m: ThesisNoticeMail): string {
   const font = "'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',Helvetica,Arial,sans-serif";
   const n = m.notice;
   const rows: [string, string][] = [
+    ['과정', n.program],
     ['발표자', n.presenter],
     ['논문 제목', n.title],
     ['심사위원장', committeeEntry(n.chair)],

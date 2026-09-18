@@ -28,6 +28,7 @@ import {
   emptyMember,
   formatWhen,
   memberEntries,
+  posterHeading,
   spacedName,
   type CommitteeMember,
   type ThesisNoticeInput,
@@ -241,6 +242,8 @@ interface Piece {
 }
 
 interface PosterContent {
+  /** 머리글 — 환영 문구 체크 여부에 따라 달라진다(posterHeading) */
+  heading: string;
   title: Piece | null;
   name: Piece | null;
   chair: Piece[];
@@ -260,6 +263,8 @@ function safeInput(input: Partial<ThesisNoticeInput> | null | undefined): Thesis
   });
   const members = input?.members;
   return {
+    program: str(input?.program) as ThesisNoticeInput['program'],
+    welcome: input?.welcome !== false,
     presenter: str(input?.presenter),
     title: str(input?.title),
     chair: member(input?.chair),
@@ -288,6 +293,7 @@ function buildContent(input: ThesisNoticeInput, placeholders: boolean): PosterCo
       : [];
 
   return {
+    heading: posterHeading(c),
     title: val(c.title, PH.title),
     name: val(spacedName(c.presenter), PH.presenter),
     chair,
@@ -486,11 +492,11 @@ function layoutHanging(ctx: Ctx, size: number, x0: number, label: string, items:
 
 // ── 그리기 ───────────────────────────────────────────────────────────────
 
-function drawHeading(ctx: Ctx): void {
+function drawHeading(ctx: Ctx, heading: string): void {
   ctx.font = font(HEADING.size);
   ctx.fillStyle = INK;
   const y = baselineFor(ctx, HEADING.cy);
-  drawRun(ctx, POSTER_HEADING, originForInk(ctx, POSTER_HEADING, HEADING.inkX), y, HEADING.size);
+  drawRun(ctx, heading, originForInk(ctx, heading, HEADING.inkX), y, HEADING.size);
 }
 
 function drawTitle(ctx: Ctx, piece: Piece): void {
@@ -635,7 +641,7 @@ function drawPoster(canvas: HTMLCanvasElement, pc: PosterContent, logos: Logos, 
   ctx.fillStyle = RULE;
   for (const [x, y, rw, rh] of FRAME_RECTS) ctx.fillRect(x, y, rw, rh);
 
-  drawHeading(ctx);
+  drawHeading(ctx, pc.heading);
   if (pc.title) drawTitle(ctx, pc.title);
   if (pc.name) drawName(ctx, pc.name);
   drawCommittee(ctx, pc.chair, pc.members);

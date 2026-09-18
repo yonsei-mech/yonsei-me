@@ -930,6 +930,10 @@
       "scope": "박사과정·통합과정 <b>학위논문 예비심사</b> 공고만 등록할 수 있습니다. 다른 심사는 대학원 행정실에 문의해 주세요.",
       "verifiedAs": "인증된 이메일: {email}",
       "sectionPresenter": "발표자와 논문",
+      "programLabel": "과정",
+      "programPhd": "박사과정",
+      "programIntegrated": "통합과정",
+      "welcomeLabel": "포스터 머리글에 ‘(관심있는 연구자 누구나 환영)’ 넣기",
       "presenterLabel": "발표자 성명",
       "titleLabel": "논문 제목",
       "titleHint": "포스터에 입력한 그대로 들어갑니다.",
@@ -963,6 +967,7 @@
       "submitting": "제출 중…",
       "submitNote": "제출하면 학과사무실이 확인한 뒤 게시합니다.",
       "errors": {
+        "programRequired": "과정을 선택해 주세요.",
         "presenterRequired": "발표자 성명을 입력해 주세요.",
         "titleRequired": "논문 제목을 입력해 주세요.",
         "chairRequired": "심사위원장 성함을 입력해 주세요.",

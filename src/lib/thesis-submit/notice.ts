@@ -14,6 +14,10 @@
 export const HONORIFICS = ['교수님', '박사님'] as const;
 export type Honorific = (typeof HONORIFICS)[number];
 
+/** 과정 — 학과 확인용(포스터 머리글은 두 과정 모두 '박사학위예비심사'라 포스터에는 안 들어간다) */
+export const PROGRAMS = ['박사과정', '통합과정'] as const;
+export type Program = (typeof PROGRAMS)[number];
+
 export interface CommitteeMember {
   name: string;
   honorific: Honorific;
@@ -22,6 +26,10 @@ export interface CommitteeMember {
 }
 
 export interface ThesisNoticeInput {
+  /** 과정(필수) — 입력 전에는 빈 문자열 */
+  program: Program | '';
+  /** 포스터 머리글에 '(관심있는 연구자 누구나 환영)'을 붙이는가 — 양식 기본값 true */
+  welcome: boolean;
   /** 발표자 성명 */
   presenter: string;
   /** 논문 제목 — 포스터에 입력한 그대로(국문·영문 무관) */
@@ -50,8 +58,16 @@ export const NOTICE_LIMITS = {
 /** 입력 화면이 처음 보여 줄 심사위원 줄 수(위원장 제외) — 박사 심사위원회 5인 기준 */
 export const DEFAULT_MEMBER_ROWS = 4;
 
-/** 포스터 머리글 — 학과 양식 문구 그대로, 입력받지 않는다 */
-export const POSTER_HEADING = '박사학위예비심사 공지 (관심있는 연구자 누구나 환영)';
+/** 포스터 머리글 — 학과 양식 문구. 뒤쪽 환영 문구만 학생이 끄고 켤 수 있다(posterHeading) */
+export const POSTER_HEADING_BASE = '박사학위예비심사 공지';
+export const POSTER_WELCOME = '(관심있는 연구자 누구나 환영)';
+/** 환영 문구까지 붙은 전체 머리글(글꼴 조각 미리 받기 등 "가장 긴 경우"용) */
+export const POSTER_HEADING = `${POSTER_HEADING_BASE} ${POSTER_WELCOME}`;
+
+/** 이 입력의 포스터 머리글 */
+export function posterHeading(input: Pick<ThesisNoticeInput, 'welcome'>): string {
+  return input.welcome === false ? POSTER_HEADING_BASE : POSTER_HEADING;
+}
 export const CHAIR_LABEL = '심사위원장 : ';
 export const MEMBERS_LABEL = '심사위원 : ';
 export const WHEN_LABEL = '일시 : ';
@@ -75,6 +91,8 @@ export function emptyMember(): CommitteeMember {
 
 export function emptyNotice(): ThesisNoticeInput {
   return {
+    program: '',
+    welcome: true,
     presenter: '',
     title: '',
     chair: emptyMember(),
@@ -107,6 +125,8 @@ function cleanMember(m: CommitteeMember): CommitteeMember {
 /** 제출·내보내기 직전 형태 — 공백 정리 + 빈 심사위원 줄 제거 */
 export function cleanNotice(input: ThesisNoticeInput): ThesisNoticeInput {
   return {
+    program: PROGRAMS.includes(input.program as Program) ? input.program : '',
+    welcome: input.welcome !== false,
     presenter: squash(input.presenter),
     title: squash(input.title),
     chair: cleanMember(input.chair),
@@ -139,7 +159,22 @@ export function parseNotice(raw: unknown): ThesisNoticeInput | null {
   const vals = fields.map((k) => str(r[k]));
   if (vals.some((v) => v === null)) return null;
   const [presenter, title, date, time, place] = vals as string[];
-  return { presenter, title, chair, members: members as CommitteeMember[], date, time, place };
+  // 과정·환영 문구 칸이 생기기 전의 초안(sessionStorage)도 읽히도록 없으면 기본값
+  const program = r.program === undefined ? '' : str(r.program);
+  if (program === null || (program !== '' && !PROGRAMS.includes(program as Program))) return null;
+  if (r.welcome !== undefined && typeof r.welcome !== 'boolean') return null;
+  const welcome = r.welcome !== false;
+  return {
+    program: program as Program | '',
+    welcome,
+    presenter,
+    title,
+    chair,
+    members: members as CommitteeMember[],
+    date,
+    time,
+    place,
+  };
 }
 
 // ── 검사 ─────────────────────────────────────────────────────────────────
@@ -150,6 +185,7 @@ export function parseNotice(raw: unknown): ThesisNoticeInput | null {
  * 서버는 cleanNotice 뒤의 입력으로 한 번 더 검사한다(안전망 — 화면에 쓰지 않는다).
  */
 export type NoticeField =
+  | 'program'
   | 'presenter'
   | 'title'
   | 'chair.name'
@@ -194,6 +230,7 @@ export function validateNotice(input: ThesisNoticeInput, today = todayKst()): No
     if (squash(value).length > max) errs.push({ field, code: 'tooLong' });
   };
 
+  if (!PROGRAMS.includes(input.program as Program)) errs.push({ field: 'program', code: 'required' });
   need('presenter', input.presenter, NOTICE_LIMITS.presenter);
   need('title', input.title, NOTICE_LIMITS.title);
   need('chair.name', input.chair.name, NOTICE_LIMITS.memberName);
@@ -274,7 +311,7 @@ export function postTitle(input: ThesisNoticeInput): string {
 export function posterAlt(input: ThesisNoticeInput): string {
   const c = cleanNotice(input);
   return [
-    POSTER_HEADING,
+    posterHeading(c),
     `논문: ${c.title}`,
     `발표: ${c.presenter}`,
     `${CHAIR_LABEL}${committeeEntry(c.chair)}`,

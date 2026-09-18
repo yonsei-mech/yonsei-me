@@ -42,6 +42,7 @@ import {
   HONORIFICS,
   NOTICE_LIMITS,
   POSTER_REF,
+  PROGRAMS,
   cleanNotice,
   emptyMember,
   emptyNotice,
@@ -56,6 +57,7 @@ import {
   type Honorific,
   type NoticeError,
   type NoticeField,
+  type Program,
   type ThesisNoticeInput,
 } from '@/lib/thesis-submit/notice';
 import { posterPngBlob, renderPoster } from '@/lib/thesis-submit/poster-canvas';
@@ -68,9 +70,14 @@ export interface NoticeFormLabels {
   scope: ReactNode;
   verifiedAs: string;
   sectionPresenter: string;
+  programLabel: string;
+  /** 과정 선택지의 표시 문구 — 값은 언제나 한국어 PROGRAMS */
+  programs: Record<Program, string>;
   presenterLabel: string;
   titleLabel: string;
   titleHint: string;
+  /** 포스터 머리글의 '(관심있는 연구자 누구나 환영)' 표시 체크박스 */
+  welcomeLabel: string;
   sectionCommittee: string;
   committeeHint: string;
   chairLabel: string;
@@ -104,6 +111,7 @@ export interface NoticeFormLabels {
   submitting: string;
   submitNote: string;
   errors: {
+    programRequired: string;
     presenterRequired: string;
     titleRequired: string;
     chairRequired: string;
@@ -359,6 +367,7 @@ export function ThesisNoticeForm({
   function messageOf(e: NoticeError): string {
     switch (e.code) {
       case 'required':
+        if (e.field === 'program') return E.programRequired;
         if (e.field === 'presenter') return E.presenterRequired;
         if (e.field === 'title') return E.titleRequired;
         if (e.field === 'chair.name') return E.chairRequired;
@@ -688,6 +697,7 @@ export function ThesisNoticeForm({
     );
   }
 
+  const programErr = errOf('program');
   const titleErr = errOf('title');
   const dateErr = errOf('date');
   const timeErr = errOf('time');
@@ -760,6 +770,45 @@ export function ThesisNoticeForm({
             <h2 id={`${uid}-s1`} className={SUBHEAD}>
               {L.sectionPresenter}
             </h2>
+            {/* 과정 — 학과 확인용(포스터 머리글은 두 과정 모두 '박사학위예비심사'). 오류는 선택지 바로 아래 */}
+            <fieldset
+              aria-describedby={programErr ? eid('program') : undefined}
+              className="m-0 min-w-0 border-0 p-0"
+            >
+              <legend className={cn(LABEL, 'mb-2.5 p-0')}>{L.programLabel}</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {PROGRAMS.map((p, idx) => {
+                  const on = input.program === p;
+                  return (
+                    <label
+                      key={p}
+                      className={cn(
+                        'flex h-[50px] cursor-pointer items-center gap-2.5 rounded-[2px] border bg-surface px-3.5 text-[15px] transition-colors',
+                        on
+                          ? 'border-yonsei-blue font-semibold text-yonsei-blue dark:border-brand dark:text-brand'
+                          : cn(borderOf(!!programErr), 'text-content hover:bg-surface-soft'),
+                      )}
+                    >
+                      <input
+                        id={idx === 0 ? fid('program') : undefined}
+                        type="radio"
+                        name={`${uid}-program`}
+                        value={p}
+                        checked={on}
+                        onChange={() => update((prev) => ({ ...prev, program: p }))}
+                        className="h-4 w-4 shrink-0 accent-yonsei-blue dark:accent-brand"
+                      />
+                      {L.programs[p]}
+                    </label>
+                  );
+                })}
+              </div>
+              {programErr && (
+                <div className="mt-2.5">
+                  <ErrorBox id={eid('program')}>{messageOf(programErr)}</ErrorBox>
+                </div>
+              )}
+            </fieldset>
             {textField('presenter', L.presenterLabel, { autoComplete: 'name' })}
             <div className="flex flex-col gap-2.5">
               <label htmlFor={fid('title')} className={LABEL}>
@@ -788,6 +837,20 @@ export function ThesisNoticeForm({
                 </p>
               )}
             </div>
+            {/* 머리글 환영 문구 — 양식 기본값은 켬. 끄면 '박사학위예비심사 공지'만 남는다 */}
+            <label className="flex cursor-pointer items-start gap-2.5 text-[15px] leading-6 text-content">
+              <input
+                id={fid('welcome')}
+                type="checkbox"
+                checked={input.welcome}
+                onChange={(e) => {
+                  const welcome = e.target.checked;
+                  update((prev) => ({ ...prev, welcome }));
+                }}
+                className="mt-1 h-4 w-4 shrink-0 accent-yonsei-blue dark:accent-brand"
+              />
+              <span>{L.welcomeLabel}</span>
+            </label>
           </section>
 
           <section
