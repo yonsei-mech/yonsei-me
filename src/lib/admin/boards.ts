@@ -10,7 +10,7 @@ import type {
   Seminar,
 } from '@/lib/content';
 import type { ThesisNoticeInput } from '@/lib/thesis-submit/notice';
-import type { ReviewStatus, ThesisReview } from '@/lib/thesis-submit/review';
+import type { NoticeSource, ReviewStatus, ThesisReview } from '@/lib/thesis-submit/review';
 
 /**
  * 학생 제출 공고의 제출·검토 기록(읽기 전용 — 저장 페이로드에 싣지 않는다).
@@ -18,6 +18,9 @@ import type { ReviewStatus, ThesisReview } from '@/lib/thesis-submit/review';
  * 계약: src/lib/thesis-submit/review.ts
  */
 export interface EditSubmission {
+  /** 'student' = 학생 제출(승인 흐름), 'staff' = 교직원이 공고 양식으로 작성(바로 게시) */
+  source: NoticeSource;
+  /** 학생 제출이면 학생 이메일, 교직원 작성이면 작성한 관리자 */
   email: string;
   /** 접수 시각 ISO */
   submittedAt: string;

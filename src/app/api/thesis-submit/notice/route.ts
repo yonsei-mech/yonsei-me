@@ -26,15 +26,15 @@
 // 다른 출처가 이 헤더를 붙이려면 CORS preflight 를 통과해야 하는데 이 라우트는 허용하지 않는다.
 //
 // Supabase 서비스 클라이언트는 otp-store 와 같은 10줄 패턴을 복제한다 — posts-server 의
-// adminDb 를 끌어오면 Auth.js·marked 가 이 라우트 번들에 딸려 온다. 정화 정책은 의존성이
-// sanitize-html 하나뿐인 lib/admin/sanitize 에서 직접 가져온다.
+// adminDb 를 끌어오면 Auth.js·marked 가 이 라우트 번들에 딸려 온다. 포스터 PNG 검사·R2 키·
+// 본문 조립은 관리자 공고 양식 API 와 같은 것을 쓴다(lib/thesis-submit/poster-post.ts —
+// 정화 정책은 거기서 의존성이 sanitize-html 하나뿐인 lib/admin/sanitize 를 쓴다).
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { r2PublicUrl, r2Put, withRandomSuffix } from '@/lib/admin/r2';
-import { sanitizeEditorHtml } from '@/lib/admin/sanitize';
+import { r2PublicUrl, r2Put } from '@/lib/admin/r2';
 import { sendBrevoMail } from '@/lib/mail/brevo';
 import { officeMail, receiptMail, type MailOut } from '@/lib/mail/thesis-mails';
 import { SITE_URL } from '@/lib/site';
@@ -45,17 +45,16 @@ import {
   type NoticeSubmitResponse,
 } from '@/lib/thesis-submit/config';
 import {
-  POSTER_EXPORT_SIZE,
   cleanNotice,
   parseNotice,
   postTitle,
-  posterAlt,
   todayKst,
   validateNotice,
   type ThesisNoticeInput,
   type ThesisSubmissionMeta,
 } from '@/lib/thesis-submit/notice';
 import { thesisContact, type ThesisContact } from '@/lib/thesis-submit/contact';
+import { isPosterPng, posterBodyHtml, posterKey } from '@/lib/thesis-submit/poster-post';
 import { receiptNo } from '@/lib/thesis-submit/review';
 import { supabaseReviewDb } from '@/lib/thesis-submit/review-db';
 import { readThesisSession } from '@/lib/thesis-submit/session';
@@ -71,20 +70,6 @@ function reply(body: NoticeSubmitResponse, status = 200): Response {
 
 const invalid = () => reply({ ok: false, reason: 'invalid' }, 400);
 
-// ── 포스터 PNG 검사 ───────────────────────────────────────────────────────
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-
-/** PNG 시그니처 + 첫 청크가 IHDR 이고 폭·높이가 내보내기 규격(2105×1488)과 정확히 같은가.
- *  브라우저 렌더러(poster-canvas.ts 의 posterPngBlob)가 만든 파일만 받으려는 것 —
- *  임의 이미지를 게시판 본문으로 밀어 넣는 통로가 되지 않게 한다. */
-function isPosterPng(b: Buffer): boolean {
-  if (b.length < 33) return false;
-  for (let i = 0; i < PNG_SIGNATURE.length; i++) if (b[i] !== PNG_SIGNATURE[i]) return false;
-  if (b.readUInt32BE(8) !== 13 || b.toString('latin1', 12, 16) !== 'IHDR') return false;
-  return b.readUInt32BE(16) === POSTER_EXPORT_SIZE.width && b.readUInt32BE(20) === POSTER_EXPORT_SIZE.height;
-}
-
 // ── 저장 ─────────────────────────────────────────────────────────────────
 
 let _sb: SupabaseClient | null = null;
@@ -97,30 +82,12 @@ function db(): SupabaseClient {
   return _sb;
 }
 
-function escAttr(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/** R2 키 — 기존 업로드 관례(uploads/<게시판>/<시각>-<이름>) + 랜덤 접미사.
- *  학생 이름은 키에 넣지 않는다(공개 URL 에 개인정보를 싣지 않는다). */
-function posterKey(notice: ThesisNoticeInput, now: number): string {
-  const ymd = notice.date.replace(/-/g, '').slice(2);
-  return withRandomSuffix(`uploads/thesis/${now}-preliminary-${ymd}.png`);
-}
-
-/** posts 행 — 본문은 공고 이미지 한 장(기존 게시판 관례).
+/** posts 행 — 본문은 공고 이미지 한 장(기존 게시판 관례, poster-post.ts 의 posterBodyHtml).
  *  created_at 은 제출일 KST 자정 — 정확한 시각을 넣으면 CMS 폼이 그 시각을 '게시 예약'으로
  *  읽어 예약 칸이 켜진 채 열린다. 정확한 제출 시각은 thesis_submission.submittedAt 에 있다.
  *  게시일은 '게시하기'가 게시한 날로 올린다(PostForm commit). */
 function postRow(notice: ThesisNoticeInput, meta: ThesisSubmissionMeta, posterUrl: string) {
-  const body = sanitizeEditorHtml(
-    `<p><img src="${escAttr(posterUrl)}" alt="${escAttr(posterAlt(notice))}"></p>`,
-  );
+  const body = posterBodyHtml(notice, posterUrl);
   return {
     board: 'thesis',
     title_ko: postTitle(notice),

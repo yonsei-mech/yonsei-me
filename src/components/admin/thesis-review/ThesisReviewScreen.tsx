@@ -47,7 +47,7 @@ interface Props {
   meta: BoardMeta;
   rec: ApiRecord;
   onBack: () => void;
-  /** 수정 후 게시 — 글 편집 화면(PostForm)으로 옮겨 연다 */
+  /** 수정 후 게시 — 예비심사 공고 양식(ThesisPostForm)으로 옮겨 연다(입력 원본이 깨진 제출은 PostForm) */
   onEdit: () => void;
   onApproved: (r: { mailSent?: boolean; already?: boolean }) => void;
   onRejected: (r: { mailSent: boolean }) => void;
@@ -488,7 +488,7 @@ export function ThesisReviewScreen({
                 <p role="status" className="mt-1 text-xs leading-relaxed text-content-faint">
                   {approving
                     ? '게시하고 안내 메일을 보내는 중입니다. 잠시만 기다려 주세요.'
-                    : '승인하면 즉시 사이트에 게시되고 학생에게 안내 메일이 갑니다. ‘수정 후 게시’는 이 내용을 글 편집 화면으로 옮겨 엽니다.'}
+                    : '승인하면 즉시 사이트에 게시되고 학생에게 안내 메일이 갑니다. ‘수정 후 게시’는 이 내용을 공고 양식으로 옮겨 엽니다.'}
                 </p>
               </div>
             )}

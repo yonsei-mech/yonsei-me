@@ -15,7 +15,7 @@ import { normalizeCohort } from '@/lib/alumni-interview';
 import { kstDate } from '@/lib/utils';
 import type { EditSubmission } from '@/lib/admin/boards';
 import { parseNotice } from '@/lib/thesis-submit/notice';
-import { receiptNo, statusOf, type ThesisReview } from '@/lib/thesis-submit/review';
+import { receiptNo, sourceOf, statusOf, type ThesisReview } from '@/lib/thesis-submit/review';
 
 // 사이트 렌더와 동일 설정(breaks: 단일 개행도 줄바꿈 — 게시판 본문 관례)
 const marked = new Marked({ gfm: true, breaks: true });
@@ -362,6 +362,7 @@ export interface DbPostRow {
     email?: unknown;
     submittedAt?: unknown;
     notice?: unknown;
+    source?: unknown;
     status?: unknown;
     review?: unknown;
   } | null;
@@ -407,6 +408,7 @@ function submissionToEdit(r: DbPostRow): EditSubmission | null {
   const notice = parseNotice(s.notice);
   const review = (s.review && typeof s.review === 'object' ? s.review : {}) as ThesisReview;
   return {
+    source: sourceOf(s),
     email: String(s.email ?? ''),
     submittedAt: String(s.submittedAt ?? ''),
     // 과정(박사과정·통합과정) — 칸이 생기기 전 제출분은 빈 값

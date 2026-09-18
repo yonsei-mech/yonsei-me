@@ -3,7 +3,8 @@
  *
  * 쓰는 곳:
  *   - /api/admin/thesis/{approve,reject,review,summary}  (검토 화면·대시보드)
- *   - PUT /api/admin/posts/[id]  (PostForm '게시하기' = 디자인의 '수정 후 게시')
+ *   - PUT /api/admin/posts/[id]  (PostForm '게시하기' — 입력 원본이 깨진 제출의 '수정 후 게시')
+ *   - POST /api/admin/thesis/post (공고 양식의 '수정 후 게시' — thesis-staff-post.ts 가 approveSubmissions 를 부른다)
  * 두 경로 모두 같은 결과가 된다: posts.published=true · thesis_submission.status='approved' ·
  * review.decidedAt/decidedBy · 학생에게 게시 안내 메일 · review.mailSent.
  *

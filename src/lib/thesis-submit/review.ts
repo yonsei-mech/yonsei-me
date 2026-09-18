@@ -44,13 +44,29 @@ export interface ThesisReview {
   mailSent?: boolean;
 }
 
-/** posts.thesis_submission 전체 모양(notice.ts 의 ThesisSubmissionMeta + 검토 상태) */
+/**
+ * 누가 만든 글인가 — 'student' = 학생이 공개 화면에서 제출(승인 흐름 대상),
+ * 'staff' = 교직원이 관리자 콘솔의 공고 양식으로 작성(바로 게시, 승인·메일 없음).
+ * 값이 없으면 'student'(이 필드가 생기기 전 기록은 전부 학생 제출).
+ */
+export type NoticeSource = 'student' | 'staff';
+
+/**
+ * posts.thesis_submission 전체 모양(notice.ts 의 ThesisSubmissionMeta + 검토 상태).
+ * 교직원 작성 글도 같은 칸에 입력 원본(notice)을 남긴다 — 나중에 같은 양식으로 다시 고치려고.
+ * 그때 email = 작성한 관리자, status = 'approved'.
+ */
 export interface ThesisSubmissionRecord {
   email: string;
   submittedAt: string;
   notice: ThesisNoticeInput;
+  source?: NoticeSource;
   status?: ReviewStatus;
   review?: ThesisReview;
+}
+
+export function sourceOf(rec: { source?: unknown } | null | undefined): NoticeSource {
+  return rec?.source === 'staff' ? 'staff' : 'student';
 }
 
 /** 저장된 기록 + published 로 현재 상태를 판정한다(status 없는 기존 제출분 호환) */

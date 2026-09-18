@@ -4,8 +4,18 @@
 //   POST /api/admin/thesis/approve  { ids }                 → { results: ApproveResult[] }
 //   POST /api/admin/thesis/reject   { id, reason, message } → { ok: true, mailSent } | 4xx { error }
 //   POST /api/admin/thesis/review   { id, memo }  → { ok: true }
+//   POST /api/admin/thesis/post     multipart(data, poster) → { ok, id, mailSent?, already? } | { error, errors? }
+//                                   (교직원 공고 양식 — 계약 lib/thesis-submit/staff-post.ts)
 
+import type { NoticeError } from '@/lib/thesis-submit/notice';
 import type { RejectReason } from '@/lib/thesis-submit/review';
+import {
+  STAFF_POST_API,
+  STAFF_POST_HEADER,
+  type StaffPostData,
+  type StaffPostOk,
+  type StaffPostResponse,
+} from '@/lib/thesis-submit/staff-post';
 
 export interface ApproveResult {
   id: string;
@@ -81,4 +91,36 @@ export interface ReviewPatch {
 /** 내부 메모 자동 저장. keepalive 는 화면을 떠나는 순간의 마지막 저장용 */
 export async function saveReview(id: string, patch: ReviewPatch, keepalive = false): Promise<void> {
   await postJson('/api/admin/thesis/review', { id, ...patch }, keepalive);
+}
+
+/** 공고 양식 저장 실패 — 칸 검사 오류가 있으면 errors(서버 기준: 빈 위원 줄을 뺀 번호) */
+export class StaffPostError extends ReviewApiError {
+  errors: NoticeError[] | null;
+  constructor(message: string, status: number | null, errors: NoticeError[] | null) {
+    super(message, status);
+    this.errors = errors;
+  }
+}
+
+/** 교직원 공고 양식 — 새 글·수정·학생 제출 '수정 후 게시'. poster = posterPngBlob 결과 */
+export async function postStaffNotice(data: StaffPostData, poster: Blob): Promise<StaffPostOk> {
+  const body = new FormData();
+  body.append('data', JSON.stringify(data));
+  body.append('poster', poster, 'poster.png');
+  let res: Response;
+  try {
+    res = await fetch(STAFF_POST_API, { method: 'POST', headers: { [STAFF_POST_HEADER]: '1' }, body });
+  } catch {
+    throw new StaffPostError('서버에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.', null, null);
+  }
+  const json = (await res.json().catch(() => null)) as StaffPostResponse | null;
+  if (!res.ok || !json || json.ok !== true) {
+    const fail = json && json.ok !== true ? json : null;
+    throw new StaffPostError(
+      fail?.error || `요청이 실패했습니다 (HTTP ${res.status}).`,
+      res.status,
+      fail?.errors && fail.errors.length > 0 ? fail.errors : null,
+    );
+  }
+  return json;
 }

@@ -15,6 +15,7 @@
 // 이 관리자 도구는 내부 운영용이라 한국어 UI 문자열을 컴포넌트에 직접 둔다.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { boardPostHref } from '@/lib/board-links';
 import { cn } from '@/lib/utils';
 import {
   BOARDS,
@@ -59,6 +60,7 @@ import {
 } from './thesis-review/review-model';
 import { refreshThesisSummary } from './thesis-review/summary-store';
 import { ReviewEmptyState, ReviewFilterTabs, ThesisRows } from './thesis-review/ThesisList';
+import { ThesisPostForm, type ThesisFormMode, type ThesisPostDone } from './thesis-review/ThesisPostForm';
 import { ThesisReviewScreen } from './thesis-review/ThesisReviewScreen';
 
 /** admin API 가 돌려주는 레코드 — EditRecord + DB 식별자/slug.
@@ -234,6 +236,8 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     isEdit: boolean;
     dbId?: string;
   } | null>(null);
+  // 예비심사 공고 양식(학위논문심사 전용) — null 이면 닫힘. recId 는 edit·submission 의 대상 글
+  const [thesisForm, setThesisForm] = useState<{ mode: ThesisFormMode; recId?: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -247,10 +251,10 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     run: () => void;
   } | null>(null);
 
-  // 편집 폼이 열려 있으면 dirty — 셸이 다른 항목으로 이동할 때 확인창을 띄운다.
+  // 편집 폼(일반 편집기·공고 양식)이 열려 있으면 dirty — 셸이 다른 항목으로 이동할 때 확인창을 띄운다.
   useEffect(() => {
-    onDirtyChange?.(editing !== null);
-  }, [editing, onDirtyChange]);
+    onDirtyChange?.(editing !== null || thesisForm !== null);
+  }, [editing, thesisForm, onDirtyChange]);
 
   const loadEntries = useCallback(async (key: BoardKey) => {
     setLoading(true);
@@ -384,7 +388,20 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     return titles.length > 5 ? `${shown}\n외 ${titles.length - 5}건` : shown;
   }
 
+  /** 글쓰기 — 학위논문심사는 예비심사 공고 양식이 먼저 열린다('양식 없이 직접 작성'은 startPlainNew) */
   function startNew() {
+    if (reviewable) {
+      setSuccess(null);
+      setSaveError(null);
+      setThesisForm({ mode: 'new' });
+      return;
+    }
+    startPlainNew();
+  }
+
+  /** 일반 편집기(PostForm) 새 글 */
+  function startPlainNew() {
+    setThesisForm(null);
     setSuccess(null);
     setSaveError(null);
     setEditing({
@@ -398,6 +415,15 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     if (!r) return;
     setSuccess(null);
     setSaveError(null);
+    // 입력 원본이 있는 학위논문심사 글(학생 제출·교직원 양식)은 공고 양식으로 고친다.
+    // 승인 대기면 '수정 후 게시'(submission). 반려된 제출·원본 없는 구 사이트 이미지 글은 일반 편집기.
+    if (reviewable && r.submission?.notice) {
+      const status = reviewStatusOf(r);
+      if (status !== 'rejected') {
+        setThesisForm({ mode: status === 'pending' ? 'submission' : 'edit', recId: dbId });
+        return;
+      }
+    }
     // 뉴스형은 폼의 '번호' 칸에 slug 를 노출(URL 이 되는 값), 게시판형은 DB 번호(참고용)
     setEditing({
       // time 은 API 가 늘 내려주지만(rowToEditRecord), 빈 값으로 정규화해 둬야
@@ -446,25 +472,61 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     );
   }, []);
 
-  /** 게시·반려 결과는 셸 상단 배너로 말한다 — 메일 실패는 사람이 대신 알려야 하므로 붉게 */
-  function announce(tone: 'info' | 'danger', title: string, body: string, withSiteLink: boolean) {
+  /** 게시·반려 결과는 셸 상단 배너로 말한다 — 메일 실패는 사람이 대신 알려야 하므로 붉게.
+   *  siteLink: true = 사이트 학위논문심사 목록, 문자열 = 그 경로(게시물 상세 등), false = 링크 없음 */
+  function announce(tone: 'info' | 'danger', title: string, body: string, siteLink: boolean | string) {
+    const href = typeof siteLink === 'string' ? siteLink : '/ko/graduate/thesis';
     setBanner({
       id: 'thesis-review',
       tone,
       title,
       body,
       dismissible: true,
-      ...(withSiteLink
+      ...(siteLink
         ? {
             action: {
               label: '사이트에서 보기 ↗',
-              onClick: () => window.open('/ko/graduate/thesis', '_blank', 'noopener'),
+              onClick: () => window.open(href, '_blank', 'noopener'),
             },
           }
         : {}),
     });
     // 쓰기가 통했으니 권한 배너를 내린다(finishSave 와 같은 규칙)
     setWriteDenied(false);
+  }
+
+  /** 공고 양식 저장 끝 — 목록으로 돌아가 배너로 결과를 말한다(검토 화면에서 왔으면 검토 화면도 닫는다) */
+  function handleThesisPostDone(r: ThesisPostDone) {
+    setThesisForm(null);
+    if (reviewId) closeReview();
+    setJustPublished(new Set([r.id]));
+    // 예약 글은 아직 상세가 열리지 않는다 — 그때는 목록으로
+    const link = r.scheduledAt ? true : `/ko${boardPostHref({ id: r.id, boardKey: 'thesis' })}`;
+    const when = r.scheduledAt ? ` · ${r.scheduledAt} 공개` : ' · 사이트에 수 초 내 반영됩니다.';
+    if (r.mode === 'submission') {
+      if (r.already) {
+        announce('info', '이미 게시된 글입니다.', '고친 내용은 저장했습니다. 안내 메일은 먼저 게시한 쪽에서 보냈습니다.', link);
+      } else if (r.mailSent === false) {
+        announce(
+          'danger',
+          '게시했지만 안내 메일을 보내지 못했습니다.',
+          r.email ? `학생(${r.email})에게 직접 알려 주세요.` : '학생에게 직접 알려 주세요.',
+          link,
+        );
+      } else {
+        announce(
+          'info',
+          r.scheduledAt ? '예약 게시했습니다.' : '게시했습니다.',
+          `${r.title}${r.scheduledAt ? ` · ${r.scheduledAt} 공개` : ''} · 학생에게 안내 메일을 보냈습니다.`,
+          link,
+        );
+      }
+    } else if (r.mode === 'edit') {
+      announce('info', '수정했습니다.', `${r.title}${when}`, link);
+    } else {
+      announce('info', r.scheduledAt ? '예약 게시했습니다.' : '게시했습니다.', `${r.title}${when}`, link);
+    }
+    void loadEntries(boardKey);
   }
 
   function handleApproved(id: string, r: { mailSent?: boolean; already?: boolean }) {
@@ -823,6 +885,28 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     );
   }
 
+  // ── 예비심사 공고 양식(학위논문심사): 글쓰기·양식 글 수정·학생 제출 '수정 후 게시' ──
+  //    취소하면 thesisForm 만 닫혀, 검토 화면에서 왔으면(reviewId) 검토 화면으로 돌아간다
+  if (thesisForm) {
+    const formRec = thesisForm.recId ? (records.find((r) => r.id === thesisForm.recId) ?? null) : null;
+    if (thesisForm.mode === 'new' || formRec) {
+      return (
+        <>
+          <ThesisPostForm
+            key={thesisForm.recId ?? 'new'}
+            meta={meta}
+            mode={thesisForm.mode}
+            rec={formRec}
+            onCancel={() => setThesisForm(null)}
+            onDone={handleThesisPostDone}
+            onPlainPost={thesisForm.mode === 'new' ? startPlainNew : undefined}
+          />
+          {renderConfirm()}
+        </>
+      );
+    }
+  }
+
   // ── 글쓰기 화면: 전체화면 단일 컬럼(셸의 사이드바·상단 바는 폼이 내린다) ──
   if (editing) {
     return (
@@ -844,8 +928,9 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     );
   }
 
-  // ── 검토 화면(학생 제출): 글쓰기 화면처럼 전체 화면. '수정 후 게시'는 위 PostForm 으로
-  //    넘어가고, 거기서 '← 목록으로'를 누르면 reviewId 가 남아 있어 이 화면으로 돌아온다 ──
+  // ── 검토 화면(학생 제출): 글쓰기 화면처럼 전체 화면. '수정 후 게시'는 위 공고 양식으로
+  //    (입력 원본이 깨진 제출은 PostForm 으로) 넘어가고, 거기서 목록 버튼을 누르면 reviewId 가
+  //    남아 있어 이 화면으로 돌아온다 ──
   if (reviewable && reviewId) {
     const reviewRec = records.find((r) => r.id === reviewId);
     if (reviewRec) {
