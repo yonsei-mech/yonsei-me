@@ -17,7 +17,13 @@ export interface CmsModalProps {
   body: React.ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
-  tone?: 'default' | 'danger';
+  /** 'danger-fill' — 되돌릴 수 없고 바깥(학생)에 알림까지 나가는 동작(반려하고 알림 보내기).
+   *  평소의 삭제 확인(danger)은 조용한 붉은 테두리, 이쪽은 붉은 면으로 무게를 구분한다. */
+  tone?: 'default' | 'danger' | 'danger-fill';
+  /** 처리 중 — 두 버튼을 잠그고 Esc·배경 클릭으로도 닫히지 않는다(요청 결과를 기다린다) */
+  busy?: boolean;
+  /** 좁은 화면(<sm)에서 가운데 상자 대신 하단 시트로 띄운다 — 입력 칸이 있는 대화상자용 */
+  sheet?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -28,6 +34,8 @@ export function CmsModal({
   confirmLabel,
   cancelLabel = '취소',
   tone = 'default',
+  busy,
+  sheet,
   onConfirm,
   onCancel,
 }: CmsModalProps) {
@@ -46,7 +54,7 @@ export function CmsModal({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCancel();
+        if (!busy) onCancel();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -64,14 +72,18 @@ export function CmsModal({
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0f172a]/40 p-6"
+      className={
+        sheet
+          ? 'fixed inset-0 z-[70] flex items-end justify-center bg-[#0f172a]/40 sm:items-center sm:p-6'
+          : 'fixed inset-0 z-[70] flex items-center justify-center bg-[#0f172a]/40 p-6'
+      }
       // 배경 클릭 = 취소. 패널 내부 클릭이 올라와 닫히지 않도록 target 을 확인한다.
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel();
+        if (e.target === e.currentTarget && !busy) onCancel();
       }}
     >
       <div
@@ -79,21 +91,40 @@ export function CmsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="anim-panel w-[min(480px,100%)] bg-surface p-7 shadow-[0_30px_60px_-30px_rgba(0,40,94,.6)]"
+        className={
+          sheet
+            ? 'anim-panel max-h-[92dvh] w-full overflow-y-auto border-t border-surface-border bg-surface px-4 pb-5 pt-6 shadow-[0_30px_60px_-30px_rgba(0,40,94,.6)] sm:w-[min(520px,100%)] sm:border-t-0 sm:p-7'
+            : 'anim-panel w-[min(480px,100%)] bg-surface p-7 shadow-[0_30px_60px_-30px_rgba(0,40,94,.6)]'
+        }
       >
         <h2 id={titleId} className="text-lg font-bold text-content">
           {title}
         </h2>
         <div className="mt-3 text-[13px] leading-[1.8] text-content-soft">{body}</div>
-        <div className="mt-7 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="cms-btn">
+        {/* 하단 시트는 엄지가 닿는 쪽에 확인이 먼저 온다(보이는 순서만 — 탭 순서는 그대로) */}
+        <div className={sheet ? 'mt-7 flex flex-row-reverse gap-2 sm:flex-row sm:justify-end' : 'mt-7 flex justify-end gap-2'}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className={sheet ? 'cms-btn flex-1 sm:flex-none' : 'cms-btn'}
+          >
             {cancelLabel}
           </button>
           <button
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
-            className={cn(tone === 'danger' ? 'cms-btn-danger' : 'cms-btn-primary')}
+            disabled={busy}
+            aria-busy={busy || undefined}
+            className={cn(
+              tone === 'danger'
+                ? 'cms-btn-danger'
+                : tone === 'danger-fill'
+                  ? 'cms-btn-primary bg-[#b42318] hover:bg-[#8f1c13] dark:bg-[#f97066] dark:text-[#1a0604] dark:hover:bg-[#fda29b]'
+                  : 'cms-btn-primary',
+              sheet && 'flex-1 sm:flex-none',
+            )}
           >
             {confirmLabel}
           </button>

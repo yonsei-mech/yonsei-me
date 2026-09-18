@@ -70,6 +70,8 @@ import {
 } from './entries';
 import { GraduateStepsEditor } from './GraduateStepsEditor';
 import { MarkdownEditor } from './MarkdownEditor';
+import { REVIEW_ENTRY_ID, REVIEW_PARAM, STATUS_PARAM } from './thesis-review/review-model';
+import { useThesisSummary } from './thesis-review/summary-store';
 import { UsersEditor } from './UsersEditor';
 
 interface Props {
@@ -253,6 +255,14 @@ function AdminConsoleBody({ token, login, role }: Props) {
       // 가드(navigate)를 우회하는 경로가 생긴다 — 히스토리는 쌓지 않는다.
       const params = new URLSearchParams(window.location.search);
       const screen = openUsers ? 'users' : next ? entryId(next) : null;
+      // 학생 제출 검토의 필터·열린 제출(?status= ?review=)은 그 게시판 화면에만 속한다 —
+      // 다른 화면으로 떠나면 지운다. 화면 쿼리가 없던 대시보드에서 들어오는 길(대시보드
+      // 카드의 '검토하기')은 미리 심어 둔 필터를 살려야 하므로 건드리지 않는다.
+      const prevScreen = params.get('screen');
+      if (prevScreen && prevScreen !== screen) {
+        params.delete(STATUS_PARAM);
+        params.delete(REVIEW_PARAM);
+      }
       if (screen) params.set('screen', screen);
       else params.delete('screen');
       const qs = params.toString();
@@ -368,6 +378,16 @@ function AdminConsoleBody({ token, login, role }: Props) {
 
   const activeId = active ? entryId(active) : null;
 
+  // 학생 제출 대기 건수 — 사이드바 항목 옆 필(그룹이 접혀 있으면 그룹 줄)과 모바일 메뉴
+  // 버튼 배지. 조회가 실패하거나 0건이면 아무것도 붙지 않는다(마크업도 예전 그대로).
+  const thesisSummary = useThesisSummary();
+  const pendingBadges = useMemo(() => {
+    const badges: Record<string, number> = {};
+    if (thesisSummary && thesisSummary.count > 0) badges[REVIEW_ENTRY_ID] = thesisSummary.count;
+    return badges;
+  }, [thesisSummary]);
+  const pendingTotal = Object.values(pendingBadges).reduce((a, b) => a + b, 0);
+
   return (
     <AdminShellProvider value={shell}>
       <div className="bg-surface text-content">
@@ -380,10 +400,13 @@ function AdminConsoleBody({ token, login, role }: Props) {
               type="button"
               onClick={() => setNavOpen((v) => !v)}
               aria-expanded={navOpen}
-              aria-label="콘텐츠 메뉴 열기"
-              className="cms-btn cms-btn-sm shrink-0 px-2"
+              aria-label={
+                pendingTotal > 0 ? `콘텐츠 메뉴 열기, 승인 대기 ${pendingTotal}건` : '콘텐츠 메뉴 열기'
+              }
+              className={cn('cms-btn cms-btn-sm shrink-0 px-2', pendingTotal > 0 && 'relative')}
             >
               <IcoMenu size={16} />
+              {pendingTotal > 0 && <PendingPill count={pendingTotal} className="absolute -right-2 -top-2" />}
             </button>
             <span className="text-[15px] font-extrabold text-yonsei-navy">기계공학부 CMS</span>
           </div>
@@ -428,6 +451,7 @@ function AdminConsoleBody({ token, login, role }: Props) {
                 login={login}
                 me={me}
                 onSignOut={() => setConfirmSignOut(true)}
+                badges={pendingBadges}
               />
             </nav>
           )}
@@ -455,6 +479,7 @@ function AdminConsoleBody({ token, login, role }: Props) {
                   login={login}
                   me={me}
                   onSignOut={() => setConfirmSignOut(true)}
+                  badges={pendingBadges}
                 />
               </nav>
             </>
@@ -609,6 +634,7 @@ function SidebarBody({
   login,
   me,
   onSignOut,
+  badges,
 }: {
   activeId: string | null;
   isDashboard: boolean;
@@ -620,6 +646,8 @@ function SidebarBody({
   me: MeInfo | null;
   /** 로그아웃 아이콘 — 즉시 나가지 않고 셸의 확인 팝업을 연다 */
   onSignOut: () => void;
+  /** 항목 id → 처리할 일 건수(학생 제출 승인 대기). 없는 항목은 필을 달지 않는다 */
+  badges: Record<string, number>;
 }) {
   // 카카오 상태 한 줄 — 있으면 이메일 대신 이 문구가 둘째 줄을 차지한다(목업 ②·③)
   const kakaoStatus =
@@ -804,6 +832,11 @@ function SidebarBody({
               }
 
               const open = openGroup === group.label;
+              // 접힌 그룹은 안쪽 항목의 대기 건수를 그룹 줄에서 말한다 — 접혀 있다고
+              // 처리할 일이 안 보이면 필을 단 의미가 없다
+              const groupBadge = open
+                ? 0
+                : group.entries.reduce((sum, e) => sum + (badges[entryId(e)] ?? 0), 0);
               return (
                 // shrink-0 — 아코디언 묶음도 스크롤 영역의 직계 자식이라 ROW 와 같은 이유로 눌린다
                 <div key={group.label} className="shrink-0">
@@ -811,14 +844,17 @@ function SidebarBody({
                     type="button"
                     onClick={() => setOpenGroup((cur) => (cur === group.label ? '' : group.label))}
                     aria-expanded={open}
+                    aria-label={groupBadge > 0 ? `${group.label}, 승인 대기 ${groupBadge}건` : undefined}
                     className={cn(ROW, 'font-medium text-content hover:bg-surface-soft')}
                   >
                     {GroupIcon && <GroupIcon size={16} className="shrink-0 text-content-faint" />}
                     <span className="min-w-0 truncate">{group.label}</span>
+                    {groupBadge > 0 && <PendingPill count={groupBadge} className="ml-auto" />}
                     <IcoChevronDown
                       size={14}
                       className={cn(
-                        'ml-auto shrink-0 text-content-faint transition-transform duration-200 ease-out-expo',
+                        groupBadge === 0 && 'ml-auto',
+                        'shrink-0 text-content-faint transition-transform duration-200 ease-out-expo',
                         open && 'rotate-180',
                       )}
                     />
@@ -830,6 +866,7 @@ function SidebarBody({
                         const id = entryId(entry);
                         const selected = id === activeId;
                         const editable = isEditable(entry);
+                        const badge = badges[id] ?? 0;
                         return (
                           <li key={id}>
                             <button
@@ -837,6 +874,7 @@ function SidebarBody({
                               onClick={() => editable && onNavigate(entry)}
                               disabled={!editable}
                               aria-current={selected ? 'page' : undefined}
+                              aria-label={badge > 0 ? `${entryLabel(entry)}, 승인 대기 ${badge}건` : undefined}
                               title={entry.type === 'placeholder' ? entry.note : undefined}
                               className={cn(
                                 'flex h-[33px] w-full cursor-pointer items-center pl-10 pr-3 text-left text-[12.5px] transition-colors duration-200 ease-out-expo',
@@ -851,6 +889,7 @@ function SidebarBody({
                               )}
                             >
                               <span className="min-w-0 truncate">{entryLabel(entry)}</span>
+                              {badge > 0 && <PendingPill count={badge} inverted={selected} className="ml-auto" />}
                             </button>
                           </li>
                         );
@@ -914,6 +953,33 @@ function SidebarBody({
         </div>
       </div>
     </>
+  );
+}
+
+/** 처리할 일 건수 필(학생 제출 승인 대기). 건수는 버튼의 aria-label 이 말하므로 숨긴다.
+ *  inverted — 선택된(네이비 면) 행 위에서는 흰 면에 네이비 글자로 뒤집는다. */
+function PendingPill({
+  count,
+  inverted,
+  className,
+}: {
+  count: number;
+  inverted?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center px-1.5 text-[11px] font-bold tabular-nums',
+        inverted
+          ? 'bg-white text-yonsei-navy'
+          : 'bg-yonsei-navy text-white dark:bg-brand dark:text-brand-fg',
+        className,
+      )}
+    >
+      {count}
+    </span>
   );
 }
 

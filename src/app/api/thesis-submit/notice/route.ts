@@ -8,13 +8,16 @@
 //
 // 응답 계약은 src/lib/thesis-submit/config.ts 의 NoticeSubmitResponse 가 단일 출처다.
 // 순서: 기능 플래그 → 세션 → 요청 형식(헤더·multipart) → parseNotice → cleanNotice →
-//       validateNotice → 포스터 PNG 검사 → 이메일당 제출 제한(1시간 5회, 메모리) → 저장 → 알림.
+//       validateNotice → 포스터 PNG 검사 → 이메일당 제출 제한(1시간 5회, 메모리) → 저장 →
+//       메일 2종(학생 접수 확인 + 학과 담당자 알림, lib/mail/thesis-mails.ts — 최선 노력).
+// 접수번호는 receiptNo(notice, 게시물 id) — 응답의 receiptNo 로 입력 화면 완료 패널에도 뜬다.
 //
 // ⚠️⚠️ dev 는 절대 프로덕션에 쓰지 않는다. `.env.local` 에 프로덕션 Supabase·R2 키가 들어
 //    있어 그대로 두면 dev 에서 누른 "제출하기"가 실제 DB·버킷에 들어간다. 그래서
 //    NODE_ENV !== 'production' 이고 THESIS_SUBMIT_DEV_WRITE !== '1' 이면 R2·DB·메일을
-//    전부 건너뛰고 `os.tmpdir()/thesis-submit-dev/<시각>.png` + `.json`({meta,row}) +
-//    `.mail.html`(알림 메일 미리보기)만 쓴 뒤 { ok:true, dev:<png 경로> } 를 돌려준다.
+//    전부 건너뛰고 `os.tmpdir()/thesis-submit-dev/<시각>.png` + `.json`({meta,row,receiptNo}) +
+//    `.receipt.html`(학생 접수 확인 메일) + `.mail.html`(학과 알림 메일) 미리보기만 쓴 뒤
+//    { ok:true, dev:<png 경로>, receiptNo:'TH-…-DEV' } 를 돌려준다.
 //    실제 저장 경로를 dev 에서 시험해야 할 때만 THESIS_SUBMIT_DEV_WRITE=1 로 켠다.
 //
 // 교차 출처 위조: 세션 쿠키가 sameSite=lax 라 다른 사이트의 POST 에는 실리지 않지만,
@@ -33,11 +36,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { r2PublicUrl, r2Put, withRandomSuffix } from '@/lib/admin/r2';
 import { sanitizeEditorHtml } from '@/lib/admin/sanitize';
 import { sendBrevoMail } from '@/lib/mail/brevo';
-import {
-  thesisNoticeMailHtml,
-  thesisNoticeMailSubject,
-  type ThesisNoticeMail,
-} from '@/lib/mail/thesis-notice-email';
+import { officeMail, receiptMail, type MailOut } from '@/lib/mail/thesis-mails';
 import { SITE_URL } from '@/lib/site';
 import {
   NOTICE_POSTER_MAX_BYTES,
@@ -56,6 +55,9 @@ import {
   type ThesisNoticeInput,
   type ThesisSubmissionMeta,
 } from '@/lib/thesis-submit/notice';
+import { thesisContact, type ThesisContact } from '@/lib/thesis-submit/contact';
+import { receiptNo } from '@/lib/thesis-submit/review';
+import { supabaseReviewDb } from '@/lib/thesis-submit/review-db';
 import { readThesisSession } from '@/lib/thesis-submit/session';
 import { releaseSubmitSlot, takeSubmitSlot } from '@/lib/thesis-submit/submit-limit';
 
@@ -146,34 +148,58 @@ function notifyRecipients(): string[] {
     .filter((s) => /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(s));
 }
 
-function mailOf(notice: ThesisNoticeInput, meta: ThesisSubmissionMeta, posterUrl: string): ThesisNoticeMail {
+/** 문의처 — 메일에 싣는 대학원 담당 연락처(화면 B 와 같은 출처). 못 읽어도 메일은 나간다 */
+async function contactOrNull(): Promise<ThesisContact | null> {
+  try {
+    return await thesisContact('ko');
+  } catch (err) {
+    console.error('[thesis-submit] 문의처 읽기 실패', err);
+    return null;
+  }
+}
+
+/** 접수 직후 메일 두 종 — 1 학생 접수 확인 · 2 학과 담당자 알림(lib/mail/thesis-mails.ts) */
+async function submitMails(p: {
+  notice: ThesisNoticeInput;
+  meta: ThesisSubmissionMeta;
+  posterUrl: string;
+  receiptNo: string;
+  pendingTotal: number;
+  /** 방금 만든 게시물 id — 담당자 '검토하기'가 그 검토 화면을 바로 연다(dev 폴백은 null) */
+  postId: number | string | null;
+}): Promise<{ receipt: MailOut; office: MailOut }> {
+  // 콘솔 딥링크 — ?screen=board:thesis 가 학위논문심사 목록을 열고, 한 건이면 &review=<id> 가
+  // 그 검토 화면을, 여러 건이면 &status=pending 이 대기 필터를 연다(thesis-review/review-model.ts).
+  // 요청 Host 가 아니라 빌드에 박힌 SITE_URL 을 쓴다(메일 본문이 헤더로 조작되지 않게).
+  const consoleBase = `${SITE_URL}/ko/contentmanagement?screen=board:thesis`;
+  const consoleUrl =
+    p.pendingTotal <= 1 && p.postId != null
+      ? `${consoleBase}&review=${encodeURIComponent(String(p.postId))}`
+      : `${consoleBase}&status=pending`;
   return {
-    title: postTitle(notice),
-    notice,
-    email: meta.email,
-    submittedAt: meta.submittedAt,
-    posterUrl,
-    posterAlt: posterAlt(notice),
-    // 콘솔 딥링크 — ?screen=board:thesis 로 곧장 학위논문심사 목록이 열린다(AdminConsole).
-    // 요청 Host 가 아니라 빌드에 박힌 SITE_URL 을 쓴다(메일 본문이 헤더로 조작되지 않게).
-    consoleUrl: `${SITE_URL}/ko/contentmanagement?screen=board:thesis`,
+    receipt: receiptMail({ notice: p.notice, receiptNo: p.receiptNo, contact: await contactOrNull() }),
+    office: officeMail({
+      latest: {
+        notice: p.notice,
+        email: p.meta.email,
+        submittedAt: p.meta.submittedAt,
+        receiptNo: p.receiptNo,
+        posterUrl: p.posterUrl,
+      },
+      pendingTotal: p.pendingTotal,
+      consoleUrl,
+    }),
   };
 }
 
-/** 학과 알림 — 최선 노력. 실패해도 제출은 성공이다(서버 로그만 남긴다) */
-async function notifyOffice(mail: ThesisNoticeMail): Promise<void> {
-  const to = notifyRecipients();
-  if (to.length === 0) return;
-  const subject = thesisNoticeMailSubject(mail.title);
-  const html = thesisNoticeMailHtml(mail);
-  const results = await Promise.allSettled(
-    to.map((addr) => sendBrevoMail({ to: addr, subject, html, logTag: '[thesis-submit]' })),
-  );
-  results.forEach((r, i) => {
-    if (r.status === 'rejected' || !r.value.ok) {
-      console.error('[thesis-submit] 학과 알림 메일 실패', to[i]);
-    }
-  });
+/** 한 통 발송 — 최선 노력. 실패해도 제출은 성공이다(서버 로그만 남긴다) */
+async function sendBestEffort(to: string, mail: MailOut, what: string): Promise<void> {
+  try {
+    const r = await sendBrevoMail({ to, subject: mail.subject, html: mail.html, logTag: '[thesis-submit]' });
+    if (!r.ok) console.error(`[thesis-submit] ${what} 메일 실패`, to, r.reason);
+  } catch (err) {
+    console.error(`[thesis-submit] ${what} 메일 오류`, to, err);
+  }
 }
 
 // ── 라우트 ───────────────────────────────────────────────────────────────
@@ -241,17 +267,22 @@ export async function POST(request: Request): Promise<Response> {
     const dir = join(tmpdir(), 'thesis-submit-dev');
     const stamp = meta.submittedAt.replace(/[:.]/g, '-');
     const png = join(dir, `${stamp}.png`);
+    // 게시물 id 가 없으니 접수번호 끝자리는 'DEV'. 대기 건수는 DB 를 읽지 않고 1건으로 둔다.
+    const no = receiptNo(notice, null);
     try {
+      const mails = await submitMails({ notice, meta, posterUrl: url, receiptNo: no, pendingTotal: 1, postId: null });
       await mkdir(dir, { recursive: true });
       await writeFile(png, bytes);
-      await writeFile(join(dir, `${stamp}.json`), JSON.stringify({ meta, row }, null, 2), 'utf8');
-      await writeFile(join(dir, `${stamp}.mail.html`), thesisNoticeMailHtml(mailOf(notice, meta, url)), 'utf8');
+      await writeFile(join(dir, `${stamp}.json`), JSON.stringify({ meta, row, receiptNo: no }, null, 2), 'utf8');
+      // 메일은 보내지 않고 미리보기 파일로만 — .receipt.html(학생 접수 확인) · .mail.html(학과 알림)
+      await writeFile(join(dir, `${stamp}.receipt.html`), mails.receipt.html, 'utf8');
+      await writeFile(join(dir, `${stamp}.mail.html`), mails.office.html, 'utf8');
     } catch (err) {
       releaseSubmitSlot(session.email, now);
       console.error('[thesis-submit] dev 저장 실패', err);
       return reply({ ok: false, reason: 'server', message: 'dev-write' }, 500);
     }
-    return reply({ ok: true, dev: png });
+    return reply({ ok: true, dev: png, receiptNo: no });
   }
 
   // ── 프로덕션: R2 업로드 → posts 행(비공개) → 학과 알림 ──
@@ -294,6 +325,27 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // 비공개 글이라 사이트 캐시('posts' 태그)를 털 이유가 없다 — 게시하기(CMS 저장)가 턴다.
-  await notifyOffice(mailOf(notice, meta, url));
-  return reply({ ok: true });
+  // 여기부터는 전부 최선 노력이다 — 저장은 끝났으므로 무엇이 실패해도 제출 성공으로 답한다.
+  const postId = (insert.data as { id?: number | string } | null)?.id ?? null;
+  const no = receiptNo(notice, postId);
+  const to = notifyRecipients();
+  let pendingTotal = 1;
+  if (to.length > 0) {
+    try {
+      // 방금 넣은 건을 포함한 검토 대기 건수(담당자 알림의 '여러 건' 변형)
+      pendingTotal = await supabaseReviewDb(db()).countPending();
+    } catch (err) {
+      console.error('[thesis-submit] 대기 건수 조회 실패', err);
+    }
+  }
+  try {
+    const mails = await submitMails({ notice, meta, posterUrl: url, receiptNo: no, pendingTotal, postId });
+    await Promise.all([
+      sendBestEffort(meta.email, mails.receipt, '학생 접수 확인'),
+      ...to.map((addr) => sendBestEffort(addr, mails.office, '학과 알림')),
+    ]);
+  } catch (err) {
+    console.error('[thesis-submit] 접수 메일 준비 실패', err);
+  }
+  return reply({ ok: true, receiptNo: no });
 }

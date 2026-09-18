@@ -137,6 +137,8 @@ export interface NoticeFormLabels {
   doneTitle: string;
   doneDesc: string;
   doneList: string;
+  /** {no} — 접수번호 한 줄 */
+  doneReceipt: string;
   /** {path} */
   devSaved: string;
 }
@@ -256,8 +258,8 @@ export function ThesisNoticeForm({
   const [downloadError, setDownloadError] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [actionError, setActionError] = useState<ActionError | null>(null);
-  /** 제출 완료 — 제출한 입력(내려받기용)과 dev 저장 경로 */
-  const [done, setDone] = useState<{ notice: ThesisNoticeInput; dev?: string } | null>(null);
+  /** 제출 완료 — 제출한 입력(내려받기용)·접수번호·dev 저장 경로 */
+  const [done, setDone] = useState<{ notice: ThesisNoticeInput; receiptNo?: string; dev?: string } | null>(null);
   /** 오늘(KST) — 날짜 선택기의 min. 서버·클라이언트 렌더가 자정 경계에서 갈리지 않게 마운트 뒤 채운다 */
   const [minDate, setMinDate] = useState<string | undefined>(undefined);
   /** 미리보기 배율 = 캔버스 CSS 폭 × devicePixelRatio / 1403 */
@@ -480,7 +482,7 @@ export function ThesisNoticeForm({
 
     if (data?.ok) {
       clearDraft();
-      setDone({ notice, dev: data.dev });
+      setDone({ notice, receiptNo: data.receiptNo, dev: data.dev });
       return;
     }
     if (data && !data.ok) {
@@ -527,6 +529,11 @@ export function ThesisNoticeForm({
           {L.doneTitle}
         </h2>
         <p className="mx-auto mt-3 max-w-[560px] text-base leading-[1.7] text-content-faint">{L.doneDesc}</p>
+        {done.receiptNo && (
+          <p className="mt-3 text-[15px] font-semibold tracking-[0.02em] text-content">
+            {fill(L.doneReceipt, { no: done.receiptNo })}
+          </p>
+        )}
         <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <button
             type="button"

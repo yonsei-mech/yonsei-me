@@ -9,6 +9,28 @@ import type {
   Notice,
   Seminar,
 } from '@/lib/content';
+import type { ThesisNoticeInput } from '@/lib/thesis-submit/notice';
+import type { ReviewStatus, ThesisReview } from '@/lib/thesis-submit/review';
+
+/**
+ * 학생 제출 공고의 제출·검토 기록(읽기 전용 — 저장 페이로드에 싣지 않는다).
+ * posts-server 의 rowToEditRecord 가 posts.thesis_submission + published 로 만든다.
+ * 계약: src/lib/thesis-submit/review.ts
+ */
+export interface EditSubmission {
+  email: string;
+  /** 접수 시각 ISO */
+  submittedAt: string;
+  /** '박사과정' | '통합과정' — 칸이 생기기 전 제출분은 빈 문자열 */
+  program: string;
+  /** statusOf(record, published) — status 없는 기존 제출분도 판정된다 */
+  status: ReviewStatus;
+  /** receiptNo(notice, id) — 'TH-2026-1021-3812' */
+  receiptNo: string;
+  /** 제출 입력 원본(검토 화면의 심사 정보 표). 깨진 기록이면 null */
+  notice: ThesisNoticeInput | null;
+  review: ThesisReview;
+}
 
 /** board.json 파일 전체 형태 (content.ts의 board와 동일) */
 export interface BoardFile {
@@ -86,7 +108,7 @@ export interface EditRecord {
    *  안 보이는 글(학생 제출 공고의 '검토 대기'). 새 글(blankRecord)에는 키가 없다 = DB 기본값 true. */
   published?: boolean;
   /** 학생 제출 공고의 제출 기록(읽기 전용 정보 — 저장 페이로드에 싣지 않는다). null = 일반 글 */
-  submission?: { email: string; submittedAt: string; program?: string } | null;
+  submission?: EditSubmission | null;
   attachments: EditAttachment[];
 }
 

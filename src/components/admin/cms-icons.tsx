@@ -218,6 +218,80 @@ export function IcoMenu(p: IconProps) {
   );
 }
 
+// ── 학생 제출 검토(승인·반려) — Claude Design "학위논문심사 승인 흐름" 목업의 패스 ──
+
+/** 받은 편지함 — 확인할 제출(대시보드 카드·빈 대기 목록) */
+export function IcoInbox(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <path d="M3 13h5l1.5 3h5L16 13h5" />
+      <path d="M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z" />
+    </svg>
+  );
+}
+
+/** 체크 — 선택 승인 */
+export function IcoCheck(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+/** 원 안의 체크 — 게시 완료 배너 */
+export function IcoCheckCircle(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8 12.5 2.7 2.7L16.5 9.5" />
+    </svg>
+  );
+}
+
+/** 원 안의 느낌표 — 게시 실패 */
+export function IcoAlertCircle(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5" />
+      <path d="M12 16.5h.01" />
+    </svg>
+  );
+}
+
+/** 편지 — 학생에게 발송되는 메일 */
+export function IcoMail(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
+}
+
+/** 닫기(×) */
+export function IcoClose(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <path d="M18 6 6 18" />
+      <path d="M6 6l12 12" />
+    </svg>
+  );
+}
+
+/** 돋보기 + — 공고문 원본 크게 보기 */
+export function IcoZoomIn(p: IconProps) {
+  return (
+    <svg {...svgProps(p)}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.35-4.35" />
+      <path d="M11 8v6" />
+      <path d="M8 11h6" />
+    </svg>
+  );
+}
+
 type IconComponent = (p: IconProps) => React.JSX.Element;
 
 /** 사이드바 그룹 라벨 → 아이콘. 라벨은 resources.ts MENU_GROUPS 가 단일 출처다. */

@@ -127,6 +127,7 @@ export default async function ThesisSubmitFormPage({ params }: { params: { local
     doneTitle: t('doneTitle'),
     doneDesc: t('doneDesc'),
     doneList: t('doneList'),
+    doneReceipt: raw('doneReceipt'),
     devSaved: raw('devSaved'),
   };
 

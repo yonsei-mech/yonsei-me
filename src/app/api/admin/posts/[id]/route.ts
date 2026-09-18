@@ -13,6 +13,7 @@ import {
   withoutBodyRaw,
   type AdminPostPayload,
 } from '@/lib/admin/posts-server';
+import { isUnpublishedSubmission, reviewActor, settleEditPublish } from '@/lib/admin/thesis-review';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +45,17 @@ export async function PUT(
   // 동문 인터뷰 — 이름·소속·학번 필수 + 길이 상한(인터뷰 게시판이 아니면 통과)
   const ivErr = interviewError(payload);
   if (ivErr) return Response.json({ error: ivErr }, { status: 400 });
+
+  // 학생 제출 공고의 '게시하기'(= 디자인의 '수정 후 게시') — 저장 전 상태를 읽어 두었다가
+  // published false→true 로 바뀌면 승인과 같은 후처리(status·결정 기록·학생 메일)를 한다.
+  // 읽기 실패는 저장을 막지 않는다(후처리만 건너뛴다).
+  const publishingSubmission =
+    payload.board === 'thesis' && payload.published === true
+      ? await isUnpublishedSubmission(id).catch((err) => {
+          console.error('[thesis-review] 게시 전 상태 읽기 실패', id, err);
+          return false;
+        })
+      : false;
 
   const row = payloadToRow(payload);
   const update = (r: object) => adminDb().from('posts').update(r).eq('id', id);
@@ -80,6 +92,14 @@ export async function PUT(
   }
 
   revalidateTag('posts');
+  if (publishingSubmission) {
+    // 저장은 이미 끝났다 — 후처리 실패는 로그만 남기고 저장 성공으로 답한다
+    const settled = await settleEditPublish(id, await reviewActor()).catch((err) => {
+      console.error('[thesis-review] 게시 후처리 실패', id, err);
+      return null;
+    });
+    if (settled) return Response.json({ ok: true, mailSent: settled.mailSent });
+  }
   return Response.json({ ok: true });
 }
 

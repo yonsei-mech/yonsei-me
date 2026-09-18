@@ -135,8 +135,9 @@ export type OtpVerifyResponse =
  * 헤더 NOTICE_SUBMIT_HEADER: '1' 필수.
  */
 export type NoticeSubmitResponse =
-  /** 200 — 접수(published=false 로 저장, 학과 확인 대기). dev 폴백이면 dev 에 저장 경로가 온다 */
-  | { ok: true; dev?: string }
+  /** 200 — 접수(published=false 로 저장, 학과 확인 대기). dev 폴백이면 dev 에 저장 경로가 온다.
+   *  receiptNo 는 접수번호(review.ts 의 receiptNo — 'TH-2026-1021-3812', dev 는 끝자리 'DEV') */
+  | { ok: true; dev?: string; receiptNo?: string }
   /** 401 — 제출 세션(서명 쿠키)이 없거나 만료. 본인 확인을 다시 해야 한다 */
   | { ok: false; reason: 'session' }
   /** 400 — 요청 형식·포스터 PNG 가 틀림. errors 가 있으면 입력 검사 오류(cleanNotice 뒤 기준) */

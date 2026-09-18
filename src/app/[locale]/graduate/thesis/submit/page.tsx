@@ -3,8 +3,6 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
 import { SectionTabPage } from '../../../_shared/section-tabs';
 import { ThesisVerifyFlow, type ThesisVerifyLabels } from '@/components/thesis-submit/ThesisVerifyFlow';
-import { getStaffRuntime } from '@/lib/content-runtime';
-import { pick } from '@/lib/content';
 import { pageMetadata } from '@/lib/page-metadata';
 import { NOINDEX_FOLLOW } from '@/lib/seo';
 import {
@@ -14,6 +12,7 @@ import {
   THESIS_SUBMIT_PATH,
   isThesisSubmitEnabled,
 } from '@/lib/thesis-submit/config';
+import { thesisContact } from '@/lib/thesis-submit/contact';
 import { readThesisSession } from '@/lib/thesis-submit/session';
 import type { Locale } from '@/i18n/routing';
 
@@ -63,21 +62,12 @@ export default async function ThesisSubmitPage({ params }: { params: { locale: s
   const session = await readThesisSession();
   if (session) redirect(`/${locale}${THESIS_SUBMIT_FORM_PATH}`);
 
-  const [t, staff] = await Promise.all([
-    getTranslations({ locale, namespace: 'thesisSubmit' }),
-    getStaffRuntime(),
-  ]);
-
   // 문의처 — 교직원 데이터의 대학원 담당 항목(이름은 싣지 않는다). 없으면 문의 줄을 숨긴다.
-  const office = staff.find((s) => s.role?.ko === '대학원');
-  const contact = office
-    ? {
-        office: t('guide.contactOffice'),
-        location: pick(office.location, locale),
-        phone: office.phone,
-        email: office.email,
-      }
-    : null;
+  // 학생에게 가는 메일(접수·게시·반려)의 문의처와 같은 출처다(lib/thesis-submit/contact.ts).
+  const [t, contact] = await Promise.all([
+    getTranslations({ locale, namespace: 'thesisSubmit' }),
+    thesisContact(locale),
+  ]);
 
   const raw = (key: string) => t.raw(key) as string;
   const labels: ThesisVerifyLabels = {

@@ -991,6 +991,7 @@
       "doneTitle": "Submitted",
       "doneDesc": "The department office will review it and post it on the Thesis Defense board. This usually takes 1–2 business days.",
       "doneList": "Go to Thesis Defense board",
+      "doneReceipt": "Receipt No. {no}",
       "devSaved": "Dev mode — saved to: {path}"
     },
     "mail": {

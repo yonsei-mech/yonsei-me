@@ -627,8 +627,9 @@ export function PostForm({
           1152 = 본문 설계 폭 1046(POST_BODY_WIDTH) + 편집 영역 좌우 패딩 40 + 테두리 2 + 폼 좌우 패딩 64(lg:px-8).
           데스크톱에서 편집 캔버스(PostCanvas)가 축소 없이(zoom 1) 공개 화면과 1:1 이 되는 최소 폭이다. */}
       <div className="mx-auto max-w-[1152px] px-6 py-9 pb-24 lg:px-8">
-        {/* 검토 대기 — 학생이 직접 제출한 공고(published=false). 확인 뒤 '게시하기'가 곧
-            published:true 저장이다(같은 저장 경로). 반려는 따로 두지 않고 삭제로 한다. */}
+        {/* 검토 대기 — 학생이 직접 제출한 공고(published=false). 검토 화면의 '수정 후 게시'가
+            여기로 옮겨 연다. '게시하기'가 곧 published:true 저장이다(같은 저장 경로 — 승인
+            후처리·안내 메일은 서버가 PUT 에서 한다). 반려는 목록의 검토 화면에서 한다. */}
         {rec.published === false && (
           <div className="anim-panel mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 border border-yonsei-blue bg-yonsei-blue/[0.05] px-5 py-4">
             <div className="min-w-0 flex-1">
@@ -636,6 +637,12 @@ export function PostForm({
                 학생이 제출한 공고입니다
                 {rec.submission && (
                   <span className="font-normal text-content">
+                    {rec.submission.receiptNo && (
+                      <>
+                        {' · 접수번호 '}
+                        <span className="tabular-nums">{rec.submission.receiptNo}</span>
+                      </>
+                    )}
                     {rec.submission.program && ` · ${rec.submission.program}`}
                     {' · '}
                     {rec.submission.email}
@@ -644,8 +651,8 @@ export function PostForm({
                 )}
               </p>
               <p className="mt-1 text-[13px] leading-[1.7] text-content">
-                포스터와 제목을 확인한 뒤 ‘게시하기’를 누르면 {meta.label} 게시판에 공개됩니다.
-                반려하려면 이 글을 삭제하세요.
+                고친 뒤 ‘게시하기’를 누르면 {meta.label} 게시판에 공개되고 학생에게 안내 메일이 갑니다.
+                반려하려면 편집을 닫고 검토 화면의 ‘반려’를 누르세요(사유와 메시지가 학생에게 갑니다).
               </p>
             </div>
             <button

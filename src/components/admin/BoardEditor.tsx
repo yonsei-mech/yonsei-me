@@ -36,13 +36,30 @@ import {
 } from '@/lib/admin/post-draft';
 import { uploadAttachment } from '@/lib/admin/storage';
 import { CalendarEditor } from './CalendarEditor';
-import { IcoPen } from './cms-icons';
+import { IcoCheck, IcoPen } from './cms-icons';
 import { CmsModal } from './CmsModal';
 import { CmsPanelHead } from './CmsPanelHead';
 import { CmsSkeleton } from './CmsSkeleton';
 import { CommitBanner } from './CommitBanner';
 import { PostForm } from './PostForm';
 import { useAdminShell } from './AdminShellContext';
+import { approvePosts, ReviewApiError, type ReviewPatch } from './thesis-review/api';
+import { BulkApproveDialog } from './thesis-review/BulkApproveDialog';
+import {
+  isReviewBoard,
+  leaveReviewUrl,
+  matchesFilter,
+  pushReviewUrl,
+  readReviewUrl,
+  replaceReviewUrl,
+  REVIEW_PARAM,
+  reviewSearchKeys,
+  reviewStatusOf,
+  type ReviewFilter,
+} from './thesis-review/review-model';
+import { refreshThesisSummary } from './thesis-review/summary-store';
+import { ReviewEmptyState, ReviewFilterTabs, ThesisRows } from './thesis-review/ThesisList';
+import { ThesisReviewScreen } from './thesis-review/ThesisReviewScreen';
 
 /** admin API 가 돌려주는 레코드 — EditRecord + DB 식별자/slug.
  *  월 그리드(CalendarEditor)가 같은 목록을 그대로 받아 쓰므로 export 한다 —
@@ -80,7 +97,8 @@ const BOARD_NOTES: Record<BoardKey, string> = {
   news: '홈 뉴스 영역과 뉴스 목록에 카드로 노출됩니다. 대표 이미지와 요약이 카드 앞면이 됩니다.',
   seminars: '세미나 목록에 노출되고, 날짜가 잡힌 글은 금주 캘린더에도 표시됩니다.',
   events: '행사 목록과 홈 ‘공지 & 일정’ 캘린더에 노출됩니다.',
-  thesis: '학위논문심사 공고 목록에 노출됩니다.',
+  thesis:
+    '학위논문심사 공고 목록에 노출됩니다. 학생이 직접 제출한 공고는 ‘승인 대기’로 들어오고, 확인 후 게시하면 학생에게 안내 메일이 갑니다.',
   resources: '자료실 목록에 노출됩니다. 첨부파일이 본체인 게시판입니다.',
   career: '취업 정보 목록에 노출됩니다.',
   bk21Resources:
@@ -175,7 +193,7 @@ interface Props {
 export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
   // 저장 완료는 화면 안 배너(CommitBanner)만으로는 눈에 잘 띄지 않는다 — 목록 상단은
   // 방금 누른 버튼에서 멀다. 다른 화면과 같은 상단 토스트로도 한 번 말한다.
-  const { showToast, setWriteDenied } = useAdminShell();
+  const { showToast, setWriteDenied, setBanner } = useAdminShell();
 
   const meta = useMemo(() => getBoard(boardKey), [boardKey]);
   const variant: ListVariant = meta.calendarGrid
@@ -186,8 +204,24 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
 
   const [records, setRecords] = useState<ApiRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  // 목록을 한 번이라도 받아 왔는가 — 새로고침으로 열린 검토 화면(?review=)이 가리키는
+  // 글이 정말 없는지는 첫 조회가 끝난 뒤에야 판정할 수 있다
+  const [loaded, setLoaded] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+
+  // ── 학생 제출 검토(학위논문심사) — 필터·검토 화면·방금 게시 ──
+  // 다른 게시판에서는 reviewable 이 false 라 아래 상태는 전부 초기값으로 머문다.
+  // 필터와 열린 제출은 쿼리(?status= ?review=)에 실어 새로고침으로 복원한다.
+  const reviewable = isReviewBoard(boardKey);
+  const [statusFilter, setStatusFilter] = useState<ReviewFilter>(() =>
+    reviewable ? readReviewUrl().status : 'all',
+  );
+  const [reviewId, setReviewId] = useState<string | null>(() =>
+    reviewable ? readReviewUrl().review : null,
+  );
+  const [justPublished, setJustPublished] = useState<ReadonlySet<string>>(new Set());
+  const [bulkApprove, setBulkApprove] = useState<string[] | null>(null);
 
   // 다중선택 상태: 선택된 DB id 집합. 리로드·액션 성공 시 초기화한다.
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -226,11 +260,14 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     try {
       const { items } = await api<{ items: ApiRecord[] }>(`/api/admin/posts?board=${key}`);
       setRecords(items);
+      // 학생 제출 게시판은 목록을 새로 받을 때마다 대기 건수(사이드바 필·대시보드)도 맞춘다
+      if (isReviewBoard(key)) void refreshThesisSummary();
     } catch (err) {
       setRecords([]);
       setListError(err instanceof Error ? err.message : '목록을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, []);
 
@@ -239,6 +276,34 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     void loadEntries(boardKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 뒤로·앞으로 가기 — 검토 화면은 열 때 히스토리를 한 칸 쌓으므로(pushReviewUrl)
+  // 뒤로가기가 곧 "목록으로"다. 이 게시판 화면의 항목일 때만 반응한다.
+  useEffect(() => {
+    if (!reviewable) return;
+    const onPop = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('screen') !== `board:${boardKey}`) return;
+      setReviewId(params.get(REVIEW_PARAM) || null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [reviewable, boardKey]);
+
+  // 게시 결과 배너는 이 게시판 화면의 것이다 — 다른 화면으로 떠나면 내린다
+  useEffect(() => {
+    if (!reviewable) return;
+    return () => setBanner(null);
+  }, [reviewable, setBanner]);
+
+  // 새로고침·딥링크로 연 검토 화면(?review=)의 글이 목록에 없으면(삭제·다른 게시판) 목록으로
+  useEffect(() => {
+    if (!reviewable || !reviewId || !loaded || loading || listError) return;
+    if (records.some((r) => r.id === reviewId)) return;
+    setReviewId(null);
+    replaceReviewUrl({ review: null });
+    setSaveError('검토할 제출을 찾지 못했습니다 — 이미 삭제되었거나 다른 게시판으로 옮겨졌을 수 있습니다.');
+  }, [reviewable, reviewId, loaded, loading, listError, records]);
 
   const allItems: ListItem[] = useMemo(
     () =>
@@ -253,17 +318,32 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     [records, meta],
   );
 
+  // 학생 제출 게시판의 상태 필터. '전체'에서는 승인 대기를 맨 위로 올린다(처리할 일이 먼저 —
+  // 나머지는 서버 순서 그대로). 다른 게시판은 allItems 그대로다.
+  const filteredItems = useMemo(() => {
+    if (!reviewable) return allItems;
+    const shown = allItems.filter((i) => matchesFilter(i.rec, statusFilter));
+    if (statusFilter !== 'all') return shown;
+    const isPending = (i: ListItem) => reviewStatusOf(i.rec) === 'pending';
+    return [...shown.filter(isPending), ...shown.filter((i) => !isPending(i))];
+  }, [allItems, reviewable, statusFilter]);
+  const pendingCount = useMemo(
+    () => (reviewable ? allItems.filter((i) => reviewStatusOf(i.rec) === 'pending').length : 0),
+    [allItems, reviewable],
+  );
+
   // 검색 — 제목(한/영)·날짜·slug·주최를 한 번에 훑는다(운영자가 기억하는 단서가 제각각이다)
+  // 학생 제출 게시판은 성명·이메일·접수번호도 단서다.
   const listItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (q === '') return allItems;
-    return allItems.filter((i) =>
-      [i.titleKo, i.rec.titleEn, i.date, i.subId, i.rec.hostKo ?? '']
+    if (q === '') return filteredItems;
+    return filteredItems.filter((i) =>
+      [i.titleKo, i.rec.titleEn, i.date, i.subId, i.rec.hostKo ?? '', ...(reviewable ? reviewSearchKeys(i.rec) : [])]
         .join(' ')
         .toLowerCase()
         .includes(q),
     );
-  }, [allItems, search]);
+  }, [filteredItems, search, reviewable]);
 
   // 새 글 id 제안 — 뉴스형은 slug 컨벤션(날짜 기반). 게시판형은 DB 가 자동 부여.
   const existingIds = useMemo(
@@ -272,6 +352,14 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
   );
 
   const allSelected = listItems.length > 0 && listItems.every((i) => selected.has(i.id));
+  // 고른 글이 전부 '승인 대기'인가 — 그때만 툴바가 '선택 승인'으로 바뀐다(학생 제출 게시판)
+  const selectedAllPending =
+    reviewable &&
+    selected.size > 0 &&
+    Array.from(selected).every((id) => {
+      const r = records.find((x) => x.id === id);
+      return !!r && reviewStatusOf(r) === 'pending';
+    });
   useEffect(() => {
     if (selectAllRef.current) {
       selectAllRef.current.indeterminate = selected.size > 0 && !allSelected;
@@ -324,6 +412,137 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
       isEdit: true,
       dbId,
     });
+  }
+
+  // ── 학생 제출 검토 ──────────────────────────────────────────────
+
+  /** 필터 바꾸기 — 숨겨진 글이 선택된 채로 일괄 동작에 딸려 가지 않게 선택도 비운다 */
+  function changeFilter(f: ReviewFilter) {
+    setStatusFilter(f);
+    setSelected(new Set());
+    replaceReviewUrl({ status: f });
+  }
+
+  function openReview(id: string) {
+    setSuccess(null);
+    setSaveError(null);
+    setReviewId(id);
+    pushReviewUrl(id);
+  }
+
+  function closeReview() {
+    setReviewId(null);
+    leaveReviewUrl();
+  }
+
+  /** 검토 화면의 자동 저장이 통하면 목록이 들고 있는 레코드에도 반영(다시 열 때 옛 값 방지) */
+  const patchReview = useCallback((id: string, patch: ReviewPatch) => {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === id && r.submission
+          ? { ...r, submission: { ...r.submission, review: { ...r.submission.review, ...patch } } }
+          : r,
+      ),
+    );
+  }, []);
+
+  /** 게시·반려 결과는 셸 상단 배너로 말한다 — 메일 실패는 사람이 대신 알려야 하므로 붉게 */
+  function announce(tone: 'info' | 'danger', title: string, body: string, withSiteLink: boolean) {
+    setBanner({
+      id: 'thesis-review',
+      tone,
+      title,
+      body,
+      dismissible: true,
+      ...(withSiteLink
+        ? {
+            action: {
+              label: '사이트에서 보기 ↗',
+              onClick: () => window.open('/ko/graduate/thesis', '_blank', 'noopener'),
+            },
+          }
+        : {}),
+    });
+    // 쓰기가 통했으니 권한 배너를 내린다(finishSave 와 같은 규칙)
+    setWriteDenied(false);
+  }
+
+  function handleApproved(id: string, r: { mailSent?: boolean; already?: boolean }) {
+    const rec = records.find((x) => x.id === id);
+    const email = rec?.submission?.email;
+    closeReview();
+    setJustPublished(new Set([id]));
+    if (r.already) {
+      announce('info', '이미 게시된 글입니다.', '다른 관리자가 먼저 처리했을 수 있습니다.', true);
+    } else if (r.mailSent === false) {
+      announce(
+        'danger',
+        '게시했지만 안내 메일을 보내지 못했습니다.',
+        email ? `학생(${email})에게 직접 알려 주세요.` : '학생에게 직접 알려 주세요.',
+        true,
+      );
+    } else {
+      announce('info', '게시했습니다.', '학생에게 안내 메일을 보냈습니다.', true);
+    }
+    void loadEntries(boardKey);
+  }
+
+  function handleRejected(id: string, r: { mailSent: boolean }) {
+    const rec = records.find((x) => x.id === id);
+    const email = rec?.submission?.email;
+    closeReview();
+    if (r.mailSent) {
+      announce('info', '반려했습니다.', '학생에게 사유와 메시지를 메일로 보냈습니다.', false);
+    } else {
+      announce(
+        'danger',
+        '반려했지만 알림 메일을 보내지 못했습니다.',
+        email ? `학생(${email})에게 직접 알려 주세요.` : '학생에게 직접 알려 주세요.',
+        false,
+      );
+    }
+    void loadEntries(boardKey);
+  }
+
+  /** 선택 승인 — 확인 모달(C3)을 거쳐 같은 approve API 로 여러 건을 한 번에 */
+  async function doBulkApprove(ids: string[]) {
+    setSaving(true);
+    setSaveError(null);
+    setSuccess(null);
+    try {
+      const results = await approvePosts(ids);
+      const ok = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+      const mailFailed = ok.filter((r) => !r.already && r.mailSent === false);
+      const titleOf = (id: string) => allItems.find((i) => i.id === id)?.titleKo ?? id;
+      setJustPublished(new Set(ok.map((r) => r.id)));
+      setSelected(new Set());
+      if (failed.length > 0) {
+        announce(
+          'danger',
+          ok.length > 0
+            ? `${ok.length}건을 게시했고, ${failed.length}건은 게시하지 못했습니다.`
+            : `${failed.length}건 모두 게시하지 못했습니다.`,
+          failed.map((r) => `${titleOf(r.id)}${r.error ? ` — ${r.error}` : ''}`).join(' · '),
+          ok.length > 0,
+        );
+      } else if (mailFailed.length > 0) {
+        announce(
+          'danger',
+          `${ok.length}건을 게시했지만 안내 메일 ${mailFailed.length}건을 보내지 못했습니다.`,
+          `${mailFailed.map((r) => titleOf(r.id)).join(' · ')} — 학생에게 직접 알려 주세요.`,
+          true,
+        );
+      } else {
+        announce('info', `${ok.length}건을 게시했습니다.`, '학생들에게 안내 메일을 보냈습니다.', true);
+      }
+      void loadEntries(boardKey);
+    } catch (err) {
+      if (err instanceof ReviewApiError && err.status === 403) setWriteDenied(true);
+      setSaveError(err instanceof Error ? err.message : '게시하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   /** 편집 레코드 → admin API 페이로드 */
@@ -560,6 +779,8 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
 
   function finishSave(message: string) {
     setEditing(null);
+    // '수정 후 게시'로 검토 화면에서 넘어온 편집이 끝났으면 검토 화면이 아니라 목록으로 돌아간다
+    if (reviewable && reviewId) closeReview();
     const full = `${message} — 사이트에 수 초 내 반영됩니다.`;
     setSuccess(full);
     showToast(full);
@@ -623,6 +844,31 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
     );
   }
 
+  // ── 검토 화면(학생 제출): 글쓰기 화면처럼 전체 화면. '수정 후 게시'는 위 PostForm 으로
+  //    넘어가고, 거기서 '← 목록으로'를 누르면 reviewId 가 남아 있어 이 화면으로 돌아온다 ──
+  if (reviewable && reviewId) {
+    const reviewRec = records.find((r) => r.id === reviewId);
+    if (reviewRec) {
+      return (
+        <>
+          <ThesisReviewScreen
+            key={reviewRec.id}
+            meta={meta}
+            rec={reviewRec}
+            onBack={closeReview}
+            onEdit={() => startEdit(reviewRec.id)}
+            onApproved={(r) => handleApproved(reviewRec.id, r)}
+            onRejected={(r) => handleRejected(reviewRec.id, r)}
+            onReviewSaved={(patch) => patchReview(reviewRec.id, patch)}
+          />
+          {renderConfirm()}
+        </>
+      );
+    }
+    // 새로고침으로 바로 들어온 경우 — 목록이 올 때까지 뼈대만(없으면 위 효과가 목록으로 돌린다)
+    if (!loaded || loading) return <CmsSkeleton shape="rows" />;
+  }
+
   const busy = saving || loading;
   const searching = search.trim() !== '';
 
@@ -681,6 +927,7 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
         kind="board"
         title={meta.label}
         description={`${BOARD_NOTES[boardKey]} 같은 유형의 게시판은 이 화면과 동일한 목록·편집기를 씁니다.`}
+        siteUrl={reviewable ? '/ko/graduate/thesis' : undefined}
       />
 
       {success && <CommitBanner message={success} url="" />}
@@ -717,6 +964,11 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
 
       {!loading && allItems.length > 0 && (
         <>
+          {/* 학생 제출 게시판 — 상태 필터(전체 / 승인 대기 N / 게시됨 / 반려) */}
+          {reviewable && (
+            <ReviewFilterTabs value={statusFilter} pendingCount={pendingCount} onChange={changeFilter} />
+          )}
+
           {/* 검색 + 건수 */}
           <div className="mb-5 flex flex-wrap items-center gap-2">
             <input
@@ -724,7 +976,7 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
               aria-label="글 검색"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="제목·날짜·번호로 검색"
+              placeholder={reviewable ? '제목·성명·접수번호로 검색' : '제목·날짜·번호로 검색'}
               className="cms-input-sm w-full sm:w-[250px]"
             />
             <span className="ml-auto whitespace-nowrap text-xs tabular-nums text-content-faint">
@@ -759,8 +1011,27 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
               글쓰기
             </button>
 
+            {/* 학생 제출 — 승인 대기 글만 골랐으면 '선택 승인'. 게시·반려 글이 섞이면
+                아래 평소의 선택 동작(삭제·고정·이동)으로 돌아간다. */}
+            {selected.size > 0 && selectedAllPending && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkApprove(Array.from(selected))}
+                  disabled={saving}
+                  className="cms-btn-primary cms-btn-sm"
+                >
+                  <IcoCheck size={14} className="shrink-0" />
+                  선택 승인 {selected.size}건
+                </button>
+                <button type="button" onClick={handleBulkDelete} disabled={saving} className="cms-btn-danger cms-btn-sm">
+                  선택 삭제
+                </button>
+              </div>
+            )}
+
             {/* 선택 액션 — 1개 이상 선택했을 때만 (선택 삭제 + 다른 게시판으로 이동) */}
-            {selected.size > 0 && (
+            {selected.size > 0 && !selectedAllPending && (
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={handleBulkDelete} disabled={saving} className="cms-btn-danger cms-btn-sm">
                   선택 삭제
@@ -812,8 +1083,11 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
             )}
           </div>
 
-          {/* ── 검색 결과 없음 ── */}
-          {listItems.length === 0 ? (
+          {/* ── 필터 결과 없음(학생 제출 게시판, 검색어 없이) ── */}
+          {reviewable && listItems.length === 0 && !searching && statusFilter !== 'all' ? (
+            <ReviewEmptyState filter={statusFilter} onShowAll={() => changeFilter('all')} />
+          ) : /* ── 검색 결과 없음 ── */
+          listItems.length === 0 ? (
             <div className="anim-panel border border-dashed border-surface-border bg-[#fcfdfe] px-6 py-20 text-center">
               <p className="text-[15px] font-bold text-content">
                 ‘{search.trim()}’ 에 해당하는 글이 없습니다
@@ -822,6 +1096,19 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
                 검색 초기화
               </button>
             </div>
+          ) : reviewable ? (
+            <ThesisRows
+              items={listItems}
+              selected={selected}
+              busy={busy}
+              saving={saving}
+              justPublished={justPublished}
+              onToggle={toggleSelect}
+              onEdit={startEdit}
+              onDelete={handleDelete}
+              onTogglePin={(id, pin) => void togglePin(id, pin)}
+              onReview={openReview}
+            />
           ) : variant === 'cards' ? (
             <NewsCards
               items={listItems}
@@ -858,6 +1145,20 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
       )}
 
       {renderConfirm()}
+      {bulkApprove && (
+        <BulkApproveDialog
+          items={bulkApprove.map((id) => {
+            const r = records.find((x) => x.id === id);
+            return { id, title: r?.titleKo || id, submittedAt: r?.submission?.submittedAt };
+          })}
+          onConfirm={() => {
+            const ids = bulkApprove;
+            setBulkApprove(null);
+            void doBulkApprove(ids);
+          }}
+          onCancel={() => setBulkApprove(null)}
+        />
+      )}
     </div>
   );
 }

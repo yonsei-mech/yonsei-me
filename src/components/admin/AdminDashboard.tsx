@@ -29,6 +29,7 @@ import {
   isEditable,
   readRecents,
 } from './entries';
+import { ThesisPendingCard } from './thesis-review/ThesisPendingCard';
 
 interface Props {
   onOpen: (entry: MenuEntry) => void;
@@ -48,6 +49,9 @@ export function AdminDashboard({ onOpen, openGuide }: Props) {
       <h1 className="font-subhead text-2xl font-semibold tracking-[-0.01em] text-content">
         안녕하세요, {login || '관리자'} 님
       </h1>
+      {/* 학생이 제출하고 기다리는 공고 — 수정이 아니라 처리할 일이라 최근 편집보다 위.
+          0건이면 카드째 사라진다(빈 자리를 설명하지 않는다 — 최근 편집과 같은 규칙) */}
+      <ThesisPendingCard onOpen={onOpen} />
       <RecentSection onOpen={onOpen} />
       <AllEntriesSection onOpen={onOpen} />
       <GuideSection openGuide={openGuide} />

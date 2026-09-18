@@ -13,6 +13,9 @@ import { SANITIZE_OPTS, sanitizeEditorHtml, scrubRawHtml } from '@/lib/admin/san
 import { formatPeriodLabel, isoToDays, parseDateLabelRange } from '@/lib/calendar';
 import { normalizeCohort } from '@/lib/alumni-interview';
 import { kstDate } from '@/lib/utils';
+import type { EditSubmission } from '@/lib/admin/boards';
+import { parseNotice } from '@/lib/thesis-submit/notice';
+import { receiptNo, statusOf, type ThesisReview } from '@/lib/thesis-submit/review';
 
 // 사이트 렌더와 동일 설정(breaks: 단일 개행도 줄바꿈 — 게시판 본문 관례)
 const marked = new Marked({ gfm: true, breaks: true });
@@ -355,7 +358,13 @@ export interface DbPostRow {
   /** 공개 여부 — false = 학과 확인 대기(학생 제출 공고) 등 사이트에 안 보이는 글 */
   published?: boolean | null;
   /** 학생 제출 기록(jsonb) — 컬럼 추가(2026-09-thesis-submit-otp.sql) 전 DB 는 undefined */
-  thesis_submission?: { email?: unknown; submittedAt?: unknown; notice?: { program?: unknown } } | null;
+  thesis_submission?: {
+    email?: unknown;
+    submittedAt?: unknown;
+    notice?: unknown;
+    status?: unknown;
+    review?: unknown;
+  } | null;
   attachments?: {
     label_ko: string | null;
     label_en: string | null;
@@ -391,6 +400,24 @@ function interviewToEdit(raw: Record<string, unknown> | null | undefined) {
 }
 
 /** DB 행 → CMS 편집 레코드(마크다운 우선, 없으면 빈 문자열 — 구 데이터 호환) */
+/** posts.thesis_submission + published → 관리자 폼·목록용 제출 기록(계약: thesis-submit/review.ts) */
+function submissionToEdit(r: DbPostRow): EditSubmission | null {
+  const s = r.thesis_submission;
+  if (!s) return null;
+  const notice = parseNotice(s.notice);
+  const review = (s.review && typeof s.review === 'object' ? s.review : {}) as ThesisReview;
+  return {
+    email: String(s.email ?? ''),
+    submittedAt: String(s.submittedAt ?? ''),
+    // 과정(박사과정·통합과정) — 칸이 생기기 전 제출분은 빈 값
+    program: notice?.program ?? '',
+    status: statusOf(s, r.published !== false),
+    receiptNo: receiptNo(notice ?? { date: '' }, r.id),
+    notice,
+    review,
+  };
+}
+
 export function rowToEditRecord(r: DbPostRow) {
   // 캘린더를 여기 넣는 이유: created_at 은 timestamptz(+09:00) 라 UTC 로 돌아오면
   // slice(0,10) 이 하루 앞당겨진다. 일정은 날짜가 곧 내용이므로 그 하루가
@@ -447,14 +474,7 @@ export function rowToEditRecord(r: DbPostRow) {
     // 그대로 돌려보내 검토 대기 글이 일반 저장으로 공개되지 않게 한다.
     published: r.published !== false,
     // 학생 제출 기록 — 관리자 폼의 안내 패널용(누가·언제). 입력 원본(notice)은 싣지 않는다.
-    submission: r.thesis_submission
-      ? {
-          email: String(r.thesis_submission.email ?? ''),
-          submittedAt: String(r.thesis_submission.submittedAt ?? ''),
-          // 과정(박사과정·통합과정) — 칸이 생기기 전 제출분은 빈 값
-          program: String(r.thesis_submission.notice?.program ?? ''),
-        }
-      : null,
+    submission: submissionToEdit(r),
     attachments: (r.attachments ?? [])
       .slice()
       .sort((a, b) => a.sort - b.sort)
