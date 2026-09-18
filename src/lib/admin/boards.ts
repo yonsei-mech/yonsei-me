@@ -82,6 +82,11 @@ export interface EditRecord {
    *  폼이 다루기 쉽도록 Localized 쌍을 납작하게 편 형태이고, 저장 직전
    *  posts-server 의 payloadToRow 가 jsonb({name:{ko,en},…}) 로 접는다. */
   interview?: EditInterview;
+  /** 공개 여부 — admin API(rowToEditRecord)가 언제나 boolean 으로 내려준다. false = 사이트에
+   *  안 보이는 글(학생 제출 공고의 '검토 대기'). 새 글(blankRecord)에는 키가 없다 = DB 기본값 true. */
+  published?: boolean;
+  /** 학생 제출 공고의 제출 기록(읽기 전용 정보 — 저장 페이로드에 싣지 않는다). null = 일반 글 */
+  submission?: { email: string; submittedAt: string } | null;
   attachments: EditAttachment[];
 }
 

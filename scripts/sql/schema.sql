@@ -61,6 +61,9 @@ alter table posts add column if not exists import_managed boolean not null defau
 -- null 이면 인터뷰가 아닌 글(개편 이전 동문 소식)이다. 자세한 설명·주의는
 -- scripts/sql/2026-09-alumni-interview.sql.
 alter table posts add column if not exists interview jsonb;
+-- 학생 제출 공고 기록 {email, submittedAt, notice} — null = 일반 글, 게시 여부는 published.
+-- 학생 이메일이 있어 공개 조회에서 뺀다. 자세한 설명은 scripts/sql/2026-09-thesis-submit-otp.sql.
+alter table posts add column if not exists thesis_submission jsonb;
 
 create index if not exists posts_board_created_idx on posts (board, created_at desc);
 create index if not exists posts_published_idx on posts (published);

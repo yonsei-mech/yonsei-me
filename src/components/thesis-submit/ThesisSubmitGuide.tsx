@@ -3,7 +3,7 @@ import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 
 /**
- * 화면 B 좌측 안내 — "이렇게 진행됩니다"(3단계) + "미리 준비하세요" + 양식·문의·관리자 안내.
+ * 화면 B 좌측 안내 — "이렇게 진행됩니다"(3단계) + "미리 준비하세요" + 문의·관리자 안내.
  * (디자인 원본: files/학위논문심사 공고 등록 디자인/spec.md §3 좌측 안내 카드)
  *
  * 같은 내용을 두 모양으로 그린다:
@@ -28,7 +28,6 @@ export interface ThesisGuideLabels {
   stepDone: string;
   prepTitle: string;
   prep: string[];
-  template: string;
   contactLabel: string;
   adminNote: string;
   adminLink: string;
@@ -47,18 +46,14 @@ const ACCENT_TEXT = 'text-yonsei-blue dark:text-brand';
 export function ThesisSubmitGuide({
   labels,
   contact,
-  templateUrl,
   verified,
 }: {
   labels: ThesisGuideLabels;
   contact: ThesisContact | null;
-  templateUrl: string | null;
   verified: boolean;
 }) {
   const titleId = useId();
-  const body = (
-    <GuideBody labels={labels} contact={contact} templateUrl={templateUrl} verified={verified} />
-  );
+  const body = <GuideBody labels={labels} contact={contact} verified={verified} />;
 
   return (
     <>
@@ -104,12 +99,10 @@ export function ThesisSubmitGuide({
 function GuideBody({
   labels,
   contact,
-  templateUrl,
   verified,
 }: {
   labels: ThesisGuideLabels;
   contact: ThesisContact | null;
-  templateUrl: string | null;
   verified: boolean;
 }) {
   return (
@@ -186,28 +179,6 @@ function GuideBody({
           </li>
         ))}
       </ul>
-
-      {templateUrl && (
-        <a
-          href={templateUrl}
-          className={cn(
-            'mt-2.5 inline-flex min-h-[44px] items-center gap-2 text-[14.5px] font-semibold leading-5 hover:underline',
-            ACCENT_TEXT,
-          )}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden="true"
-            className="h-4 w-4 shrink-0"
-          >
-            <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>{labels.template}</span>
-        </a>
-      )}
 
       {contact && (
         <p className="mt-2.5 text-[13.5px] leading-[1.75] text-content-faint">

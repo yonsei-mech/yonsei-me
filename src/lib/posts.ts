@@ -142,6 +142,23 @@ const LIST_COLUMNS =
 /** 상세 조회용 — 본문 포함 전체 행 */
 const DETAIL_COLUMNS = '*, attachments(*)';
 
+/**
+ * 공개 캐시에 넣기 전 비공개 컬럼을 떼어 낸다 — `select('*')` 를 쓰는 조회(DETAIL_COLUMNS)는
+ * 전부 이걸 거친다.
+ *
+ * posts.thesis_submission(jsonb)은 학생이 직접 제출한 예비심사 공고의 기록이고 **학생 이메일**
+ * 이 들어 있다(scripts/sql/2026-09-thesis-submit-otp.sql). 게시 전에는 published=false 라 공개
+ * 조회에 안 걸리지만, 학과가 '게시하기'를 누른 뒤에는 상세 조회가 이 컬럼까지 끌고 와
+ * unstable_cache(서버 캐시)와 RSC 페이로드 근처에 학생 이메일이 놓이게 된다. 어댑터가 읽지
+ * 않더라도 캐시 항목에 남기지 않는 것이 원칙이다. RLS 공개 읽기 정책은 행 단위라 컬럼을
+ * 가리지 못한다 — 이 함수가 막는 선이다.
+ */
+function withoutPrivateColumns(row: DbPost | null): DbPost | null {
+  if (!row) return null;
+  const { thesis_submission: _omit, ...rest } = row as DbPost & { thesis_submission?: unknown };
+  return rest;
+}
+
 // ── 게시 예약 게이트 ───────────────────────────────────────────────────
 //
 // CMS 가 글에 "공개 시각"을 실을 수 있다(posts-server.ts 의 AdminPostPayload.time).
@@ -244,7 +261,8 @@ const fetchRowById = unstable_cache(
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(`게시글 조회 실패(id=${id}): ${error.message}`);
-    return (data as unknown as DbPost | null) ?? null;
+    // 학생 제출 기록(이메일)은 캐시에 넣지 않는다 — withoutPrivateColumns 주석
+    return withoutPrivateColumns((data as unknown as DbPost | null) ?? null);
   },
   ['post-by-id'],
   { tags: ['posts'], revalidate: 86400 },
@@ -263,7 +281,8 @@ const fetchRowBySlugOnly = unstable_cache(
       .order('id', { ascending: false })
       .limit(1);
     if (error) throw new Error(`게시글 조회 실패(slug=${slug}): ${error.message}`);
-    return ((data ?? [])[0] as unknown as DbPost | undefined) ?? null;
+    // 학생 제출 기록(이메일)은 캐시에 넣지 않는다 — withoutPrivateColumns 주석
+    return withoutPrivateColumns(((data ?? [])[0] as unknown as DbPost | undefined) ?? null);
   },
   ['post-by-slug'],
   { tags: ['posts'], revalidate: 86400 },

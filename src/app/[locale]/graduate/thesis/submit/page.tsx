@@ -10,7 +10,6 @@ import { NOINDEX_FOLLOW } from '@/lib/seo';
 import {
   OTP_MAX_ATTEMPTS,
   OTP_TTL_MINUTES,
-  THESIS_NOTICE_TEMPLATE_URL,
   THESIS_SUBMIT_FORM_PATH,
   THESIS_SUBMIT_PATH,
   isThesisSubmitEnabled,
@@ -96,8 +95,7 @@ export default async function ThesisSubmitPage({ params }: { params: { locale: s
       stepNext: t('guide.stepNext'),
       stepDone: t('guide.stepDone'),
       prepTitle: t('guide.prepTitle'),
-      prep: [t('guide.prep1'), t('guide.prep2'), t('guide.prep3'), t('guide.prep4')],
-      template: t('guide.template'),
+      prep: [t('guide.prep1'), t('guide.prep2'), t('guide.prep3')],
       contactLabel: t('guide.contactLabel'),
       adminNote: t('guide.adminNote'),
       adminLink: t('guide.adminLink'),
@@ -160,7 +158,6 @@ export default async function ThesisSubmitPage({ params }: { params: { locale: s
         locale={locale}
         labels={labels}
         contact={contact}
-        templateUrl={THESIS_NOTICE_TEMPLATE_URL}
         formHref={`/${locale}${THESIS_SUBMIT_FORM_PATH}`}
       />
     </SectionTabPage>

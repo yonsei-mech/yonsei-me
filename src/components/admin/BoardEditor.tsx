@@ -353,6 +353,10 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
       image: rec.image,
       // 동문 인터뷰 9칸 — 인터뷰 게시판이 아니면 undefined 라 서버가 null 로 눕힌다
       interview: rec.interview,
+      // 공개 여부 — 읽어 온 값을 그대로 돌려보낸다. 검토 대기(학생 제출 공고)는 false 를
+      // 유지하고 PostForm 의 '게시하기'만 true 로 바꾼다. 새 글은 키가 없어(undefined)
+      // 서버가 DB 기본값(공개)에 맡긴다.
+      published: rec.published,
       attachments: rec.attachments.filter((a) => a.href.trim() !== '' || a.labelKo.trim() !== ''),
     };
   }
@@ -375,7 +379,10 @@ export function BoardEditor({ config, boardKey, onDirtyChange }: Props) {
         });
         // 실제 게시가 끝났으니 이 글의 초안은 더 이상 의미가 없다.
         dropDrafts(editing.record.id);
-        finishSave('수정되었습니다');
+        // 검토 대기 글을 '게시하기'로 저장했으면 그 사실을 말한다(PostForm 이 published:true 로 올린다)
+        finishSave(
+          editing.record.published === false && rec.published === true ? '게시되었습니다' : '수정되었습니다',
+        );
       } else {
         await api('/api/admin/posts', { method: 'POST', body: JSON.stringify(toPayload(rec)) });
         dropDrafts('new');
@@ -928,6 +935,13 @@ function NoticeRows({
                 className="min-w-0 flex-1 text-left disabled:opacity-50"
               >
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* 검토 대기 — 학생이 제출해 아직 사이트에 없는 글(published=false).
+                      "처리할 일"이라 고정·예약보다도 먼저 읽힌다 */}
+                  {rec.published === false && (
+                    <span className="cms-badge border border-yonsei-blue bg-surface text-yonsei-blue">
+                      검토 대기
+                    </span>
+                  )}
                   {/* 고정 배지는 줄 맨 앞 — 왜 이 글이 위에 있는지가 제목보다 먼저 읽혀야 한다 */}
                   {pinnable && rec.pinned && (
                     <span className="cms-badge border border-yonsei-navy/40 bg-yonsei-navy/[0.06] text-yonsei-navy">

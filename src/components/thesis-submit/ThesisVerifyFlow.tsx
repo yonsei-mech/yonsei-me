@@ -157,13 +157,11 @@ export function ThesisVerifyFlow({
   locale,
   labels,
   contact,
-  templateUrl,
   formHref,
 }: {
   locale: string;
   labels: ThesisVerifyLabels;
   contact: ThesisContact | null;
-  templateUrl: string | null;
   /** 확인 완료 뒤 전체 이동할 공고 입력 화면(로케일 포함 경로) */
   formHref: string;
 }) {
@@ -438,7 +436,6 @@ export function ThesisVerifyFlow({
       <ThesisSubmitGuide
         labels={labels.guide}
         contact={contact}
-        templateUrl={templateUrl}
         verified={verified}
       />
 

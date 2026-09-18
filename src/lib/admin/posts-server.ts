@@ -97,6 +97,10 @@ export interface AdminPostPayload {
   /** 동문 인터뷰 정보(동문 소식·네트워크 전용) — 폼의 납작한 9칸.
    *  다른 게시판에서 오면 통째로 무시하고 posts.interview 를 null 로 눕힌다. */
   interview?: AdminInterviewPayload;
+  /** 공개 여부 — 편집 레코드가 읽어 온 값을 그대로 돌려보낸다(학생 제출 공고는 false 로
+   *  들어와 '게시하기'에서 true 가 된다). boolean 일 때만 쓰고, 없으면(새 글·구 클라이언트)
+   *  행에 싣지 않는다 — 새 글은 DB 기본값 true, 수정은 기존 값 유지. */
+  published?: boolean;
   attachments?: { labelKo?: string; labelEn?: string; href: string; size?: number }[];
 }
 
@@ -281,6 +285,9 @@ export function payloadToRow(p: AdminPostPayload) {
     thumbnail_url: nn(p.image),
     // 동문 인터뷰 — 그 게시판이 아니면 null(다른 게시판에서 옮겨 온 글의 잔존값 제거)
     interview: interviewColumn(p),
+    // 공개 여부 — 페이로드가 boolean 으로 실어 올 때만 쓴다(AdminPostPayload.published 주석).
+    // 일반 저장이 검토 대기 중인 학생 제출물을 공개로 바꾸거나, 그 반대가 되지 않게 한다.
+    ...(typeof p.published === 'boolean' ? { published: p.published } : {}),
     // 게시일 + 공개 시각(KST). 시각을 비운 글은 이전과 같은 T00:00 이라 값이 안 바뀐다.
     // 오프셋을 문자열에 박는 이유는 예전과 같다 — 서버 TZ 가 무엇이든 KST 자정이 되어야 한다.
     // ⚠️ 세미나만 이 키를 통째로 뺀다(2026-08-31 분리). 세미나 폼의 날짜는 행사일이므로
@@ -345,6 +352,10 @@ export interface DbPostRow {
   thumbnail_url: string | null;
   /** 동문 인터뷰(jsonb) — 컬럼 추가(2026-09-alumni-interview.sql) 전 DB 는 undefined */
   interview?: Record<string, unknown> | null;
+  /** 공개 여부 — false = 학과 확인 대기(학생 제출 공고) 등 사이트에 안 보이는 글 */
+  published?: boolean | null;
+  /** 학생 제출 기록(jsonb) — 컬럼 추가(2026-09-thesis-submit-otp.sql) 전 DB 는 undefined */
+  thesis_submission?: { email?: unknown; submittedAt?: unknown } | null;
   attachments?: {
     label_ko: string | null;
     label_en: string | null;
@@ -432,6 +443,16 @@ export function rowToEditRecord(r: DbPostRow) {
     // 인터뷰 9칸 — 값이 없는 글(개편 이전·다른 게시판)도 **키는 언제나 있다**.
     // 폼의 dirty 판정이 JSON 비교라, 열자마자 키가 생기면 안 고친 글이 '고침'으로 잡힌다.
     interview: interviewToEdit(r.interview),
+    // 공개 여부 — 언제나 boolean(null·undefined = 예전 행 = 공개). 편집 폼이 저장할 때
+    // 그대로 돌려보내 검토 대기 글이 일반 저장으로 공개되지 않게 한다.
+    published: r.published !== false,
+    // 학생 제출 기록 — 관리자 폼의 안내 패널용(누가·언제). 입력 원본(notice)은 싣지 않는다.
+    submission: r.thesis_submission
+      ? {
+          email: String(r.thesis_submission.email ?? ''),
+          submittedAt: String(r.thesis_submission.submittedAt ?? ''),
+        }
+      : null,
     attachments: (r.attachments ?? [])
       .slice()
       .sort((a, b) => a.sort - b.sort)

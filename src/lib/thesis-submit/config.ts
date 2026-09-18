@@ -13,10 +13,11 @@
  *    서버 전용 import 를 여기에 들이지 마라. process.env 는 읽기만 하고(서버에서만 의미 있음),
  *    NEXT_PUBLIC_ 이 아니라 클라이언트 번들에는 값이 실리지 않는다.
  */
+import type { NoticeError } from './notice';
 
 /**
- * 기능 플래그. main 푸시 = Cafe24 프로덕션 자동 배포라, 제출 흐름 전체(공고 입력·파일
- * 업로드·학과 확인)가 완성되기 전에는 프로덕션에서 꺼져 있어야 한다. 켜려면 서버 env 에
+ * 기능 플래그. main 푸시 = Cafe24 프로덕션 자동 배포라, 제출 흐름 전체(공고 입력·포스터
+ * 생성·학과 확인)가 완성되기 전에는 프로덕션에서 꺼져 있어야 한다. 켜려면 서버 env 에
  * THESIS_SUBMIT_ENABLED=1. 꺼져 있으면 두 페이지는 notFound(), API 는 404 JSON.
  */
 export function isThesisSubmitEnabled(): boolean {
@@ -48,14 +49,31 @@ export const ALLOWED_EMAIL_DOMAIN = 'yonsei.ac.kr';
 export const THESIS_SUBMIT_PATH = '/graduate/thesis/submit';
 export const THESIS_SUBMIT_FORM_PATH = '/graduate/thesis/submit/form';
 
-/**
- * 학과 양식(심사 공고문) 파일 URL. 양식 파일이 아직 없어 null — null 이면 안내 카드의
- * "심사 공고문 양식 내려받기" 링크를 렌더하지 않는다. 파일이 생기면 여기에만 넣는다.
- */
-export const THESIS_NOTICE_TEMPLATE_URL: string | null = null;
-
 /** 클라이언트 세션 저장소 키 — 모바일 메일 앱 왕복 뒤 탭 리로드 복원용({email, sentAt}만) */
 export const PENDING_STORAGE_KEY = 'thesis-submit:pending';
+
+/**
+ * 공고 입력 초안 — sessionStorage 키. 제출 세션(60분)이 끝나 본인 확인을 다시 해도 입력한
+ * 내용이 남게 한다. localStorage 가 아닌 이유: 공용 PC 에서 다음 사람에게 남지 않게
+ * (탭을 닫으면 사라진다). 제출에 성공하면 지운다.
+ */
+export const DRAFT_STORAGE_KEY = 'thesis-submit:draft';
+
+// ── 공고 제출 ────────────────────────────────────────────────────────────
+
+/** 제출 API 경로 */
+export const NOTICE_SUBMIT_API = '/api/thesis-submit/notice';
+/**
+ * 제출 요청에 반드시 실어야 하는 헤더. 다른 출처의 <form> 은 사용자 정의 헤더를 못 붙이고,
+ * fetch 로 붙이면 CORS preflight 에서 막힌다 — multipart 는 JSON 과 달리 "단순 요청"이라
+ * content-type 만으로는 교차 출처 위조를 거를 수 없어서 이 헤더로 거른다.
+ */
+export const NOTICE_SUBMIT_HEADER = 'x-thesis-submit';
+/** 포스터 PNG 상한 — 2105×1488 포스터는 보통 1MB 안쪽이다 */
+export const NOTICE_POSTER_MAX_BYTES = 5 * 1024 * 1024;
+/** 이메일당 제출 제한 — 창 1시간에 5회 (메모리 전용, ip-limit.ts 와 같은 한계를 받아들인다) */
+export const SUBMIT_WINDOW_MS = 60 * 60 * 1000;
+export const SUBMIT_MAX_PER_EMAIL = 5;
 
 // ── 이메일 정규화·검사 (클라이언트 선검사와 서버 검사가 같은 함수를 쓴다) ──────
 
@@ -110,4 +128,22 @@ export type OtpVerifyResponse =
   /** 404 — 기능 플래그 꺼짐 */
   | { ok: false; reason: 'disabled' }
   /** 5xx */
+  | { ok: false; reason: 'server'; message?: string };
+
+/**
+ * POST /api/thesis-submit/notice  multipart: data(JSON 문자열 — cleanNotice 결과) + poster(PNG)
+ * 헤더 NOTICE_SUBMIT_HEADER: '1' 필수.
+ */
+export type NoticeSubmitResponse =
+  /** 200 — 접수(published=false 로 저장, 학과 확인 대기). dev 폴백이면 dev 에 저장 경로가 온다 */
+  | { ok: true; dev?: string }
+  /** 401 — 제출 세션(서명 쿠키)이 없거나 만료. 본인 확인을 다시 해야 한다 */
+  | { ok: false; reason: 'session' }
+  /** 400 — 요청 형식·포스터 PNG 가 틀림. errors 가 있으면 입력 검사 오류(cleanNotice 뒤 기준) */
+  | { ok: false; reason: 'invalid'; errors?: NoticeError[] }
+  /** 429 — 이메일당 제출 한도 초과. retryAfter 초 뒤 재시도 가능 */
+  | { ok: false; reason: 'rate'; retryAfter: number }
+  /** 404 — 기능 플래그 꺼짐 */
+  | { ok: false; reason: 'disabled' }
+  /** 500(저장소) / 503(DB 컬럼 미적용 등 설정 문제) */
   | { ok: false; reason: 'server'; message?: string };

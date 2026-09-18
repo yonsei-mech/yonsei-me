@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
-import { cn } from '@/lib/utils';
+import { cn, kstDate } from '@/lib/utils';
 import { emptyInterview, type BoardMeta, type EditAttachment, type EditInterview } from '@/lib/admin/boards';
 // 첨부 크기 표기는 사이트 목록("PDF · 1.2MB")과 같은 함수를 쓴다 — 관리자와 학생이
 // 같은 문자열을 보게 해야 "왜 다르게 보이냐"는 문의가 생기지 않는다.
@@ -100,6 +100,13 @@ function MetaField({
       {hint && <p className="mt-1.5 pl-[86px] text-[11px] leading-relaxed text-yonsei-blue">{hint}</p>}
     </div>
   );
+}
+
+/** ISO → 'YYYY-MM-DD HH:MM' (KST) — 학생 제출 공고의 제출 시각 표기 */
+function kstStamp(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
 }
 
 /** 첨부·이미지 묶음 안의 소제목 */
@@ -190,6 +197,8 @@ export function PostForm({
   // 진행 중 업로드의 취소 컨트롤러 (취소 버튼이 abort)
   const abortRef = useRef<AbortController | null>(null);
   const errorRef = useRef<HTMLParagraphElement | null>(null);
+  // 이번 제출이 '게시하기'(검토 대기 → 공개)인가 — handleSubmit 이 submitter 로 정한다
+  const publishRef = useRef(false);
 
   // ── 이미지 풀 + 본문 에디터(Tiptap) 상태 ──
   const [pool, setPool] = useState<PoolItem[]>([]);
@@ -491,6 +500,11 @@ export function PostForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // 어느 버튼으로 제출했나 — 검토 대기 패널의 '게시하기'(data-publish)만 공개로 올린다.
+    // 입력 칸에서 Enter 로 제출하면 submitter 는 문서 순서상 첫 제출 버튼(상단 바 '저장')이라
+    // 게시로 오인되지 않는다. 사진 확인 모달을 거쳐 commit 이 나중에 불려도 이 값을 쓴다.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+    publishRef.current = submitter?.dataset.publish === '1';
     // id/slug 는 자동 부여(작성자 미입력) → 검증 대상 아님
     if (rec.titleKo.trim() === '') {
       setLang('ko'); // 제목은 한국어 탭에 있다 — 에러가 가리키는 곳을 열어 준다
@@ -535,7 +549,16 @@ export function PostForm({
   /** 검증을 통과한 뒤의 실제 제출 — 경고 모달의 '이대로 저장'도 같은 곳으로 들어온다.
    *  종료일 피커가 숨겨진 상태(동문 '행사' 체크 해제 등)의 잔존값은 비워서 제출한다. */
   function commit() {
-    onSubmit(showEndDate ? rec : { ...rec, endDate: '' });
+    const base = showEndDate ? rec : { ...rec, endDate: '' };
+    // '게시하기' = published:true 로 같은 저장 경로를 탄다(따로 API 를 두지 않는다).
+    // 게시일은 제출일이 아니라 게시한 날이다 — 날짜가 지났으면 오늘(KST)로 올린다.
+    // 관리자가 미래 날짜를 골랐다면 그대로 둔다(= 게시 예약).
+    if (publishRef.current) {
+      const today = kstDate(new Date().toISOString());
+      onSubmit({ ...base, published: true, date: base.date < today ? today : base.date });
+    } else {
+      onSubmit(base);
+    }
   }
 
   const idLabel = meta.isNews ? 'slug' : 'id';
@@ -604,6 +627,37 @@ export function PostForm({
           1152 = 본문 설계 폭 1046(POST_BODY_WIDTH) + 편집 영역 좌우 패딩 40 + 테두리 2 + 폼 좌우 패딩 64(lg:px-8).
           데스크톱에서 편집 캔버스(PostCanvas)가 축소 없이(zoom 1) 공개 화면과 1:1 이 되는 최소 폭이다. */}
       <div className="mx-auto max-w-[1152px] px-6 py-9 pb-24 lg:px-8">
+        {/* 검토 대기 — 학생이 직접 제출한 공고(published=false). 확인 뒤 '게시하기'가 곧
+            published:true 저장이다(같은 저장 경로). 반려는 따로 두지 않고 삭제로 한다. */}
+        {rec.published === false && (
+          <div className="anim-panel mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 border border-yonsei-blue bg-yonsei-blue/[0.05] px-5 py-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-yonsei-blue">
+                학생이 제출한 공고입니다
+                {rec.submission && (
+                  <span className="font-normal text-content">
+                    {' · '}
+                    {rec.submission.email}
+                    {rec.submission.submittedAt && ` · ${kstStamp(rec.submission.submittedAt)} 제출`}
+                  </span>
+                )}
+              </p>
+              <p className="mt-1 text-[13px] leading-[1.7] text-content">
+                포스터와 제목을 확인한 뒤 ‘게시하기’를 누르면 {meta.label} 게시판에 공개됩니다.
+                반려하려면 이 글을 삭제하세요.
+              </p>
+            </div>
+            <button
+              type="submit"
+              data-publish="1"
+              disabled={busy}
+              className="cms-btn-primary cms-btn-sm shrink-0"
+            >
+              {busy ? '게시 중…' : '게시하기'}
+            </button>
+          </div>
+        )}
+
         {/* 초안 안내 — 쓰다 만 글이 남아 있을 때만 */}
         {foundDraft && (
           <div className="anim-panel mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border border-yonsei-blue/40 bg-yonsei-blue/[0.05] px-4 py-3">
