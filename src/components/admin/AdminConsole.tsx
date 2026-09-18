@@ -68,6 +68,7 @@ import {
   isEditable,
   pushRecent,
 } from './entries';
+import { GraduateStepsEditor } from './GraduateStepsEditor';
 import { MarkdownEditor } from './MarkdownEditor';
 import { UsersEditor } from './UsersEditor';
 
@@ -492,12 +493,23 @@ function AdminConsoleBody({ token, login, role }: Props) {
                 onDirtyChange={setDirty}
               />
             ) : active.type === 'screen' ? (
-              <CurriculumMapEditor
-                key={activeId ?? undefined}
-                config={config}
-                screen={getScreen(active.screenKey)}
-                onDirtyChange={setDirty}
-              />
+              // 전용 화면은 데이터마다 편집기가 다르다 — 화면 키로 고른다
+              // (둘 다 ScreenDef 하나만 받는 같은 props 계약이라 배선은 같다).
+              active.screenKey === 'graduateRequirements' ? (
+                <GraduateStepsEditor
+                  key={activeId ?? undefined}
+                  config={config}
+                  screen={getScreen(active.screenKey)}
+                  onDirtyChange={setDirty}
+                />
+              ) : (
+                <CurriculumMapEditor
+                  key={activeId ?? undefined}
+                  config={config}
+                  screen={getScreen(active.screenKey)}
+                  onDirtyChange={setDirty}
+                />
+              )
             ) : null}
           </div>
         </div>

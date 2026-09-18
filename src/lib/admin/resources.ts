@@ -1171,8 +1171,13 @@ export function getMarkdownPage(key: string): MarkdownPageDef {
 // course-flow.json 은 배열도 키-객체도 아닌 {nodes, edges} 한 덩어리이고, 무엇보다
 // "어느 카드가 어디 있고 어떤 선으로 이어지는가"는 표로 봐서는 알 수 없다 — 그래서
 // 학생이 보는 그림을 그대로 그려 놓고 그 위에서 고치는 전용 화면을 준다.
+//
+// 대학원 졸업요건은 형식만 보면 배열(STEP 레코드)이라 CollectionEditor 로도 뜬다.
+// 그런데 값의 8할이 본문 HTML 이라 표 한 칸에 담기지 않고, 목록↔폼을 왕복하면
+// "STEP 아홉 칸이 이어진 한 페이지"라는 실제 모양이 화면에서 사라진다. 그래서
+// 사이트와 같은 세로 카드 목록 위에서 제목·리드·본문을 바로 고치는 전용 화면을 준다.
 
-export type ScreenKey = 'curriculumMap';
+export type ScreenKey = 'curriculumMap' | 'graduateRequirements';
 
 export interface ScreenDef {
   key: ScreenKey;
@@ -1189,6 +1194,13 @@ export const SCREENS: Record<ScreenKey, ScreenDef> = {
     description:
       '학부 > 교과목 체계도에 반영됩니다. 화살표(선수·연계 관계)와 카드의 세로 자리를 학생이 보는 화면 그대로 고칩니다. 과목 추가·삭제와 학년·학기·분야(어느 칸에 놓일지)는 "학부 교과목"에서 합니다.',
     file: MANAGED_FILES.curriculumMap,
+  },
+  graduateRequirements: {
+    key: 'graduateRequirements',
+    label: '대학원 졸업요건',
+    description:
+      '대학원 > 졸업 요건 탭에 반영됩니다. STEP 하나가 화면의 한 칸입니다 — 순서를 바꾸면 좌측 목차의 번호(STEP 01…)도 함께 바뀝니다.',
+    file: MANAGED_FILES.graduateRequirements,
   },
 };
 
@@ -1252,6 +1264,9 @@ export const MENU_GROUPS: MenuGroup[] = [
       { type: 'collection', resourceKey: 'courseDescriptions' },
       { type: 'screen', screenKey: 'curriculumMap' },
       { type: 'collection', resourceKey: 'coursesGraduate' },
+      // 대학원 교과목 바로 뒤 — 대학원생이 "무엇을 듣고" "무엇을 채워야 하는가"는
+      // 한 묶음으로 읽히는 정보다.
+      { type: 'screen', screenKey: 'graduateRequirements' },
       { type: 'collection', resourceKey: 'scholarships' },
     ],
   },

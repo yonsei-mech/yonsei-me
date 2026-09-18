@@ -619,3 +619,32 @@ export const INTERVIEW_TEMPLATE =
   '<blockquote><p>본문에서 뽑은 한 문장(풀쿼트)</p></blockquote>' +
   '<h3>마무리 소제목</h3>' +
   '<p>마무리 문단…</p>';
+
+/** 유의사항 콜아웃 — 좌측 세로 줄이 붙은 박스 안에 글줄이 놓인 꼴 */
+export function CalloutIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="tiptap-button-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* 왼쪽 굵은 룰 = 콜아웃의 파란 줄. 오른쪽 두 줄이 제목·본문 */}
+      <line x1="4.5" y1="5" x2="4.5" y2="19" />
+      <line x1="9" y1="9.5" x2="15" y2="9.5" />
+      <line x1="9" y1="14.5" x2="19.5" y2="14.5" />
+    </svg>
+  );
+}
+
+/**
+ * 유의사항 콜아웃 뼈대 — preset='requirements' 의 [유의사항] 버튼이 삽입하는 HTML.
+ * 첫 문단의 **유의사항** 이 박스 제목 역할을 하고(사이트 step-prose 규약), 둘째
+ * 빈 문단이 관리자가 바로 쓰기 시작할 자리다 — 삽입 뒤 커서를 그리로 옮긴다.
+ */
+export const REQUIREMENTS_CALLOUT =
+  '<blockquote><p><strong>유의사항</strong></p><p></p></blockquote>';

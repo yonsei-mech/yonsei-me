@@ -15,8 +15,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { revalidateTag } from 'next/cache';
-import { isManagedPath } from '@/lib/admin/managed-content';
+import { isManagedPath, MANAGED_FILES } from '@/lib/admin/managed-content';
 import { adminDb, requireAdmin } from '@/lib/admin/posts-server';
+import { sanitizeEditorHtml } from '@/lib/admin/sanitize';
 
 export const runtime = 'nodejs';
 
@@ -103,17 +104,37 @@ export async function PUT(request: Request): Promise<Response> {
   if (typeof body.content !== 'string') {
     return Response.json({ error: 'content 문자열이 필요합니다.' }, { status: 400 });
   }
-  const content = body.content;
+  let content = body.content;
 
   // JSON 은 저장 전에 서버에서 파싱해 본다. 깨진 원문이 들어가면 사이트는
   // content-runtime 의 폴백으로 조용히 옛 스냅샷을 보여주고(변경이 사라진 것처럼
   // 보인다), CMS 는 다음 편집에서 목록 자체를 읽지 못한다.
+  let parsed: unknown;
   if (path.endsWith('.json')) {
     try {
-      JSON.parse(content);
+      parsed = JSON.parse(content);
     } catch {
       return Response.json({ error: 'JSON 형식이 올바르지 않습니다.' }, { status: 400 });
     }
+  }
+
+  // 대학원 졸업요건만 — STEP 본문(body)은 리치 에디터가 낸 HTML 이라 **저장 시점에**
+  // 정화한다(게시물 bodyFormat:'html' 과 같은 규약이자 lib/graduate-requirements.ts
+  // 주석이 약속한 지점). 렌더는 dangerouslySetInnerHTML 한 번뿐이라 정화가 여기 없으면
+  // 어디에도 없다.
+  // ⚠️ 형식이 어긋나면(배열이 아님·항목이 객체가 아님) 조용히 건너뛰고 원문 그대로
+  //    저장한다. 여기서 새 400 을 만들면 이 라우트를 함께 쓰는 다른 저장 흐름의
+  //    계약이 경로마다 갈린다 — 이 분기는 이 경로 하나에만 걸린다.
+  if (path === MANAGED_FILES.graduateRequirements && Array.isArray(parsed)) {
+    const steps = parsed.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+      const r = item as Record<string, unknown>;
+      if (typeof r.body !== 'string') return item;
+      return { ...r, body: sanitizeEditorHtml(r.body) };
+    });
+    // 직렬화 형식은 commitJson(content-api.ts)과 같아야 한다 — 다르면 저장할 때마다
+    // 파일 전체가 들여쓰기 차이로 통째로 바뀐 것처럼 보인다.
+    content = `${JSON.stringify(steps, null, 2)}\n`;
   }
 
   if (isDev()) {

@@ -101,6 +101,7 @@ import {
   BORDER_COLOR_SWATCHES,
   BORDER_WIDTH_TILE_LABELS,
   BORDER_WIDTHS,
+  CalloutIcon,
   CELL_BGS,
   CELLPAD_OPTIONS,
   CodeViewIcon,
@@ -124,6 +125,7 @@ import {
   PANEL_INPUT,
   PrinterIcon,
   QuoteIcon,
+  REQUIREMENTS_CALLOUT,
   SelectAllIcon,
   TableColAddIcon,
   TableColDeleteIcon,
@@ -158,14 +160,18 @@ interface Props {
   placeholder?: string;
   ariaLabel?: string;
   /**
-   * 게시판별 도구 묶음. 'interview'(동문 소식) 면 인용·Q·A·인터뷰 틀 버튼이 툴바에
-   * 더 붙고, 편집 영역이 상세 페이지와 같은 .prose-interview 외형을 입는다.
-   * 다른 게시판의 툴바·외형은 한 글자도 바뀌지 않는다 — 인터뷰 서식(굵은 남색 인용,
-   * Q/A 마커)이 일반 공지에 새어 들어가면 안 되기 때문이다.
+   * 화면별 도구 묶음.
+   *  · 'interview'(동문 소식) — 인용·Q·A·인터뷰 틀 버튼이 툴바에 더 붙고, 편집
+   *    영역이 상세 페이지와 같은 .prose-interview 외형을 입는다.
+   *  · 'requirements'(대학원 졸업요건 STEP 본문) — [유의사항] 버튼 하나가 더 붙고,
+   *    편집 영역이 사이트와 같은 .step-prose 외형을 입어 인용구가 파란 줄 콜아웃으로
+   *    보인다.
+   * 지정하지 않은 게시판의 툴바·외형은 한 글자도 바뀌지 않는다 — 인터뷰 서식(굵은
+   * 남색 인용, Q/A 마커)이나 콜아웃이 일반 공지에 새어 들어가면 안 되기 때문이다.
    * ⚠️ 편집 영역 클래스는 에디터 생성 시점에 정해진다(editorProps) — 마운트 뒤
    * preset 을 바꿔도 반영되지 않는다. 게시판 전환은 폼 재마운트가 전제다.
    */
-  preset?: 'interview';
+  preset?: 'interview' | 'requirements';
 }
 
 /** 코드뷰 표시용 얕은 정형화 — 블록 경계에 줄바꿈만 넣는다(구형 CodeMirror 대응) */
@@ -262,9 +268,13 @@ export function PostBodyEditor({
     content: value || '',
     editorProps: {
       attributes: {
-        // 인터뷰 preset 은 상세 페이지 래퍼와 같은 클래스를 편집 영역에도 입힌다 —
-        // 인용·Q&A 외형이 편집 중에도 공개 화면과 같아야 "보이는 그대로 고친다"가 된다.
-        class: cn('prose-content prose-wide rte-area', preset === 'interview' && 'prose-interview'),
+        // preset 은 공개 화면 래퍼와 같은 클래스를 편집 영역에도 입힌다 — 인용·Q&A·
+        // 콜아웃 외형이 편집 중에도 공개 화면과 같아야 "보이는 그대로 고친다"가 된다.
+        class: cn(
+          'prose-content prose-wide rte-area',
+          preset === 'interview' && 'prose-interview',
+          preset === 'requirements' && 'step-prose',
+        ),
         ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),
       },
       transformPastedHTML: cleanPastedHtml,
@@ -413,6 +423,19 @@ export function PostBodyEditor({
     editor.commands.focus();
   };
 
+  /** 유의사항 콜아웃 삽입 — 제목 문단('유의사항')은 이미 채워져 있으므로 커서는
+   *  **둘째 빈 문단** 안에 둔다(삽입 직후 바로 내용을 쓰게 한다).
+   *  · 커서 자리에 끼워 넣을 때: insertContent 가 삽입 끝, 곧 빈 문단에 커서를 남긴다.
+   *  · 빈 문서일 때: setContent 뒤 선택이 문서 맨 앞(=제목 문단)이라 'end' 로 옮긴다. */
+  const insertRequirementsCallout = () => {
+    if (editor.isEmpty) {
+      editor.commands.setContent(REQUIREMENTS_CALLOUT, { emitUpdate: true });
+      editor.commands.focus('end');
+      return;
+    }
+    editor.chain().focus().insertContent(REQUIREMENTS_CALLOUT).run();
+  };
+
   return (
     <div className="rte board-editor border border-surface-border bg-surface">
       <EditorContext.Provider value={{ editor }}>
@@ -553,6 +576,25 @@ export function PostBodyEditor({
                     onClick={insertInterviewTemplate}
                   >
                     <InterviewTemplateIcon />
+                  </Button>
+                </ToolbarGroup>
+              </>
+            )}
+            {/* ── 졸업요건 도구 (preset='requirements' 전용) — STEP 본문에서 쓰는 특수
+                  서식은 '유의사항' 콜아웃 하나뿐이다. 다른 화면의 툴바는 이 블록이
+                  통째로 빠져 그대로다. ── */}
+            {preset === 'requirements' && (
+              <>
+                <ToolbarSeparator />
+                <ToolbarGroup>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    tooltip="유의사항 — 파란 줄 콜아웃 박스"
+                    aria-label="유의사항 — 파란 줄 콜아웃 박스"
+                    onClick={insertRequirementsCallout}
+                  >
+                    <CalloutIcon />
                   </Button>
                 </ToolbarGroup>
               </>
