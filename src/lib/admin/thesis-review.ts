@@ -31,7 +31,6 @@ import { parseNotice, postTitle, todayKst, type ThesisNoticeInput } from '@/lib/
 import {
   REJECT_MESSAGE_MAX,
   REJECT_REASONS,
-  REVIEW_CHECKS,
   REVIEW_MEMO_MAX,
   receiptNo,
   statusOf,
@@ -397,32 +396,27 @@ export async function rejectSubmission(
   return { ok: true, mailSent: await mailAndRecord(d, id, target?.email ?? null, mail) };
 }
 
-// ── 검토 기록(체크·메모) ──────────────────────────────────────────────────
+// ── 검토 기록(내부 메모) ──────────────────────────────────────────────────
+// 디자인의 '확인 항목' 체크리스트는 사용자 요청으로 뺐다(2026-09-18) — 메모만 남는다.
 
 export type SaveOutcome = { ok: true } | { ok: false; status: 400 | 404 | 500; error: string };
 
-/** review.checks / review.memo 만 병합 저장한다(상태·결정 기록은 건드리지 않는다) */
+/** review.memo 만 병합 저장한다(상태·결정 기록은 건드리지 않는다) */
 export async function saveReview(
   idRaw: string,
-  patch: { checks?: unknown; memo?: unknown },
+  patch: { memo?: unknown },
   deps?: ReviewDeps,
 ): Promise<SaveOutcome> {
   const id = parseId(idRaw);
   if (!id) return { ok: false, status: 400, error: '잘못된 글 번호입니다.' };
-  const { checks, memo } = patch;
-  if (checks === undefined && memo === undefined) {
+  const { memo } = patch;
+  if (memo === undefined) {
     return { ok: false, status: 400, error: '저장할 내용이 없습니다.' };
   }
-  if (
-    checks !== undefined &&
-    !(Array.isArray(checks) && checks.length === REVIEW_CHECKS.length && checks.every((c) => typeof c === 'boolean'))
-  ) {
-    return { ok: false, status: 400, error: `확인 항목은 ${REVIEW_CHECKS.length}개의 참/거짓이어야 합니다.` };
-  }
-  if (memo !== undefined && typeof memo !== 'string') {
+  if (typeof memo !== 'string') {
     return { ok: false, status: 400, error: '메모 형식이 올바르지 않습니다.' };
   }
-  if (typeof memo === 'string' && memo.length > REVIEW_MEMO_MAX) {
+  if (memo.length > REVIEW_MEMO_MAX) {
     return { ok: false, status: 400, error: `메모는 ${REVIEW_MEMO_MAX}자를 넘을 수 없습니다.` };
   }
 
@@ -431,11 +425,7 @@ export async function saveReview(
     const row = await d.db.get(id);
     if (!isSubmission(row)) return { ok: false, status: 404, error: '학생이 제출한 공고를 찾을 수 없습니다.' };
     const rec = row.thesis_submission;
-    const review: ThesisReview = {
-      ...reviewOf(rec),
-      ...(checks !== undefined ? { checks: checks as boolean[] } : {}),
-      ...(typeof memo === 'string' ? { memo } : {}),
-    };
+    const review: ThesisReview = { ...reviewOf(rec), memo };
     const n = await d.db.update(id, { thesis_submission: { ...rec, review } });
     if (n === 0) return { ok: false, status: 404, error: '학생이 제출한 공고를 찾을 수 없습니다.' };
     return { ok: true };

@@ -27,21 +27,12 @@ export const REJECT_REASONS = [
 ] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
-/** 검토 화면의 확인 항목(참고용 — 승인을 막지 않는다) */
-export const REVIEW_CHECKS = [
-  '포스터의 논문 제목·성명이 맞나요?',
-  '심사 일시·장소(강의실 예약)를 확인했나요?',
-  '심사위원 명단이 맞나요?',
-] as const;
-
 export const REJECT_MESSAGE_MAX = 1000;
 export const REVIEW_MEMO_MAX = 1000;
 
 /** 관리자 검토 기록 — thesis_submission.review */
 export interface ThesisReview {
-  /** REVIEW_CHECKS 와 같은 길이의 체크 상태 */
-  checks?: boolean[];
-  /** 내부 메모 — 학생에게 보이지 않는다 */
+  /** 내부 메모 — 학생에게 보이지 않는다(디자인의 '확인 항목' 체크리스트는 2026-09-18 뺐다) */
   memo?: string;
   /** 승인·반려 시각(ISO)과 처리한 관리자(CMS 로그인 이메일, dev 는 'dev') */
   decidedAt?: string;

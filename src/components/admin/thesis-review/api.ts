@@ -3,7 +3,7 @@
 //
 //   POST /api/admin/thesis/approve  { ids }                 → { results: ApproveResult[] }
 //   POST /api/admin/thesis/reject   { id, reason, message } → { ok: true, mailSent } | 4xx { error }
-//   POST /api/admin/thesis/review   { id, checks?, memo? }  → { ok: true }
+//   POST /api/admin/thesis/review   { id, memo }  → { ok: true }
 
 import type { RejectReason } from '@/lib/thesis-submit/review';
 
@@ -75,11 +75,10 @@ export async function rejectPost(
 }
 
 export interface ReviewPatch {
-  checks?: boolean[];
   memo?: string;
 }
 
-/** 확인 항목·내부 메모 자동 저장. keepalive 는 화면을 떠나는 순간의 마지막 저장용 */
+/** 내부 메모 자동 저장. keepalive 는 화면을 떠나는 순간의 마지막 저장용 */
 export async function saveReview(id: string, patch: ReviewPatch, keepalive = false): Promise<void> {
   await postJson('/api/admin/thesis/review', { id, ...patch }, keepalive);
 }

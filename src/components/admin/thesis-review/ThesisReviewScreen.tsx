@@ -4,13 +4,14 @@
 //
 // 왼쪽: 게시되면 사이트에 보일 모습(공개 상세와 같은 PostArticle 을 PostCanvas 로 같은 폭에
 //       그린다) + 학생이 입력한 심사 정보 원본(포스터와 대조용).
-// 오른쪽(360, sticky): 제출 정보 / 확인 항목 / 내부 메모 / 승인·수정·반려.
+// 오른쪽(360, sticky): 제출 정보 / (결정 뒤) 처리 기록 / 내부 메모 / 승인·수정·반려.
+// 디자인의 '확인 항목' 체크리스트는 사용자 요청으로 뺐다(2026-09-18).
 // 좁은 화면(<lg): 한 단으로 쌓고, 세 동작은 하단 고정 바로 내린다.
 //
 // 글쓰기 화면(PostForm)처럼 전체 화면(집중 모드)이다 — 검토는 목록을 곁눈질하며 하는
 // 일이 아니고, 포스터를 크게 볼 자리가 필요하다.
 //
-// 확인 항목·메모는 참고용이라 승인을 막지 않고, 고치는 즉시(디바운스) 저장된다 —
+// 내부 메모는 승인을 막지 않고, 고치는 즉시(디바운스) 저장된다 —
 // 그래서 이 화면에는 "저장 안 된 편집" 개념이 없다(떠날 때 남은 저장은 keepalive 로 보낸다).
 //
 // 내부 운영 도구라 한국어 문자열을 직접 둔다.
@@ -26,7 +27,6 @@ import {
   type ThesisNoticeInput,
 } from '@/lib/thesis-submit/notice';
 import {
-  REVIEW_CHECKS,
   REVIEW_MEMO_MAX,
   type RejectReason,
   type ReviewStatus,
@@ -74,7 +74,7 @@ const AUTOSAVE_MS = 800;
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 /**
- * 확인 항목·메모 자동 저장. 바뀐 칸만 모아(patch) 디바운스로 보낸다.
+ * 내부 메모 자동 저장. 바뀐 값만 모아(patch) 디바운스로 보낸다.
  * 화면을 떠날 때 남은 것은 keepalive 요청으로 마저 보낸다(탭을 닫아도 전송된다).
  */
 function useReviewAutosave(id: string, onSaved: (patch: ReviewPatch) => void) {
@@ -146,7 +146,6 @@ export function ThesisReviewScreen({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const previewId = useId();
   const infoId = useId();
-  const checksId = useId();
   const memoId = useId();
   const memoHintId = useId();
 
@@ -174,13 +173,9 @@ export function ThesisReviewScreen({
   const today = todayKstDate();
   const shownDate = pending && rec.date < today ? today : rec.date;
 
-  // ── 확인 항목·메모(자동 저장) ──
-  const [checks, setChecks] = useState<boolean[]>(() =>
-    REVIEW_CHECKS.map((_, i) => sub?.review?.checks?.[i] === true),
-  );
+  // ── 내부 메모(자동 저장) ──
   const [memo, setMemo] = useState(sub?.review?.memo ?? '');
   const autosave = useReviewAutosave(rec.id, onReviewSaved);
-  const doneCount = checks.filter(Boolean).length;
 
   // ── 승인·반려 ──
   const [approving, setApproving] = useState(false);
@@ -421,41 +416,9 @@ export function ThesisReviewScreen({
               </dl>
             </Card>
 
-            {pending ? (
-              <Card>
-                <div className="flex items-baseline justify-between gap-3">
-                  <h2 id={checksId} className="text-[15px] font-bold text-content">
-                    확인 항목
-                  </h2>
-                  <span className="text-xs tabular-nums text-content-faint">
-                    {doneCount} / {REVIEW_CHECKS.length}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-content-faint">참고용입니다 — 체크하지 않아도 승인할 수 있습니다.</p>
-                <ul aria-labelledby={checksId} className="mt-2">
-                  {REVIEW_CHECKS.map((label, i) => (
-                    <li key={label} className={cn(i > 0 && 'border-t border-surface-border')}>
-                      <label className="flex cursor-pointer items-start gap-3 py-2 text-sm leading-snug text-content">
-                        <input
-                          type="checkbox"
-                          checked={checks[i]}
-                          disabled={locked}
-                          onChange={(e) => {
-                            const next = checks.map((v, j) => (j === i ? e.target.checked : v));
-                            setChecks(next);
-                            autosave.queue({ checks: next });
-                          }}
-                          className="mt-px h-[18px] w-[18px] shrink-0 accent-yonsei-navy"
-                        />
-                        <span>{label}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ) : (
-              <DecisionRecord status={status} review={sub?.review} />
-            )}
+            {/* 결정이 난 제출(게시·반려)은 누가 언제 어떻게 처리했는지. 확인 항목 체크리스트는
+                사용자 요청으로 뺐다(2026-09-18) — 메모 하나로 충분하다 */}
+            {!pending && <DecisionRecord status={status} review={sub?.review} />}
 
             <Card>
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
