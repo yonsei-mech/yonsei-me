@@ -1,6 +1,6 @@
-import { Marked } from 'marked';
 import { StepRailNav } from '@/components/StepRailNav';
 import { LandingScope } from '@/components/LandingScope';
+import type { GraduateRequirementStep } from '@/lib/graduate-requirements';
 
 /**
  * 대학원 졸업요건 — "STEP 스크롤" 문법 (참조 시안 + 사이트 공통 문법).
@@ -9,63 +9,23 @@ import { LandingScope } from '@/components/LandingScope';
  *  - 우측: 각 STEP = 네이비 박스 헤더(STEP NN · 제목 — 학부 '나의 졸업요건' StepLabel 과
  *    동일 디자인·폰트) + 리드 문장 + 본문(불릿/표/콜아웃). 헤더 블록은 모든 섹션이 왼쪽
  *    정렬 + 왼쪽 여백 인셋(사용자 지시), 섹션 사이 헤어라인 구분.
- *  - 마크다운 규칙: '####' 헤딩 = STEP 경계, 헤딩 직후 첫 평문 단락 = 리드(헤더로 분리),
- *    인용구(>) = '유의사항' 콜아웃(step-prose 스코프, globals.css).
- * 콘텐츠 출처는 자체 자료(신뢰 소스) — Prose 와 동일하게 정적 인라인 렌더.
+ *  - 데이터: 2026-09 부터 **CMS STEP 레코드가 원본**이다(content/graduate-requirements.json,
+ *    lib/graduate-requirements.ts). 마크다운 한 덩이를 '####' 헤딩으로 쪼개던 파서는
+ *    이관과 함께 걷어냈다 — STEP 하나 = 레코드 하나(title · lead · body)다.
+ *    body 는 서버에서 정화된 HTML 이고(게시물 bodyFormat:'html' 과 같은 규약),
+ *    그 안의 인용구가 '유의사항' 콜아웃이 된다(step-prose 스코프, globals.css).
+ *  - 번호·앵커 id 는 저장하지 않고 배열 순서에서 계산한다 — 좌측 목차 링크와
+ *    페이지 내 앵커가 여기 계산식 하나에 걸려 있으므로 형식을 바꾸지 마라.
  */
 
-const marked = new Marked({ gfm: true, breaks: false }); // Prose 와 동일 설정
-
-interface StepSection {
-  id: string;
-  num: string;
-  title: string;
-  lead: string | null;
-  html: string;
-}
-
-/** '####' 헤딩 단위 분할 + 헤딩 직후 첫 평문 단락(리스트·표·인용·헤딩이 아닌 줄)을
- *  리드로 분리한다. 리드가 없는 섹션은 헤더에 제목만 남는다. */
-function parseSteps(md: string): StepSection[] {
-  const lines = md.split(/\r?\n/);
-  const cuts: { i: number; text: string }[] = [];
-  lines.forEach((l, i) => {
-    const m = l.match(/^####\s+(.+)$/);
-    if (m) cuts.push({ i, text: m[1].trim() });
-  });
-
-  return cuts.map((c, k) => {
-    const end = k + 1 < cuts.length ? cuts[k + 1].i : lines.length;
-    const body = lines.slice(c.i + 1, end);
-
-    // 리드 추출 — 첫 비공백 줄부터 이어지는 평문 줄 묶음(빈 줄·블록 요소 전까지)
-    let lead: string | null = null;
-    let s = 0;
-    while (s < body.length && body[s].trim() === '') s++;
-    if (s < body.length && !/^[-|>#*]/.test(body[s].trim())) {
-      const leadLines: string[] = [];
-      let e = s;
-      while (e < body.length && body[e].trim() !== '' && !/^[-|>#*]/.test(body[e].trim())) {
-        leadLines.push(body[e].trim());
-        e++;
-      }
-      lead = leadLines.join(' ');
-      body.splice(0, e);
-    }
-
-    return {
-      id: `grad-step-${k + 1}`,
-      num: String(k + 1).padStart(2, '0'),
-      title: c.text,
-      lead,
-      // 신뢰된 자체 콘텐츠(정적 빌드 시 인라인) — Prose 와 동일
-      html: marked.parse(body.join('\n').trim()) as string,
-    };
-  });
-}
-
-export function GraduateRequirementSteps({ markdown }: { markdown: string }) {
-  const sections = parseSteps(markdown);
+export function GraduateRequirementSteps({ steps }: { steps: GraduateRequirementStep[] }) {
+  const sections = steps.map((s, i) => ({
+    id: `grad-step-${i + 1}`,
+    num: String(i + 1).padStart(2, '0'),
+    title: s.title,
+    lead: s.lead,
+    html: s.body,
+  }));
 
   return (
     // tab(700px)+: 좌측 레일 그리드 — 아이패드 미니·갤럭시 탭 세로에서도 PC 레이아웃(사용자 지시)

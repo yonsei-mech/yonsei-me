@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { GraduateRequirementSteps } from '@/components/GraduateRequirementSteps';
-import { getPageMarkdownRuntime } from '@/lib/content-runtime';
+import { getGraduateRequirementsRuntime } from '@/lib/content-runtime';
 import { SectionTabPage, sectionTabMetadata } from '../../_shared/section-tabs';
 
 // 콘텐츠 소스 전환(Stage A): 본문이 데이터 레이어를 읽는다 — ISR 안전망
@@ -18,7 +18,8 @@ export async function generateMetadata({
 /**
  * 졸업 요건 — STEP 스크롤 문법: 좌측 sticky 단계 목차(스크롤스파이) +
  * 좌우 교대 STEP 헤더 + 유의사항 콜아웃 (나열식 EditorialProse 대체).
- * 마크다운은 Prose 가 아니라 GraduateRequirementSteps 가 직접 해석한다.
+ * 2026-09 부터 원본은 마크다운 한 덩이가 아니라 STEP 레코드 배열이다
+ * (content/graduate-requirements.json — CMS 가 STEP 하나씩 고친다).
  */
 export default async function GraduateRequirementsPage({
   params,
@@ -26,11 +27,11 @@ export default async function GraduateRequirementsPage({
   params: { locale: string };
 }) {
   setRequestLocale(params.locale);
-  const requirementsMarkdown = (await getPageMarkdownRuntime('graduate-requirements')) ?? '';
+  const steps = await getGraduateRequirementsRuntime();
 
   return (
     <SectionTabPage locale={params.locale} section="graduate" tab="requirements">
-      <GraduateRequirementSteps markdown={requirementsMarkdown} />
+      <GraduateRequirementSteps steps={steps} />
     </SectionTabPage>
   );
 }

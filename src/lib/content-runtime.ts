@@ -59,6 +59,12 @@ import type { PopupDesktopPosition, PopupMobilePosition } from '@/lib/popup-posi
 import heroSlidesJson from '@content/hero-slides.json';
 // 장학금 — 2026-08 마크다운 표에서 구조화 전환(폴백 스냅샷).
 import scholarshipsJson from '@content/scholarships.json';
+// 대학원 졸업요건 STEP — 2026-09 마크다운 한 덩이에서 구조화 전환(폴백 스냅샷).
+import graduateRequirementsJson from '@content/graduate-requirements.json';
+import {
+  adaptGraduateRequirements,
+  type GraduateRequirementStep,
+} from '@/lib/graduate-requirements';
 // 팝업 공지 — 평소에는 빈 배열이다(폴백 스냅샷).
 import popupsJson from '@content/popups.json';
 // BK21 FOUR 참여인력 표 2종 — 2026-09 구 사이트 이미지에서 구조화(폴백 스냅샷).
@@ -279,6 +285,17 @@ export interface ScholarshipRecord {
 export async function getScholarshipsRuntime(): Promise<ScholarshipRecord[]> {
   const raw = await getManagedJson<ScholarshipRecord[]>(MANAGED_FILES.scholarships);
   return raw ?? scholarshipsJson;
+}
+
+/** 대학원 졸업요건 STEP — 배열 순서가 STEP 번호이자 좌측 목차 순서다(정렬 없음).
+ *  스키마와 규약은 lib/graduate-requirements.ts 가 단일 출처. 어댑터를 양쪽 경로에
+ *  모두 태워 소스와 무관하게 같은 모양만 나가게 한다.
+ *  스냅샷으로 떨어지는 경우는 둘뿐이다: DB 조회·파싱 실패(getManagedJson 이 null)와
+ *  배열이 아닌 값(형태가 깨진 저장 — curriculumMap 과 같은 가드). **빈 배열은 폴백하지
+ *  않는다** — 관리자가 STEP 을 전부 지운 것과 데이터가 없는 것을 구별해야 한다. */
+export async function getGraduateRequirementsRuntime(): Promise<GraduateRequirementStep[]> {
+  const raw = await getManagedJson<unknown>(MANAGED_FILES.graduateRequirements);
+  return adaptGraduateRequirements(Array.isArray(raw) ? raw : graduateRequirementsJson);
 }
 
 /** content/bk21-early-career.json 한 줄 — BK21 신진연구인력 구분별 인원.

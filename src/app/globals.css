@@ -545,6 +545,16 @@
   .prose-content.step-prose blockquote p {
     @apply m-0 max-w-none text-base leading-relaxed text-content;
   }
+  /* 요건 표의 머리행·행 라벨은 한 줄로 — 이 탭의 표는 '숫자 매트릭스'라(학점·영어
+     점수) 라벨이 접히면 행이 통째로 부풀어 모바일에서 표가 세로로 길어진다
+     (390px 실측: 3행 표가 740px). 넘치는 폭은 .prose-content table 의
+     overflow-x-auto 가 이미 가로 스크롤로 받으므로 잘리지 않는다.
+     ⚠️ 격자 표 전역의 `white-space: inherit`(줄바꿈 허용)은 사용자 지정이므로
+     건드리지 않는다 — 이 탭에서만 되살리는 것이 요점이다. */
+  .prose-content.step-prose table[data-border] th,
+  .prose-content.step-prose table[data-border] td:first-child {
+    white-space: nowrap;
+  }
 
   /* =========================================================
      동문 인터뷰 본문(.prose-interview) — 인터뷰 상세 페이지 래퍼와 CMS 편집 영역

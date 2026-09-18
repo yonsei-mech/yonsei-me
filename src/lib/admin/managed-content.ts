@@ -31,6 +31,11 @@ export const MANAGED_FILES = {
   // 장학금 — 2026-08 마크다운 표(content/pages/undergraduate-scholarship.md)에서 전환.
   // 섹션·5열(장학금명/추천기준/선발인원/장학금액/선발시기)이 그대로 레코드가 됐다.
   scholarships: 'content/scholarships.json',
+  // 대학원 졸업요건 — 2026-09 마크다운 한 덩이(content/pages/graduate-requirements.md)에서
+  // 전환. 원본은 이제 STEP 레코드 배열이다: 화면이 '####' 헤딩을 파싱해 STEP 을 나누던
+  // 규칙(컴포넌트 안에만 있던 문법)을 필드로 승격시켜, STEP 하나씩 고칠 수 있게 했다.
+  // 본문(body)은 마크다운이 아니라 **정화된 HTML**(게시물 bodyFormat:'html' 과 같은 규약).
+  graduateRequirements: 'content/graduate-requirements.json',
   // 팝업 공지 — 게재 기간 안에만 사이트에 뜨는 사진 팝업(레이어)·상단 배너.
   // 기간·기기·페이지 판정은 클라이언트가 한다(정적 페이지는 종료일에 다시 그려지지
   // 않으므로 서버에서 걸러 내면 끝난 팝업이 남는다 — PopupNotice 주석 참고).
