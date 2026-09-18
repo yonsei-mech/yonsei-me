@@ -4,6 +4,7 @@ import { LabList } from '@/components/LabList';
 import { pick } from '@/lib/content';
 import { type ResearchField } from '@/lib/faculty';
 import { getLabsDirectoryRuntime, getLabSummariesRuntime } from '@/lib/content-runtime';
+import { buildLabBrochure } from '@/lib/lab-brochure';
 import { SectionTabPage, sectionTabMetadata } from '../../_shared/section-tabs';
 import galleryData from '@content/research-gallery.json';
 import type { Locale } from '@/i18n/routing';
@@ -52,9 +53,12 @@ export default async function ResearchLabsPage({ params }: { params: { locale: s
     ]),
   );
 
+  // 연구실 소개자료(구 사이트 사이드바 PDF) — 쪽 ↔ 연구실 조인과 로케일 해석을 서버에서 끝낸다
+  const brochure = buildLabBrochure(labs, locale);
+
   return (
     <SectionTabPage locale={params.locale} section="research" tab="labs">
-      <LabList items={labs} fieldIntros={fieldIntros} summaries={labSummaries} />
+      <LabList items={labs} fieldIntros={fieldIntros} summaries={labSummaries} brochure={brochure} />
     </SectionTabPage>
   );
 }

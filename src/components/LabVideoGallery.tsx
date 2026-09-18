@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { FieldBarTabs } from '@/components/FieldBarTabs';
+import { LabBrochureEntry, useLabBrochureViewer } from '@/components/LabBrochure';
 import { cn } from '@/lib/utils';
 import { RESEARCH_FIELDS, type ResearchField } from '@/lib/research-fields';
 import { isVideoFileUrl } from '@/lib/video-url';
 import type { LabDirectoryEntry } from '@/lib/faculty';
+import type { LabBrochure } from '@/lib/lab-brochure';
 import type { Locale } from '@/i18n/routing';
 
 /**
@@ -18,6 +20,8 @@ import type { Locale } from '@/i18n/routing';
  * (라이트박스는 createPortal 로 body 직속 렌더 — 탭 패널의 anim-panel 이 남기는
  *  transform 이 fixed 의 기준을 가로채 오버레이가 그리드 안에 갇히는 문제 방지.)
  * 데이터는 content/labs-directory.json → getLabsDirectory() 를 통해 주입받는다.
+ * 탭 이름의 "소개 자료" 쪽은 연구실 소개자료(구 사이트 PDF) 모아보기 띠 + 카드별
+ * "소개자료" 링크가 맡는다(@/components/LabBrochure — /research/labs 와 같은 뷰어).
  */
 
 /** 영상 제공처 구분 — 배지 라벨과 재생 방식(iframe/video)이 서로 다르다 */
@@ -81,9 +85,20 @@ type Filter = 'all' | ResearchField;
 
 const PAGE_SIZE = 9;
 
-export function LabVideoGallery({ items, locale }: { items: LabDirectoryEntry[]; locale: Locale }) {
+export function LabVideoGallery({
+  items,
+  locale,
+  brochure,
+}: {
+  items: LabDirectoryEntry[];
+  locale: Locale;
+  /** 연구실 소개자료(서버에서 로케일 해석·조인 완료). 없으면 모아보기 띠·카드 링크를 그리지 않는다. */
+  brochure?: LabBrochure;
+}) {
   const ko = locale === 'ko';
   const t = useTranslations('research');
+  // 모아보기 띠와 카드마다의 "소개자료" 링크가 같은 뷰어 하나를 연다(LabList 와 같은 구성)
+  const brochureViewer = useLabBrochureViewer(brochure);
   const [filter, setFilter] = useState<Filter>('all');
   const [page, setPage] = useState(1);
   const [active, setActive] = useState<ActiveVideo | null>(null);
@@ -158,6 +173,9 @@ export function LabVideoGallery({ items, locale }: { items: LabDirectoryEntry[];
         )}
       </p>
 
+      {/* 연구실 소개자료 모아보기 — 영상과 짝을 이루는 "소개 자료" 쪽 입구(탭 이름 그대로) */}
+      {brochure && <LabBrochureEntry brochure={brochure} onOpen={brochureViewer.open} />}
+
       {/* 분야 필터 — 연구실 목록(/research/labs)과 같은 6분야 탭을 공유한다 */}
       <FieldBarTabs
         active={filter}
@@ -176,15 +194,23 @@ export function LabVideoGallery({ items, locale }: { items: LabDirectoryEntry[];
         key={`${filter}-${current}`}
         className="anim-panel grid gap-6 sm:grid-cols-2 xl:grid-cols-3"
       >
-        {pageItems.map((lab, i) => (
-          <LabVideoCard
-            key={lab.nameKo + lab.professorKo}
-            lab={lab}
-            locale={locale}
-            index={i}
-            onPlay={setActive}
-          />
-        ))}
+        {pageItems.map((lab, i) => {
+          const brochureIndex = brochureViewer.indexOf(lab.professorKo);
+          return (
+            <LabVideoCard
+              key={lab.nameKo + lab.professorKo}
+              lab={lab}
+              locale={locale}
+              index={i}
+              onPlay={setActive}
+              onOpenBrochure={
+                brochureIndex === undefined
+                  ? undefined
+                  : (trigger) => brochureViewer.open(brochureIndex, trigger)
+              }
+            />
+          );
+        })}
       </div>
 
       {/* 페이지네이션 */}
@@ -228,6 +254,9 @@ export function LabVideoGallery({ items, locale }: { items: LabDirectoryEntry[];
 
       {/* 풀스크린 재생 라이트박스 — 열려 있는 동안만 마운트 */}
       {active && <VideoLightbox active={active} locale={locale} onClose={() => setActive(null)} />}
+
+      {/* 소개자료 뷰어 — 열려 있을 때만 body 포털로 뜬다 */}
+      {brochureViewer.viewer}
     </div>
   );
 }
@@ -242,13 +271,17 @@ function LabVideoCard({
   locale,
   index,
   onPlay,
+  onOpenBrochure,
 }: {
   lab: LabDirectoryEntry;
   locale: Locale;
   index: number;
   onPlay: (a: ActiveVideo) => void;
+  /** 소개자료에서 이 연구실 쪽을 여는 콜백. 쪽이 없는 연구실이면 링크를 그리지 않는다. */
+  onOpenBrochure?: (trigger: HTMLElement) => void;
 }) {
   const ko = locale === 'ko';
+  const t = useTranslations('research');
   const parsed = parseVideo(lab.video, lab.videoPoster);
   // 썸네일 로드 실패 시 lab.image로, 그것도 없으면 그라디언트 배경으로 폴백
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -342,15 +375,37 @@ function LabVideoCard({
         <h3 className="text-base font-bold leading-snug text-content">{name}</h3>
         <p className="text-sm text-content-soft">{professor}</p>
         <p className="text-xs text-content-faint">{lab.location}</p>
-        {lab.url && (
-          <a
-            href={lab.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block pt-1 text-sm font-medium text-yonsei-blue underline-offset-2 hover:underline"
-          >
-            {ko ? '홈페이지 ↗' : 'Website ↗'}
-          </a>
+        {/* 카드 하단 링크 줄 — [소개자료] · [홈페이지 ↗]. 소개자료는 페이지 이동이 아니라
+            뷰어를 여는 버튼이지만, 줄 안에서 한 묶음으로 읽히도록 링크와 같은 모양으로 둔다. */}
+        {(onOpenBrochure || lab.url) && (
+          <div className="flex flex-wrap items-center pt-1 text-sm">
+            {onOpenBrochure && (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-label={t('brochure.labButtonAria', { lab: name })}
+                onClick={(e) => onOpenBrochure(e.currentTarget)}
+                className="font-medium text-yonsei-blue underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yonsei-blue"
+              >
+                {t('brochure.labButton')}
+              </button>
+            )}
+            {onOpenBrochure && lab.url && (
+              <span aria-hidden="true" className="mx-2 text-content-faint">
+                ·
+              </span>
+            )}
+            {lab.url && (
+              <a
+                href={lab.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-yonsei-blue underline-offset-2 hover:underline"
+              >
+                {ko ? '홈페이지 ↗' : 'Website ↗'}
+              </a>
+            )}
+          </div>
         )}
       </div>
     </article>

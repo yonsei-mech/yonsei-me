@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { LabVideoGallery } from '@/components/LabVideoGallery';
 import { getLabsDirectoryRuntime } from '@/lib/content-runtime';
+import { buildLabBrochure } from '@/lib/lab-brochure';
 import { SectionTabPage, sectionTabMetadata } from '../../_shared/section-tabs';
 import type { Locale } from '@/i18n/routing';
 
@@ -20,10 +21,13 @@ export async function generateMetadata({
 export default async function GraduateLabsPage({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
   const labs = await getLabsDirectoryRuntime();
+  const locale = params.locale as Locale;
+  // 연구실 소개자료 — /research/labs 와 같은 문서·같은 뷰어(쪽 조인은 서버에서)
+  const brochure = buildLabBrochure(labs, locale);
 
   return (
     <SectionTabPage locale={params.locale} section="graduate" tab="labs">
-      <LabVideoGallery items={labs} locale={params.locale as Locale} />
+      <LabVideoGallery items={labs} locale={locale} brochure={brochure} />
     </SectionTabPage>
   );
 }

@@ -6,8 +6,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { AiSummaryPanel, AiSummaryToggle, useAiSummaryTyping } from '@/components/AiResearchSummary';
 import { FieldBarTabs } from '@/components/FieldBarTabs';
+import { LabBrochureButton, LabBrochureEntry, useLabBrochureViewer } from '@/components/LabBrochure';
 import { RESEARCH_FIELDS, type ResearchField } from '@/lib/research-fields';
 import type { LabDirectoryEntry } from '@/lib/faculty';
+import type { LabBrochure } from '@/lib/lab-brochure';
 
 /** 분야 탭 표시 순서 (research.fieldFilter 메시지 키와 동일) */
 const FIELDS: ResearchField[] = RESEARCH_FIELDS;
@@ -42,6 +44,7 @@ function LabRow({
   image,
   index,
   summary,
+  onOpenBrochure,
 }: {
   lab: LabDirectoryEntry;
   /** 연구실 이미지(없으면 호출부가 더미를 골라 넘긴다) */
@@ -50,6 +53,8 @@ function LabRow({
   index: number;
   /** 로케일 해석이 끝난 AI 요약문. 없으면 버튼 자체를 그리지 않는다. */
   summary?: string;
+  /** 소개자료에서 이 연구실 쪽을 여는 콜백. 쪽이 없는 연구실이면 버튼을 그리지 않는다. */
+  onOpenBrochure?: (trigger: HTMLElement) => void;
 }) {
   const t = useTranslations('research');
   const locale = useLocale();
@@ -116,9 +121,10 @@ function LabRow({
           ) : null}
         </dl>
 
-        {/* 액션 — 시안 순서대로 'AI 연구요약'이 먼저, '바로가기 ↗' 보더 버튼이 다음.
-            aria-label 로 연구실명을 붙여 목록의 버튼들을 스크린리더에서 구분한다. */}
-        {(summary || lab.url) && (
+        {/* 액션 — 시안 순서대로 'AI 연구요약'이 먼저, '소개자료'(학부 소개 책자의 이 연구실
+            쪽), '바로가기 ↗' 보더 버튼 순. aria-label 로 연구실명을 붙여 목록의 버튼들을
+            스크린리더에서 구분한다. */}
+        {(summary || onOpenBrochure || lab.url) && (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {summary && (
               <AiSummaryToggle
@@ -130,6 +136,7 @@ function LabRow({
                 size="sm"
               />
             )}
+            {onOpenBrochure && <LabBrochureButton labName={lab.nameKo} onOpen={onOpenBrochure} />}
             {lab.url && (
               <a
                 href={lab.url}
@@ -181,7 +188,8 @@ function LabRow({
 /**
  * 연구실 목록 — 나열식 표를 버리고 연구실별 특색이 드러나는 에디토리얼 행으로 개편.
  *
- * 구성: [분야 필터 탭(활성 위·아래 바)] → [특정 분야 선택 시 분야 인트로: 제목 +
+ * 구성: [소개자료 모아보기 띠(brochure 가 있을 때)] → [분야 필터 탭(활성 위·아래 바)] →
+ * [특정 분야 선택 시 분야 인트로: 제목 +
  * 설명 패널 + 대표 이미지 배너(fieldIntros, research-gallery.json 재사용)] →
  * [연구실 행: 좌 = 큰 이름·영문·(소개문단)·라벨 메타(지도교수/분야/위치/연락처)·
  * AI 연구요약·바로가기 버튼 / 우 = 연구실 이미지(없으면 더미 3장 순환) /
@@ -195,14 +203,19 @@ export function LabList({
   items,
   fieldIntros = [],
   summaries = {},
+  brochure,
 }: {
   items: LabDirectoryEntry[];
   fieldIntros?: LabFieldIntro[];
   /** AI 연구요약 — 지도교수 한글 이름 → 로케일 해석이 끝난 문장(서버에서 주입).
    *  한/영 양쪽을 클라이언트 번들에 싣지 않으려고 페이지가 한쪽만 골라 넘긴다. */
   summaries?: Record<string, string>;
+  /** 연구실 소개자료(서버에서 로케일 해석·조인 완료). 없으면 모아보기 띠·행 버튼을 그리지 않는다. */
+  brochure?: LabBrochure;
 }) {
   const t = useTranslations('research');
+  // 모아보기 띠와 행마다의 "소개자료" 버튼이 같은 뷰어 하나를 연다 — 상태는 목록이 든다
+  const brochureViewer = useLabBrochureViewer(brochure);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [internOnly, setInternOnly] = useState(false);
@@ -243,6 +256,9 @@ export function LabList({
 
   return (
     <div>
+      {/* 연구실 소개자료 모아보기 — 필터·검색과 무관한 문서 전체 입구라 맨 위에 둔다 */}
+      {brochure && <LabBrochureEntry brochure={brochure} onOpen={brochureViewer.open} className="mb-10" />}
+
       {/* 분야 필터 — 활성 항목 위·아래 굵은 바(레퍼런스 디자인) */}
       <div className="mb-8">
         <FieldBarTabs
@@ -340,17 +356,28 @@ export function LabList({
       ) : (
         /* key 로 필터 전환 시 행들을 리마운트해 스태거 등장을 재트리거한다. */
         <ul key={`list-${filter}`}>
-          {visible.map((lab, i) => (
-            <LabRow
-              key={lab.nameKo}
-              lab={lab}
-              image={lab.image ?? FALLBACK_IMAGES[i % FALLBACK_IMAGES.length]}
-              index={i}
-              summary={summaries[lab.professorKo]}
-            />
-          ))}
+          {visible.map((lab, i) => {
+            const brochureIndex = brochureViewer.indexOf(lab.professorKo);
+            return (
+              <LabRow
+                key={lab.nameKo}
+                lab={lab}
+                image={lab.image ?? FALLBACK_IMAGES[i % FALLBACK_IMAGES.length]}
+                index={i}
+                summary={summaries[lab.professorKo]}
+                onOpenBrochure={
+                  brochureIndex === undefined
+                    ? undefined
+                    : (trigger) => brochureViewer.open(brochureIndex, trigger)
+                }
+              />
+            );
+          })}
         </ul>
       )}
+
+      {/* 소개자료 뷰어 — 열려 있을 때만 body 포털로 뜬다 */}
+      {brochureViewer.viewer}
     </div>
   );
 }

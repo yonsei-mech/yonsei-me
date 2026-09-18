@@ -36,16 +36,52 @@
 `https://devcms.yonsei.ac.kr/cms/resFileDownload.do?siteId=me&type=etc&fileName=labs.pdf`
 (<https://me.yonsei.ac.kr/me/graduate/labs.do> 의 "연구실 소개자료")
 
-**35쪽**이고 3~34쪽에 연구실당 한 쪽씩 `Research Area` 슬라이드가 실려 있습니다. 접근 불가였던
-6곳을 이걸로 전부 메웠습니다. 텍스트 레이어가 있어 `pdftotext -enc UTF-8` 로 추출됩니다
-(이 환경엔 `pdftoppm` 이 없어 페이지 렌더링은 안 되지만 텍스트 추출은 됩니다).
+**35쪽**이고 1쪽 표지, **2~34쪽에 연구실당 한 쪽씩**(33곳 전부) `Research Area` 슬라이드,
+35쪽 'Thank you' 입니다. 접근 불가였던 6곳을 이걸로 전부 메웠습니다. 대부분 쪽은 텍스트 레이어가
+있어 `pdftotext -enc UTF-8` 로 추출됩니다. 쪽 이미지는 아래 '연구실 소개자료 뷰어' 의
+`build-brochure.mjs` 로 굽습니다(pdfjs 렌더링 — `pdftoppm` 불필요).
 
 한계:
-- **강건욱**(전산재료역학) 연구실만 이 PDF에 없습니다.
-- **민경민**(14쪽)·**이형석**(26쪽)은 텍스트 레이어가 없어 추출되지 않습니다 — 두 곳 모두
-  홈페이지 수집분이 이미 충분해 문제되지 않았습니다.
+- **강건욱**(2쪽)·**김용준**(8쪽)은 텍스트 레이어가 없는 이미지 쪽이라 텍스트 추출로는 아무것도
+  나오지 않습니다. ⚠️ 예전 이 문서는 "강건욱 연구실만 PDF에 없다"고 적었는데 **틀렸습니다** —
+  텍스트 추출 결과만 보고 내린 오판이고, 2쪽에 실려 있습니다(렌더링으로 확인).
+- **민경민**(14쪽)은 텍스트 레이어가 있지만 글꼴 매핑이 깨져 판독 불가, **이형석**(26쪽)은 이름
+  석 자만 텍스트입니다. 이 네 곳 모두 홈페이지 수집분이 이미 충분해 문제되지 않았습니다.
 - 슬라이드라 그림 캡션이 본문과 섞여 나옵니다. **전흥재**(29쪽)는 텍스트가 겹쳐 추출돼 일부
   문장이 뒤섞였고, 판독 가능한 항목만 옮겼습니다.
+
+## 연구실 소개자료 뷰어 — `build-brochure.mjs`
+
+구 사이트의 "연구실 소개자료" 버튼(위 PDF 32MB 통째 다운로드)을 새 사이트에선 **사이트 안 이미지
+뷰어**로 되살립니다. 이 스크립트는 그 뷰어가 쓰는 쪽 이미지를 굽고, 원본 PDF 를 R2 에 올립니다.
+
+- **원본**: <https://devcms.yonsei.ac.kr/cms/resFileDownload.do?siteId=me&type=etc&fileName=labs.pdf>
+  (35쪽, 32,191,417B, 쪽마다 870×630pt 가로형)
+- **쪽↔교수 대응은 `content/lab-brochure.json` 이 단일 출처**입니다(`cover: 1`, `pages[]` 에
+  `{page, professorKo}` 33건, 출력 경로 `imageBase`). 스크립트는 이 JSON 을 읽기만 하고, 여기
+  적힌 표지 + 쪽만 굽습니다(35쪽 'Thank you' 는 제외).
+
+```bash
+node tools/labs/build-brochure.mjs render     --pdf "<labs.pdf 경로>" [--force]
+node tools/labs/build-brochure.mjs check      --pdf "<labs.pdf 경로>"
+node tools/labs/build-brochure.mjs upload-pdf --pdf "<labs.pdf 경로>" [--apply]   # 기본 드라이런
+```
+
+| 명령 | 하는 일 | 산출물 |
+|---|---|---|
+| `render` | 쪽마다 1740px 로 한 번 그려 본 이미지·썸네일 두 벌을 뽑는다. 있는 파일은 건너뜀(`--force` 로 다시) | `public/img/labs/brochure/pNN.webp`(폭 1740, q78) · `…/thumb/pNN.webp`(폭 360, q70) |
+| `check` | 쪽마다 교수 이름·첫 이메일을 텍스트 레이어에서 찾아 `faculty-directory.json` 과 대조. 항상 exit 0 | 콘솔 표만 |
+| `upload-pdf` | 원본 PDF 를 R2 `uploads/legacy/labs/labs-brochure-v1.pdf` 에 올린다(immutable 캐시, 이미 있으면 생략) | 공개 URL → `content/lab-brochure.json` 의 `pdf.url` 에 붙여 넣기 |
+
+실측(2026-09-18): 34장 본 이미지 6.40MB(장당 82~254KB) + 썸네일 0.62MB(7~25KB).
+`check` 는 이메일 28/28 일치, 텍스트로 확인 못 하는 5쪽(2·8·14·26·33)은 렌더링 이미지로 눈 확인 완료.
+
+**새 판이 오면**
+1. 새 PDF 를 받아 `check` 부터 돌린다 — 쪽이 밀렸으면 `content/lab-brochure.json` 의 `pages[]`
+   (쪽↔교수)와 `pdf.bytes`·`pdf.pageCount` 를 고친다. 텍스트 레이어 없는 쪽은 썸네일을 눈으로 본다.
+2. `render --force` 로 전 쪽을 다시 굽는다(빠진 교수의 `pNN.webp` 는 지운다).
+3. 스크립트의 `PDF_VERSION` 을 `v2` 로 올리고 `upload-pdf --apply` → 새 URL 을 `pdf.url` 에 넣는다.
+   R2 객체는 immutable 캐시라 **같은 키(v1)에 덮어쓰면 옛 파일이 계속 서빙**된다.
 
 ## 수집할 때 걸린 함정
 
