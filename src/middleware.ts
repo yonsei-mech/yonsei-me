@@ -52,5 +52,5 @@ export default auth((req) => {
 export const config = {
   // 내부 경로(_next, api)와 정적 파일(점 포함)을 제외한 모든 경로에 적용.
   // api 제외 유지 → /api/auth/* 는 route 핸들러가 직접 처리(미들웨어 우회).
-  matcher: ['/', '/(ko|en)/:path*', '/((?!api|_next|_vercel|.*\\..*).*)'],
+  matcher: ['/', '/(ko|en)/:path*', '/((?!api|_next|.*\\..*).*)'],
 };

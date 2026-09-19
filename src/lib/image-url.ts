@@ -15,7 +15,7 @@ export const IMAGE_OPT_WIDTHS = [640, 750, 828, 1080, 1200, 1920, 2048] as const
 export const IMAGE_OPT_QUALITY = 75;
 
 /** remotePatterns 와 같은 호스트 규칙(와일드카드는 한 레이블만) */
-const OPTIMIZABLE_HOSTS = [/(^|\.)r2\.dev$/, /\.public\.blob\.vercel-storage\.com$/, /\.yonsei\.ac\.kr$/];
+const OPTIMIZABLE_HOSTS = [/(^|\.)r2\.dev$/, /\.yonsei\.ac\.kr$/];
 
 /**
  * 이미지 라우트로 보낼 수 있는 소스인지. 로컬 public 경로('/img/…')와 허용 호스트의

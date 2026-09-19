@@ -25,8 +25,8 @@ const DB_TIMEOUT_MS = 3000;
 type DbState = 'ok' | 'fail' | 'timeout' | 'unconfigured';
 
 // ── 배포 식별자(어느 커밋이 떠 있나) ─────────────────────────────────────
-// Cafe24 는 릴리스 디렉터리(= process.cwd()) 루트에 .release-sha 를 남기고, Vercel 은
-// VERCEL_GIT_COMMIT_SHA 를 준다. 릴리스 중엔 바뀌지 않으니 한 번만 읽는다.
+// Cafe24 는 릴리스 디렉터리(= process.cwd()) 루트에 .release-sha 를 남긴다.
+// 릴리스 중엔 바뀌지 않으니 한 번만 읽는다.
 let releaseCache: string | null | undefined;
 
 function release(): string | null {
@@ -37,9 +37,9 @@ function release(): string | null {
     // 공개 응답에 파일 내용을 그대로 싣지 않도록 SHA 모양일 때만 쓴다
     if (/^[0-9a-f]{7,40}$/i.test(v)) sha = v;
   } catch {
-    // 파일 없음 = Cafe24 릴리스가 아니다(Vercel·로컬)
+    // 파일 없음 = Cafe24 릴리스가 아니다(로컬 dev)
   }
-  releaseCache = sha ?? process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
+  releaseCache = sha;
   return releaseCache;
 }
 

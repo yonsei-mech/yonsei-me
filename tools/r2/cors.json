@@ -2,10 +2,6 @@
   {
     "AllowedOrigins": [
       "http://localhost:3000",
-      "https://yonsei-me.vercel.app",
-      "https://yonsei-me-yonsei-me.vercel.app",
-      "https://yonsei-me-git-main-yonsei-me.vercel.app",
-      "https://yonsei-me-sage.vercel.app",
       "https://me.yonsei.ac.kr",
       "https://aquaelle06.mycafe24.com"
     ],

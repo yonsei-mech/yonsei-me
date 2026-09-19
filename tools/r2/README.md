@@ -34,9 +34,9 @@ node tools/r2/backfill-cache-control.mjs; node tools/r2/backfill-cache-control.m
 preflight 가 403 으로 끊겨 "업로드에 실패했습니다" 가 뜬다. 4MB 이하는 서버 경유
 (`/api/upload-file`)라 CORS 와 무관하다 — 연구실 소개 영상처럼 큰 파일에서만 걸린다.
 
-2026-09-16 실측: 버킷에 허용된 출처는 `http://localhost:3000` 과
-`https://yonsei-me.vercel.app` 둘뿐이었다. `https://me.yonsei.ac.kr`,
-`https://yonsei-me-sage.vercel.app`, `https://aquaelle06.mycafe24.com` 은 preflight 403.
+2026-09-16 실측: 버킷에 허용된 출처는 `http://localhost:3000` 과 당시 Vercel 도메인
+둘뿐이었고, `https://me.yonsei.ac.kr` 과 `https://aquaelle06.mycafe24.com` 은 preflight
+403 이었다. 그 뒤 호스팅이 Cafe24 로 넘어가 Vercel 출처는 전부 제거했다.
 
 ⚠️ 이 설정은 **스크립트로 못 고친다.** 앱이 쓰는 R2 API 토큰에는 버킷 CORS 읽기·쓰기
 권한이 없다(`GetBucketCors` → AccessDenied). Cloudflare 대시보드에서
@@ -52,29 +52,19 @@ preflight 가 403 으로 끊겨 "업로드에 실패했습니다" 가 뜬다. 4M
 | 출처 | 근거 |
 | --- | --- |
 | `http://localhost:3000` | 로컬 개발 |
-| `https://yonsei-me.vercel.app` | `src/lib/site.ts` 의 `SITE_URL` 기본값. 2026-09-16 시점에 이미 허용돼 있던 출처 |
-| `https://yonsei-me-yonsei-me.vercel.app` | Vercel 프로덕션 alias(실측) |
-| `https://yonsei-me-git-main-yonsei-me.vercel.app` | Vercel `main` 브랜치 alias(실측) |
-| `https://yonsei-me-sage.vercel.app` | `.env.example` 의 `REVALIDATE_URLS` 예시에 등장 |
-| `https://me.yonsei.ac.kr` | Vercel 프로젝트에 등록돼 있으나 **아직 미검증**(`_vercel.yonsei.ac.kr` TXT 대기). 도메인이 붙는 순간 필요해진다 |
-| `https://aquaelle06.mycafe24.com` | Cafe24 경유 배포 대상 |
+| `https://me.yonsei.ac.kr` | 정규 도메인. `src/lib/site.ts` 의 `SITE_URL` 기본값 |
+| `https://aquaelle06.mycafe24.com` | 실제 배포 호스트(`.github/workflows/deploy.yml` 의 `DEPLOY_HOST`) |
 
 출처를 넉넉히 넣어도 안전한 이유: 이 CORS 정책은 접근 제어가 아니다. presigned URL 은
 `/api/upload-url` 이 **Auth.js 세션을 확인한 뒤에만** 발급하고(프로덕션), 서명·경로·용량·MIME
 가 모두 서버에서 확정된다. CORS 는 "브라우저가 이 출처에서 교차 출처 PUT 을 보내도 되는가"
 만 정하므로, 목록에 있다고 아무나 올릴 수 있는 것이 아니다.
 
-> 앞선 문서 버전의 예시 JSON 은 `https://yonsei-me.vercel.app` 을 빠뜨리고 있었다. 그대로
-> 붙여 넣었다면 **이미 동작하던 출처가 끊겼을 것**이다. CORS 정책은 병합이 아니라 전체
-> 교체이므로, 항상 `cors.json` 전체를 붙여 넣는다.
+> CORS 정책은 병합이 아니라 **전체 교체**다. 출처를 하나 추가하려고 그것만 붙여 넣으면
+> 나머지가 전부 끊긴다. 항상 `cors.json` 전체를 붙여 넣는다.
 
-### 미리보기 배포는 커버되지 않는다
-
-Vercel 브랜치 미리보기는 `yonsei-me-git-<브랜치>-yonsei-me.vercel.app` 처럼 호스트명이
-브랜치마다 달라지고, 배포별 URL(`yonsei-<해시>-yonsei-me.vercel.app`)은 매 배포 바뀐다.
-이 정책은 고정 출처만 담으므로 **미리보기 배포의 CMS 에서는 4MB 초과 업로드가 실패한다.**
-미리보기에서 대용량 업로드를 검증해야 하면 그 배포 URL 을 일시적으로 추가하거나,
-로컬(`localhost:3000`)에서 확인한다.
+임시 도메인(스테이징·테스트 호스트)에서 대용량 업로드를 검증해야 하면 그 출처를 잠깐
+추가하거나, 로컬(`localhost:3000`)에서 확인한다.
 
 ### wrangler 로 적용하려면
 

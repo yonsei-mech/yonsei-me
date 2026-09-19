@@ -1,6 +1,4 @@
 import type { Metadata } from 'next';
-import { Analytics } from '@vercel/analytics/next';
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import Script from 'next/script';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
@@ -259,31 +257,16 @@ export default async function LocaleLayout({
             <Footer />
           </SiteChrome>
         </NextIntlClientProvider>
-        {/* Vercel Web Analytics — 프로덕션에서만 /_vercel/insights 로 집계(퍼스트파티
-            경로라 광고 차단기에 잘 안 걸린다). 쿠키를 심지 않아 동의 배너가 필요 없다.
-            Speed Insights 는 실사용자 Web Vitals(CWV) 를 같은 방식으로 수집한다.
-            둘 다 /_vercel/* 경로를 Vercel 인프라가 받아 주어야 동작한다 — 자체 호스팅
-            (Cafe24)에서는 그 경로가 없어 스크립트가 404 로 떨어지고 로그만 더럽힌다.
-            VERCEL 은 Vercel 빌드·런타임에서만 주입되는 환경변수라 이 가드 하나로
-            한 코드베이스가 양쪽 호스팅에서 모두 올바르게 동작한다. */}
-        {process.env.VERCEL ? (
-          <>
-            <Analytics />
-            <SpeedInsights />
-          </>
-        ) : null}
-        {/* Cloudflare Web Analytics — 자체 호스팅에는 /_vercel/insights 가 없어 위 두 컴포넌트를
-            쓸 수 없으므로 그 자리(방문 집계 + LCP·INP·CLS 실사용자 지표)를 대신한다. 무료이고
+        {/* Cloudflare Web Analytics — 방문 집계 + LCP·INP·CLS 실사용자 지표. 무료이고
             쿠키·localStorage 를 쓰지 않아 동의 배너가 필요 없으며, 기본값으로 SPA 라우트 전환도
             페이지뷰로 센다. lazyOnload — 페이지 load 뒤 유휴 시간에 받는다. afterInteractive 는
             App Router 에서 이 src 를 HTML 의 <link rel=preload> 로 먼저 받게 해 첫 화면 자원과
             대역폭을 나눠 쓴다(성능개선_2차_계획 의 "전송 순서" 원칙 위반). 늦게 붙어도 LCP·CLS 는
             브라우저가 쌓아 둔(buffered) 성능 기록으로 소급해 잰다.
             토큰은 공개값(페이지 소스에 그대로 보인다)이고 NEXT_PUBLIC_ 이라 빌드 시점에
-            /etc/yonsei_me/env 에서 구워진다. Vercel 에는 이 변수를 두지 않고 VERCEL 가드도
-            걸어, 병행 운영 기간에 두 집계가 겹치지 않는다. 토큰은 등록 호스트명 단위다 —
-            지금은 테스트 도메인 것, 컷오버 때 me.yonsei.ac.kr 토큰으로 바꿔 다시 빌드한다. */}
-        {process.env.NEXT_PUBLIC_CF_BEACON_TOKEN && !process.env.VERCEL ? (
+            /etc/yonsei_me/env 에서 구워진다. 토큰은 등록 호스트명 단위다 — 지금은 테스트
+            도메인 것, 컷오버 때 me.yonsei.ac.kr 토큰으로 바꿔 다시 빌드한다. */}
+        {process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ? (
           <Script
             src="https://static.cloudflareinsights.com/beacon.min.js"
             strategy="lazyOnload"

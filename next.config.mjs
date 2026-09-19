@@ -21,11 +21,9 @@ const nextConfig = {
     // 내용이 바뀌지 않으므로(withRandomSuffix) 30일 보관이 안전하다.
     minimumCacheTTL: 60 * 60 * 24 * 30,
     // CMS 첨부(썸네일 등)는 외부 스토리지에 저장된다 — next/image 는 허용 목록에
-    // 없는 외부 도메인을 거부하므로 열어 준다. R2 퍼블릭 도메인(pub-*.r2.dev)이
-    // 현행이고, Blob 도메인은 과거 업로드 잔존분 호환용(정리 후 제거 예정).
+    // 없는 외부 도메인을 거부하므로 열어 준다. R2 퍼블릭 도메인(pub-*.r2.dev)이 현행.
     remotePatterns: [
       { protocol: 'https', hostname: '*.r2.dev' },
-      { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
       // 현행 학과 사이트에서 옮겨 온 게시물은 썸네일·본문 이미지를 미러링하지 않고
       // 원본 URL 을 그대로 가리킨다. 이 항목이 없으면 뉴스 목록·홈 캐러셀의
       // next/image 가 전부 400 으로 떨어진다.
